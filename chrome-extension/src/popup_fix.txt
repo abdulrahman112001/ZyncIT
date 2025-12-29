@@ -1,0 +1,79 @@
+// New loadCalls function
+async function loadCalls() {
+  if (!currentUser) return;
+
+  // Get all devices for this user
+  const devicesSnapshot = await getDocs(query(
+    collection(db, 'devices'),
+    where('userId', '==', currentUser.uid),
+  ));
+  
+  // Subscribe to calls from each device
+  devicesSnapshot.forEach(deviceDoc => {
+    const deviceId = deviceDoc.id;
+    const q = query(
+      collection(db, 'calls', deviceId, 'calls'),
+      orderBy('timestamp', 'desc'),
+      limit(50),
+    );
+
+    const unsub = onSnapshot(q, snapshot => {
+      const calls = [];
+      snapshot.forEach(doc => {
+        calls.push({ id: doc.id, deviceId: deviceId, ...doc.data() });
+      });
+      updateCallsList(deviceId, calls);
+    });
+
+    unsubscribers.push(unsub);
+  });
+}
+
+let allCallsData = {};
+function updateCallsList(deviceId, newCalls) {
+  allCallsData[deviceId] = newCalls;
+  let merged = [];
+  Object.values(allCallsData).forEach(c => merged = merged.concat(c));
+  merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  renderCalls(merged.slice(0, 100));
+}
+
+// New loadSMS function
+async function loadSMS() {
+  if (!currentUser) return;
+
+  // Get all devices for this user
+  const devicesSnapshot = await getDocs(query(
+    collection(db, 'devices'),
+    where('userId', '==', currentUser.uid),
+  ));
+  
+  // Subscribe to sms from each device
+  devicesSnapshot.forEach(deviceDoc => {
+    const deviceId = deviceDoc.id;
+    const q = query(
+      collection(db, 'sms', deviceId, 'sms'),
+      orderBy('timestamp', 'desc'),
+      limit(50),
+    );
+
+    const unsub = onSnapshot(q, snapshot => {
+      const messages = [];
+      snapshot.forEach(doc => {
+        messages.push({ id: doc.id, deviceId: deviceId, ...doc.data() });
+      });
+      updateSMSList(deviceId, messages);
+    });
+
+    unsubscribers.push(unsub);
+  });
+}
+
+let allSMSData = {};
+function updateSMSList(deviceId, newMessages) {
+  allSMSData[deviceId] = newMessages;
+  let merged = [];
+  Object.values(allSMSData).forEach(m => merged = merged.concat(m));
+  merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  renderSMS(merged.slice(0, 100));
+}

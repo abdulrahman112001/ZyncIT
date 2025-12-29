@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "772958487002",
+    "project_id": "zyncit-f1ced",
+    "storage_bucket": "zyncit-f1ced.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:772958487002:android:7ec8e7be089ea3baec40e3",
+        "android_client_info": {
+          "package_name": "com.zyncit"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "772958487002-cs178nsvp3qh9bdl7qk7jmsvleesjcm7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMqENmothJXy6XrP7214d0c6ILsOdqtcs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "772958487002-cs178nsvp3qh9bdl7qk7jmsvleesjcm7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,4 +1,4 @@
-package com.zyncit
+﻿package com.zyncit
 
 import android.app.Application
 import com.facebook.react.PackageList
@@ -15,7 +15,10 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           // Packages that cannot be autolinked yet can be added manually here, for example:
-          // add(MyReactNativePackage())
+          add(NotificationPackage())
+          add(CallLogPackage())
+          add(SmsPackage())
+          add(UserCredentialsPackage())
         },
     )
   }
@@ -25,3 +28,4 @@ class MainApplication : Application(), ReactApplication {
     loadReactNative(this)
   }
 }
+

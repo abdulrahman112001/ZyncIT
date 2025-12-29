@@ -1,0 +1,200 @@
+﻿import React from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  Linking,
+  Alert,
+  ScrollView,
+} from 'react-native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList, CallLog } from '../../types';
+import { useTheme } from '../../contexts/ThemeContext';
+
+type CallDetailRouteProp = RouteProp<RootStackParamList, 'CallDetail'>;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const CallDetailScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<CallDetailRouteProp>();
+  const { call } = route.params;
+  const { isRTL, t, isDarkMode } = useTheme();
+
+  // Dynamic colors based on theme
+  const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
+  const textColor = isDarkMode ? '#FFFFFF' : '#000000';
+  const secondaryTextColor = isDarkMode ? '#8E8E93' : '#6C6C70';
+  const surfaceColor = isDarkMode ? '#1C1C1E' : '#F2F2F7';
+  const cardColor = isDarkMode ? '#2C2C2E' : '#FFFFFF';
+  const avatarBgColor = isDarkMode ? '#4a4a6a' : '#C7C7CC';
+  const borderColor = isDarkMode ? '#3A3A3C' : '#E5E5EA';
+
+  const getInitials = (name: string) => {
+    if (!name) return '?';
+    const words = name.trim().split(' ');
+    if (words.length >= 2) {
+      return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const formatDateTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    const timeStr = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    if (isToday) {
+      return `Today آ· ${timeStr}`;
+    }
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      return `Yesterday آ· ${timeStr}`;
+    }
+
+    return `${date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    })} آ· ${timeStr}`;
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (seconds === 0) return '';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins === 0) return `${secs}s`;
+    return `${mins}m ${secs}s`;
+  };
+
+  const getCallTypeLabel = (type: CallLog['type']) => {
+    switch (type) {
+      case 'incoming':
+        return 'Incoming Call';
+      case 'outgoing':
+        return 'Outgoing Call';
+      case 'missed':
+        return 'Missed Call';
+      case 'rejected':
+        return 'Cancelled Call';
+      default:
+        return 'Call';
+    }
+  };
+
+  const handleCall = () => {
+    const phoneNumber = call.phoneNumber;
+    Linking.openURL(`tel:${phoneNumber}`).catch(() => {
+      Alert.alert('Error', 'Unable to make call');
+    });
+  };
+
+  const handleMessage = () => {
+    const phoneNumber = call.phoneNumber;
+    Linking.openURL(`sms:${phoneNumber}`).catch(() => {
+      Alert.alert('Error', 'Unable to open messages');
+    });
+  };
+
+  const handleVideo = () => {
+    Alert.alert('Video Call', 'Video calling feature coming soon');
+  };
+
+  const handleEmail = () => {
+    Alert.alert('Email', 'No email address available for this contact');
+  };
+
+  const displayName = call.contactName || call.phoneNumber;
+
+  return (
+    <View style={[styles.container, { backgroundColor: bgColor }]}>
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={bgColor} />
+
+      {/* Header with gradient background */}
+      <View style={[styles.headerGradient, { backgroundColor: isDarkMode ? '#1a1a2e' : '#E8E8ED' }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={[styles.backIcon, { color: isDarkMode ? '#0A84FF' : '#007AFF' }]}>â€¹</Text>
+          <Text style={[styles.backText, { color: isDarkMode ? '#0A84FF' : '#007AFF' }]}>{isRTL ? 'ط§ظ„ظ…ظƒط§ظ„ظ…ط§طھ' : 'Calls'}</Text>
+        </TouchableOpacity>
+
+        {/* Large Avatar */}
+        <View style={styles.avatarContainer}>
+          <View style={[styles.avatar, { backgroundColor: avatarBgColor }]}>
+            <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
+          </View>
+        </View>
+
+        {/* Contact Name */}
+        <Text style={[styles.contactName, { color: textColor }]}>{displayName}</Text>
+
+        {/* Action Buttons */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleMessage}>
+            <View style={[styles.actionIconContainer, { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' }]}>
+              <Text style={styles.actionIcon}>ًں’¬</Text>
+            </View>
+            <Text style={styles.actionLabel}>
+              {isRTL ? 'ط±ط³ط§ظ„ط©' : 'message'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
+            <View style={[styles.actionIconContainer, { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' }]}>
+              <Text style={styles.actionIcon}>ًں“‍</Text>
+            </View>
+            <Text style={styles.actionLabel}>{isRTL ? 'ط§طھطµط§ظ„' : 'call'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionButton} onPress={handleVideo}>
+            <View style={[styles.actionIconContainer, { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' }]}>
+              <Text style={styles.actionIcon}>ًں“¹</Text>
+            </View>
+            <Text style={styles.actionLabel}>{isRTL ? 'ظپظٹط¯ظٹظˆ' : 'video'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionButton} onPress={handleEmail}>
+            <View style={[styles.actionIconContainer, { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' }]}>
+              <Text style={styles.actionIcon}>âœ‰ï¸ڈ</Text>
+            </View>
+            <Text style={styles.actionLabel}>{isRTL ? 'ط¨ط±ظٹط¯' : 'mail'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Tabs */}
+      <View style={[styles.tabContainer, { backgroundColor: surfaceColor }]}>
+        <TouchableOpacity style={[styles.tab, styles.activeTab, { backgroundColor: isDarkMode ? '#3A3A3C' : '#FFFFFF' }]}>
+          <Text style={[styles.tabText, styles.activeTabText, { color: textColor }]}>
+            {isRTL ? 'ط§ظ„طھظپط§طµظٹظ„' : 'Details'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tab}>
+          <Text style={styles.tabText}>
+            {isRTL ? 'ط§ظ„ط¨ط±ظٹط¯ ط§ظ„طµظˆطھظٹ' : 'Voicemails'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
+      <ScrollView style={styles.content}>
+        {/* Call Info Section */}
+        <View style={[styles.section, { backgroundColor: surfaceColor }]}>
+          <View style={styles.callInfoRow}>
+            <View style={styles.callTypeContainer}>
+              <Text style={styles.callTypeIcon}>
+                {call.type === 'incoming'
+                  ? 'â†™ï¸ڈ'
+                  : call.type === 'outgoing'
+                  ? 'â†—ï¸ڈ'
