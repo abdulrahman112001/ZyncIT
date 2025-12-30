@@ -51,15 +51,18 @@
                     <div class="form-group">
                         <label for="loginPassword">Password</label>
                         <div class="password-wrapper">
-                            <input type="password" id="loginPassword" placeholder="••••••••">
+                            <input type="password" id="loginPassword" placeholder="ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½">
                             <button type="button" class="toggle-password" data-target="loginPassword">
-                                <svg class="eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                    <circle cx="12" cy="12" r="3"/>
+                                <svg class="eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                    <circle cx="12" cy="12" r="3" />
                                 </svg>
-                                <svg class="eye-closed hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                <svg class="eye-closed hidden" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path
+                                        d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                                    <line x1="1" y1="1" x2="23" y2="23" />
                                 </svg>
                             </button>
                         </div>
@@ -95,15 +98,18 @@
                     <div class="form-group">
                         <label for="signupPassword">Password</label>
                         <div class="password-wrapper">
-                            <input type="password" id="signupPassword" placeholder="••••••••">
+                            <input type="password" id="signupPassword" placeholder="ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½">
                             <button type="button" class="toggle-password" data-target="signupPassword">
-                                <svg class="eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                    <circle cx="12" cy="12" r="3"/>
+                                <svg class="eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                    <circle cx="12" cy="12" r="3" />
                                 </svg>
-                                <svg class="eye-closed hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                <svg class="eye-closed hidden" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path
+                                        d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                                    <line x1="1" y1="1" x2="23" y2="23" />
                                 </svg>
                             </button>
                         </div>
@@ -178,7 +184,24 @@
                     <div id="smsTab" class="tab-content active">
                         <div class="content-header">
                             <h3>Messages</h3>
-                            <button id="newSmsBtn" class="btn btn-small btn-primary">New SMS</button>
+                            <div class="header-actions">
+                                <button id="markAllReadBtn" class="btn btn-small btn-secondary"
+                                    title="Mark all as read">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                </button>
+                                <button id="deleteAllSmsBtn" class="btn btn-small btn-danger" title="Delete all">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <polyline points="3 6 5 6 21 6" />
+                                        <path
+                                            d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    </svg>
+                                </button>
+                                <button id="newSmsBtn" class="btn btn-small btn-primary">New SMS</button>
+                            </div>
                         </div>
                         <div id="smsList" class="list">
                             <div class="empty-state">
@@ -358,7 +381,7 @@
             <div id="toastContainer" class="toast-container"></div>
         </div>
 
-        <script type="module" src="popup.js"></script>
+        <script src="popup.bundle.js"></script>
     </body>
 
 </html>

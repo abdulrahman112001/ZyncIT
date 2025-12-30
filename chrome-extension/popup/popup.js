@@ -1,4 +1,3 @@
-"use strict";
 (() => {
   // node_modules/@firebase/util/dist/postinstall.mjs
   var getDefaultsFromPostinstall = () => void 0;
@@ -22482,23 +22481,65 @@ ${this.customData.serverResponse}`;
   async function loadSMS() {
     if (!currentUser) return;
     console.log("Loading SMS for user:", currentUser.uid);
-    const q2 = query(
-      collection(db, "sms"),
-      where("userId", "==", currentUser.uid),
-      orderBy("timestamp", "desc"),
-      limit(50)
+    const devicesQuery = query(
+      collection(db, "devices"),
+      where("userId", "==", currentUser.uid)
     );
-    const unsub = onSnapshot(q2, (snapshot) => {
-      console.log("SMS found:", snapshot.size);
-      const messages = [];
-      snapshot.forEach((doc2) => {
-        messages.push({ id: doc2.id, ...doc2.data() });
-      });
-      renderSMS(messages);
-    }, (error) => {
-      console.error("SMS Error:", error);
+    const devicesSnapshot = await getDocs(devicesQuery);
+    const deviceIds = [];
+    devicesSnapshot.forEach((doc2) => {
+      deviceIds.push(doc2.data().id);
     });
-    unsubscribers.push(unsub);
+    console.log("Found devices for SMS:", deviceIds);
+    deviceIds.forEach((deviceId) => {
+      const q2 = query(
+        collection(
+          db,
+          "users",
+          currentUser.uid,
+          "devices",
+          deviceId,
+          "notifications"
+        ),
+        where("type", "==", "sms"),
+        limit(50)
+      );
+      const unsub = onSnapshot(
+        q2,
+        (snapshot) => {
+          console.log("SMS found from device", deviceId, ":", snapshot.size);
+          const messages = [];
+          snapshot.forEach((doc2) => {
+            const data = doc2.data();
+            messages.push({
+              id: doc2.id,
+              deviceId,
+              phoneNumber: data.phoneNumber || data.title,
+              body: data.text || data.content || data.body,
+              timestamp: data.timestamp || data.receivedAt,
+              read: data.read || false,
+              type: data.type,
+              ...data
+            });
+          });
+          updateSMSList(deviceId, messages);
+        },
+        (error) => {
+          console.error("SMS Error for device", deviceId, ":", error);
+        }
+      );
+      unsubscribers.push(unsub);
+    });
+  }
+  var allSMS = {};
+  function updateSMSList(deviceId, newMessages) {
+    allSMS[deviceId] = newMessages;
+    let merged = [];
+    Object.values(allSMS).forEach((msgs) => {
+      merged = merged.concat(msgs);
+    });
+    merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    renderSMS(merged.slice(0, 100));
   }
   async function loadNotifications() {
     if (!currentUser) return;
@@ -22631,16 +22672,20 @@ ${this.customData.serverResponse}`;
       orderBy("timestamp", "desc"),
       limit(50)
     );
-    const unsub = onSnapshot(q2, (snapshot) => {
-      console.log("Calls found:", snapshot.size);
-      const calls = [];
-      snapshot.forEach((doc2) => {
-        calls.push({ id: doc2.id, ...doc2.data() });
-      });
-      renderCalls(calls);
-    }, (error) => {
-      console.error("Calls Error:", error);
-    });
+    const unsub = onSnapshot(
+      q2,
+      (snapshot) => {
+        console.log("Calls found:", snapshot.size);
+        const calls = [];
+        snapshot.forEach((doc2) => {
+          calls.push({ id: doc2.id, ...doc2.data() });
+        });
+        renderCalls(calls);
+      },
+      (error) => {
+        console.error("Calls Error:", error);
+      }
+    );
     unsubscribers.push(unsub);
   }
   function renderCalls(calls) {
