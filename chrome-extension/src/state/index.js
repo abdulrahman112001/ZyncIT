@@ -1,0 +1,134 @@
+/**
+ * Application State Management
+ * Centralized state for the extension
+ */
+
+// Current authenticated user
+export let currentUser = null
+
+// List of connected devices
+export let devices = []
+
+// Firebase subscription unsubscribers
+export let unsubscribers = []
+
+// Polling interval for real-time updates
+export let pollingInterval = null
+
+// SMS Data
+export let allSMS = {}
+export let allSMSMessages = []
+export let currentConversation = null
+
+// Calls Data
+export let allCallsData = []
+export let currentCallConversation = null
+
+// Notifications Data
+export let allNotifications = {}
+
+// Chat Data
+export let cachedChatMessages = []
+export let currentReplyTo = null
+
+// State setters
+export function setCurrentUser(user) {
+  currentUser = user
+}
+
+export function setDevices(newDevices) {
+  devices = newDevices
+}
+
+export function addDevice(device) {
+  devices.push(device)
+}
+
+export function removeDevice(docId) {
+  devices = devices.filter((d) => d.docId !== docId)
+}
+
+export function updateDevice(docId, updates) {
+  const index = devices.findIndex((d) => d.docId === docId)
+  if (index !== -1) {
+    devices[index] = { ...devices[index], ...updates }
+  }
+}
+
+export function addUnsubscriber(unsub) {
+  unsubscribers.push(unsub)
+}
+
+export function clearUnsubscribers() {
+  unsubscribers.forEach((unsub) => unsub())
+  unsubscribers = []
+}
+
+export function setPollingInterval(interval) {
+  pollingInterval = interval
+}
+
+export function clearPollingInterval() {
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+}
+
+export function setSMSData(deviceId, messages) {
+  allSMS[deviceId] = messages
+}
+
+export function clearAllSMS() {
+  allSMS = {}
+}
+
+export function setAllSMSMessages(messages) {
+  allSMSMessages = messages
+}
+
+export function setCurrentConversation(conversation) {
+  currentConversation = conversation
+}
+
+export function setAllCallsData(calls) {
+  allCallsData = calls
+}
+
+export function setCurrentCallConversation(conversation) {
+  currentCallConversation = conversation
+}
+
+export function setNotificationsData(deviceId, notifications) {
+  allNotifications[deviceId] = notifications
+}
+
+export function clearAllNotifications() {
+  allNotifications = {}
+}
+
+export function setCachedChatMessages(messages) {
+  cachedChatMessages = messages
+}
+
+export function setCurrentReplyTo(reply) {
+  currentReplyTo = reply
+}
+
+/**
+ * Reset all state (on logout)
+ */
+export function resetState() {
+  currentUser = null
+  devices = []
+  clearUnsubscribers()
+  clearPollingInterval()
+  allSMS = {}
+  allSMSMessages = []
+  currentConversation = null
+  allCallsData = []
+  currentCallConversation = null
+  allNotifications = {}
+  cachedChatMessages = []
+  currentReplyTo = null
+}

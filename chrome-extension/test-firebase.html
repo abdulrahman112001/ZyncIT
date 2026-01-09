@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <title>Firebase Test</title>
+    </head>
+
+    <body>
+        <h1>Firebase Connection Test</h1>
+        <div id="status">Testing...</div>
+        <div id="results"></div>
+
+        <script type="module">
+            import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+            import { getFirestore, collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+            const config = {
+                apiKey: "AIzaSyCMqENmothJXy6XrP7214d0c6ILsOdqtcs",
+                authDomain: "zyncit-f1ced.firebaseapp.com",
+                projectId: "zyncit-f1ced",
+                storageBucket: "zyncit-f1ced.firebasestorage.app",
+                messagingSenderId: "772958487002",
+                appId: "1:772958487002:web:c2dcb8043d3bfed2ec40e3",
+            };
+
+            const statusDiv = document.getElementById( 'status' );
+            const resultsDiv = document.getElementById( 'results' );
+
+            try
+            {
+                statusDiv.textContent = "Initializing Firebase...";
+                const app = initializeApp( config );
+                const db = getFirestore( app );
+
+                statusDiv.textContent = "Querying SMS...";
+                const userId = "4OsnkeWHkAedXL7cD0OLCuKDZky1";
+                const deviceId = "android_7249382ed438e159";
+
+                const q = query(
+                    collection( db, "users", userId, "devices", deviceId, "notifications" ),
+                    where( "type", "==", "sms" ),
+                    limit( 5 )
+                );
+
+                const snapshot = await getDocs( q );
+
+                statusDiv.textContent = "✅ Firebase Connected! Found " + snapshot.size + " SMS";
+
+                let html = "<h3>SMS Messages:</h3><ul>";
+                snapshot.forEach( doc =>
+                {
+                    const data = doc.data();
+                    html += `<li>${ data.contactName || data.phoneNumber }: ${ data.text }</li>`;
+                } );
+                html += "</ul>";
+                resultsDiv.innerHTML = html;
+
+            } catch ( error )
+            {
+                statusDiv.textContent = "❌ Error: " + error.message;
+                console.error( error );
+            }
+        </script>
+    </body>
+
+</html>

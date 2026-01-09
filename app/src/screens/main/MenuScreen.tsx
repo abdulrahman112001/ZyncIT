@@ -6,145 +6,242 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
-  Linking,
+  Image,
+  StatusBar,
+  Switch,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { useTheme } from '../../contexts/ThemeContext';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 const MenuScreen = ({ navigation }: any) => {
   const { user, signOut } = useAuthStore();
-  const { colors, t } = useTheme();
+  const settings = useSettingsStore();
+  const { colors, t, isDarkMode, isRTL } = useTheme();
 
-  const handleSignOut = () => {
-    Alert.alert(t('logout'), '', [
+  const saveAndSync = async (key: string, value: any) => {
+    await settings.updateSetting(key as any, value);
+    if (user?.uid) {
+      await settings.syncToFirebase(user.uid);
+    }
+  };
+
+  const showLanguagePicker = () => {
+    Alert.alert(t('language'), '', [
+      { text: t('arabic'), onPress: () => saveAndSync('language', 'ar') },
+      { text: t('english'), onPress: () => saveAndSync('language', 'en') },
       { text: t('cancel'), style: 'cancel' },
-      { text: t('confirm'), style: 'destructive', onPress: signOut },
     ]);
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(t('deleteAccount'), '', [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: () => {
-          Alert.alert('✓', 'Account deletion requested');
-        },
-      },
-    ]);
-  };
-
-  const showAbout = () => {
+  const handleLogout = () => {
     Alert.alert(
-      'ZyncIT',
-      'Version 1.0.0\n\n' +
-        'ZyncIT syncs your messages and calls across devices.\n\n' +
-        '© 2024 ZyncIT. All rights reserved.',
-      [{ text: 'OK' }],
+      isRTL ? 'تسجيل الخروج' : 'Logout',
+      isRTL ? 'هل تريد تسجيل الخروج؟' : 'Are you sure you want to logout?',
+      [
+        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRTL ? 'خروج' : 'Logout',
+          style: 'destructive',
+          onPress: () => signOut(),
+        },
+      ],
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      isRTL ? 'حذف الحساب' : 'Delete Account',
+      isRTL
+        ? 'هل أنت متأكد؟ سيتم حذف جميع بياناتك نهائياً ولا يمكن استعادتها.'
+        : 'Are you sure? All your data will be permanently deleted and cannot be recovered.',
+      [
+        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRTL ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              isRTL ? 'تواصل معنا' : 'Contact Us',
+              isRTL
+                ? 'لحذف حسابك نهائياً، تواصل معنا على support@zyncit.app'
+                : 'To permanently delete your account, contact us at support@zyncit.app',
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  // Get user initials for avatar
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    const words = name.trim().split(' ');
+    if (words.length >= 2) {
+      return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Dynamic colors for iOS-like design
+  const bgColor = isDarkMode ? '#000000' : colors.background;
+  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const secondaryTextColor = isDarkMode ? '#8E8E93' : colors.textSecondary;
+
   const menuSections = [
+    {
+      title: t('appearance'),
+      items: [
+        {
+          icon: 'moon-outline',
+          title: t('darkMode'),
+          subtitle: isDarkMode ? t('on') : t('off'),
+          danger: false,
+          isSwitch: true,
+          value: settings.darkMode,
+          settingKey: 'darkMode',
+        },
+        {
+          icon: 'language-outline',
+          title: t('language'),
+          subtitle: settings.language === 'ar' ? t('arabic') : t('english'),
+          danger: false,
+          onPress: showLanguagePicker,
+        },
+      ],
+    },
+    {
+      title: t('legalPrivacy'),
+      items: [
+        {
+          icon: 'shield-checkmark-outline',
+          title: t('privacy'),
+          subtitle: t('protectData'),
+          danger: false,
+          onPress: () => navigation.navigate('PrivacyPolicy'),
+        },
+        {
+          icon: 'document-text-outline',
+          title: t('terms'),
+          subtitle: t('termsConditions'),
+          danger: false,
+          onPress: () => navigation.navigate('TermsOfService'),
+        },
+      ],
+    },
     {
       title: t('account'),
       items: [
         {
-          icon: '👤',
-          title: t('accountInfo'),
-          subtitle: user?.email,
-          onPress: () =>
-            Alert.alert(
-              t('account'),
-              `Email: ${user?.email}\nID: ${user?.uid?.slice(0, 8)}...`,
-            ),
+          icon: 'log-out-outline',
+          title: isRTL ? 'تسجيل الخروج' : 'Logout',
+          subtitle: '',
+          danger: false,
+          iconColor: '#FF9500',
+          onPress: handleLogout,
         },
         {
-          icon: '⚙️',
-          title: t('settings'),
-          onPress: () => navigation.navigate('Settings'),
-        },
-      ],
-    },
-    {
-      title: 'Info',
-      items: [
-        {
-          icon: '🔒',
-          title: t('privacy'),
-          onPress: () => Linking.openURL('https://zyncit.app/privacy'),
-        },
-        {
-          icon: '📄',
-          title: t('terms'),
-          onPress: () => Linking.openURL('https://zyncit.app/terms'),
-        },
-        {
-          icon: 'ℹ️',
-          title: t('about'),
-          onPress: showAbout,
-        },
-      ],
-    },
-    {
-      title: 'Actions',
-      items: [
-        {
-          icon: '🗑️',
-          title: t('deleteAccount'),
+          icon: 'trash-outline',
+          title: isRTL ? 'حذف الحساب' : 'Delete Account',
+          subtitle: '',
           danger: true,
           onPress: handleDeleteAccount,
-        },
-        {
-          icon: '🚪',
-          title: t('logout'),
-          danger: true,
-          onPress: handleSignOut,
         },
       ],
     },
   ];
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: bgColor }]}
+      edges={['top', 'left', 'right']}
     >
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: colors.surface, borderBottomColor: colors.border },
-        ]}
-      >
-        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-          <Text style={styles.avatarIcon}>👤</Text>
-        </View>
-        <Text style={[styles.userName, { color: colors.text }]}>
-          {user?.displayName || 'ZyncIT User'}
-        </Text>
-        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-          {user?.email}
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={bgColor}
+      />
+
+      {/* Title like Notifications Screen */}
+      <View style={styles.titleContainer}>
+        <Text style={[styles.title, { color: textColor }]}>
+          {t('menuTitle')}
         </Text>
       </View>
 
-      {menuSections.map((section, sectionIndex) => (
-        <View key={sectionIndex}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            {section.title}
-          </Text>
-          <View style={[styles.section, { backgroundColor: colors.surface }]}>
-            {section.items.map((item, itemIndex) => (
-              <TouchableOpacity
-                key={itemIndex}
-                style={[
-                  styles.menuItem,
-                  { borderBottomColor: colors.border },
-                  itemIndex === section.items.length - 1 && styles.lastItem,
-                ]}
-                onPress={item.onPress}
-              >
-                <View style={styles.menuLeft}>
-                  <Text style={styles.menuIcon}>{item.icon}</Text>
-                  <View style={styles.menuText}>
+      <ScrollView style={styles.content}>
+        {/* Profile Header - Improved Design */}
+        <TouchableOpacity
+          style={[styles.profileHeader, { backgroundColor: colors.surface }]}
+          onPress={() => navigation.navigate('UserSettings')}
+          activeOpacity={0.7}
+        >
+          {user?.photoURL ? (
+            <Image
+              source={{ uri: user.photoURL }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <View
+              style={[styles.profileImage, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.profileInitials}>
+                {getInitials(user?.displayName || 'User')}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.profileInfo}>
+            <Text style={[styles.profileName, { color: colors.text }]}>
+              {user?.displayName || 'ZyncIT User'}
+            </Text>
+            <Text
+              style={[styles.profileEmail, { color: colors.textSecondary }]}
+            >
+              {user?.email}
+            </Text>
+          </View>
+
+          <Icon
+            name={isRTL ? 'chevron-back' : 'chevron-forward'}
+            size={20}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
+
+        {/* Menu Sections */}
+        {menuSections.map((section, sectionIndex) => (
+          <View key={sectionIndex}>
+            <Text
+              style={[styles.sectionTitle, { color: colors.textSecondary }]}
+            >
+              {section.title}
+            </Text>
+
+            <View style={[styles.section, { backgroundColor: colors.surface }]}>
+              {section.items.map((item: any, itemIndex: number) => (
+                <TouchableOpacity
+                  key={itemIndex}
+                  style={[
+                    styles.menuItem,
+                    { borderBottomColor: colors.border },
+                    itemIndex === section.items.length - 1 && styles.lastItem,
+                  ]}
+                  onPress={item.isSwitch ? undefined : item.onPress}
+                  activeOpacity={item.isSwitch ? 1 : 0.7}
+                >
+                  <Icon
+                    name={item.icon}
+                    size={24}
+                    color={
+                      item.iconColor ||
+                      (item.danger ? colors.error : colors.primary)
+                    }
+                    style={styles.menuIcon}
+                  />
+
+                  <View style={styles.menuContent}>
                     <Text
                       style={[
                         styles.menuTitle,
@@ -153,7 +250,7 @@ const MenuScreen = ({ navigation }: any) => {
                     >
                       {item.title}
                     </Text>
-                    {item.subtitle && (
+                    {item.subtitle && !item.isSwitch && (
                       <Text
                         style={[
                           styles.menuSubtitle,
@@ -164,20 +261,35 @@ const MenuScreen = ({ navigation }: any) => {
                       </Text>
                     )}
                   </View>
-                </View>
-                <Text style={[styles.arrow, { color: colors.textSecondary }]}>
-                  {'>'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      ))}
 
-      <Text style={[styles.version, { color: colors.textSecondary }]}>
-        ZyncIT v1.0.0
-      </Text>
-    </ScrollView>
+                  {item.isSwitch ? (
+                    <Switch
+                      value={item.value}
+                      onValueChange={val => saveAndSync(item.settingKey, val)}
+                      trackColor={{
+                        false: colors.border,
+                        true: colors.primary,
+                      }}
+                      thumbColor={item.value ? '#fff' : '#f4f3f4'}
+                    />
+                  ) : (
+                    <Icon
+                      name={isRTL ? 'chevron-back' : 'chevron-forward'}
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ))}
+
+        <Text style={[styles.version, { color: colors.textSecondary }]}>
+          ZyncIT v1.0.0
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -185,80 +297,90 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    alignItems: 'center',
-    paddingVertical: 30,
-    borderBottomWidth: 1,
+  titleContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  title: {
+    fontSize: 34,
+    fontWeight: '700',
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    gap: 12,
+  },
+  profileImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
   },
-  avatarIcon: {
-    fontSize: 40,
+  profileInitials: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '600',
   },
-  userName: {
-    fontWeight: 'bold',
-    fontSize: 18,
+  profileInfo: {
+    flex: 1,
   },
-  userEmail: {
-    fontSize: 14,
-    marginTop: 4,
+  profileName: {
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  profileEmail: {
+    fontSize: 13,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
     textTransform: 'uppercase',
   },
   section: {
-    marginHorizontal: 15,
     borderRadius: 12,
+    marginBottom: 20,
     overflow: 'hidden',
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
+    gap: 12,
   },
   lastItem: {
     borderBottomWidth: 0,
   },
-  menuLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
   menuIcon: {
-    fontSize: 22,
-    marginRight: 12,
+    width: 24,
   },
-  menuText: {
+  menuContent: {
     flex: 1,
   },
   menuTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
+    marginBottom: 2,
   },
   menuSubtitle: {
     fontSize: 12,
-    marginTop: 2,
-  },
-  arrow: {
-    fontSize: 18,
   },
   version: {
     textAlign: 'center',
     fontSize: 12,
-    paddingVertical: 30,
+    marginVertical: 20,
   },
 });
 

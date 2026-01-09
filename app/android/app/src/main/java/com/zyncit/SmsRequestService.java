@@ -46,6 +46,9 @@ public class SmsRequestService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "SmsRequestService started");
 
+        // MUST call startForeground() before anything else (Android 8+ requirement)
+        startForeground(NOTIFICATION_ID, createNotification());
+
         // Get credentials from SharedPreferences
         SharedPreferences prefs = getSharedPreferences("ZyncITPrefs", MODE_PRIVATE);
         userId = prefs.getString("userId", null);
@@ -56,9 +59,6 @@ public class SmsRequestService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-
-        // Start foreground
-        startForeground(NOTIFICATION_ID, createNotification());
 
         // Start listening for SMS requests
         startListening();
@@ -129,22 +129,34 @@ public class SmsRequestService extends Service {
     }
 
     private void saveSentMessage(String phoneNumber, String message) {
+        // Create a unique docId based on timestamp and phone number to avoid duplicates
+        long timestamp = System.currentTimeMillis();
+        String sanitizedPhone = phoneNumber.replaceAll("[^0-9+]", "");
+        String docId = "sms_sent_" + timestamp + "_" + sanitizedPhone;
+        
+        // Get device name from SharedPreferences or use default
+        SharedPreferences prefs = getSharedPreferences("ZyncITPrefs", MODE_PRIVATE);
+        String deviceName = prefs.getString("deviceName", "Android Device");
+        
         Map<String, Object> sentMessage = new HashMap<>();
         sentMessage.put("type", "sms");
         sentMessage.put("phoneNumber", phoneNumber);
         sentMessage.put("contactName", phoneNumber);
         sentMessage.put("body", message);
-        sentMessage.put("timestamp", System.currentTimeMillis());
+        sentMessage.put("timestamp", timestamp);
         sentMessage.put("read", true);
         sentMessage.put("direction", "outgoing");
+        sentMessage.put("deviceId", deviceId);
+        sentMessage.put("deviceName", deviceName);
 
         db.collection("users")
             .document(userId)
             .collection("devices")
             .document(deviceId)
             .collection("notifications")
-            .add(sentMessage)
-            .addOnSuccessListener(docRef -> Log.d(TAG, "Sent message saved"))
+            .document(docId)
+            .set(sentMessage)
+            .addOnSuccessListener(aVoid -> Log.d(TAG, "Sent message saved with docId: " + docId))
             .addOnFailureListener(e -> Log.e(TAG, "Failed to save sent message: " + e));
     }
 

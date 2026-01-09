@@ -11,6 +11,8 @@ import {
   TextInput,
   Alert,
   KeyboardAvoidingView,
+  ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { useSMSStore } from '../../store/smsStore';
 import { SMS } from '../../types';
@@ -24,17 +26,71 @@ const SMSScreen = () => {
   const addMessage = useSMSStore(state => state.addMessage);
   const setMessages = useSMSStore(state => state.setMessages);
   const syncMessages = useSMSStore(state => state.syncMessages);
+  const markAllAsRead = useSMSStore(state => state.markAllAsRead);
+  const deleteAllMessages = useSMSStore(state => state.deleteAllMessages);
+  const deleteMessage = useSMSStore(state => state.deleteMessage);
   const [showCompose, setShowCompose] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [showActions, setShowActions] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
-  const { colors } = useTheme();
+  const [initialLoading, setInitialLoading] = useState(true);
+  const { colors, isDarkMode, isRTL } = useTheme();
 
-  // Sort messages by timestamp descending
-  const allMessages = React.useMemo(() => {
+  // Dynamic colors
+  const bgColor = isDarkMode ? '#000000' : colors.background;
+  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const secondaryTextColor = isDarkMode ? '#8E8E93' : colors.textSecondary;
+
+  // Group messages by phone number into conversations
+  const conversations = React.useMemo(() => {
     console.log('[SMSScreen] Messages updated, count:', messages.length);
-    return [...messages].sort((a, b) => b.timestamp - a.timestamp);
+
+    const grouped: {
+      [key: string]: {
+        phoneNumber: string;
+        contactName?: string;
+        messages: SMS[];
+        lastMessage: SMS;
+        unreadCount: number;
+      };
+    } = {};
+
+    // التأكد من أن messages array قبل المعالجة
+    const validMessages = Array.isArray(messages) ? messages : [];
+
+    validMessages.forEach(msg => {
+      // Normalize phone number for grouping
+      const rawPhone = msg.phoneNumber || 'Unknown';
+      const normalizedPhone = rawPhone.replace(/[\s\-\(\)\.]/g, '').trim();
+      const key = normalizedPhone || 'Unknown';
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          phoneNumber: rawPhone,
+          contactName: msg.contactName,
+          messages: [],
+          lastMessage: msg,
+          unreadCount: 0,
+        };
+      }
+
+      grouped[key].messages.push(msg);
+      if (!msg.read) grouped[key].unreadCount++;
+
+      if (msg.timestamp > grouped[key].lastMessage.timestamp) {
+        grouped[key].lastMessage = msg;
+        if (msg.contactName) {
+          grouped[key].contactName = msg.contactName;
+        }
+      }
+    });
+
+    // Sort by last message timestamp descending
+    return Object.values(grouped).sort(
+      (a, b) => b.lastMessage.timestamp - a.lastMessage.timestamp,
+    );
   }, [messages]);
 
   // Force re-render when messages change
@@ -79,7 +135,11 @@ const SMSScreen = () => {
         }
       } catch (error) {
         console.error('[SMSScreen] Error loading SMS:', error);
+      } finally {
+        setInitialLoading(false);
       }
+    } else {
+      setInitialLoading(false);
     }
   }, [addMessage, syncMessages]);
 
@@ -142,7 +202,11 @@ const SMSScreen = () => {
     setIsSending(false);
   };
 
-  const renderMessage = ({ item }: { item: SMS }) => (
+  const renderConversation = ({
+    item,
+  }: {
+    item: (typeof conversations)[0];
+  }) => (
     <TouchableOpacity
       style={[styles.messageItem, { backgroundColor: colors.surface }]}
     >
@@ -151,14 +215,15 @@ const SMSScreen = () => {
           style={[
             styles.avatar,
             {
-              backgroundColor: item.read ? colors.primaryLight : colors.primary,
+              backgroundColor:
+                item.unreadCount > 0 ? colors.primary : colors.primaryLight,
             },
           ]}
         >
           <Text
             style={[
               styles.avatarText,
-              { color: item.read ? colors.primary : '#fff' },
+              { color: item.unreadCount > 0 ? '#fff' : colors.primary },
             ]}
           >
             {(item.contactName || item.phoneNumber || '?')
@@ -173,14 +238,14 @@ const SMSScreen = () => {
             style={[
               styles.senderName,
               { color: colors.text },
-              !item.read && styles.unreadText,
+              item.unreadCount > 0 && styles.unreadText,
             ]}
             numberOfLines={1}
           >
             {item.contactName || item.phoneNumber || 'Unknown'}
           </Text>
           <Text style={[styles.messageTime, { color: colors.textSecondary }]}>
-            {formatTime(item.timestamp)}
+            {formatTime(item.lastMessage.timestamp)}
           </Text>
         </View>
         <View style={styles.messagePreview}>
@@ -188,17 +253,19 @@ const SMSScreen = () => {
             style={[
               styles.messageBody,
               { color: colors.textSecondary },
-              !item.read && styles.unreadText,
+              item.unreadCount > 0 && styles.unreadText,
             ]}
             numberOfLines={2}
           >
-            {item.type === 'sent' && '→ '}
-            {item.body}
+            {item.lastMessage.type === 'sent' && '→ '}
+            {item.lastMessage.body}
           </Text>
-          {!item.read && (
+          {item.unreadCount > 0 && (
             <View
               style={[styles.unreadBadge, { backgroundColor: colors.primary }]}
-            />
+            >
+              <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
+            </View>
           )}
         </View>
       </View>
@@ -219,15 +286,90 @@ const SMSScreen = () => {
     </View>
   );
 
+  const handleMarkAllAsRead = () => {
+    Alert.alert('Mark All as Read', 'Mark all messages as read?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Mark All',
+        onPress: async () => {
+          await markAllAsRead();
+          setShowActions(false);
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAll = () => {
+    Alert.alert(
+      'Delete All Messages',
+      `Are you sure you want to delete all ${messages.length} messages? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteAllMessages();
+            setShowActions(false);
+          },
+        },
+      ],
+    );
+  };
+
+  const renderHeader = () => (
+    <View style={[styles.headerActions, { backgroundColor: colors.surface }]}>
+      <TouchableOpacity
+        style={[styles.actionButton, { backgroundColor: colors.primaryLight }]}
+        onPress={handleMarkAllAsRead}
+      >
+        <Text style={[styles.actionButtonText, { color: colors.primary }]}>
+          ✓ Mark All Read
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.actionButton, { backgroundColor: '#ffebee' }]}
+        onPress={handleDeleteAll}
+      >
+        <Text style={[styles.actionButtonText, { color: colors.error }]}>
+          🗑 Delete All
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Show loading indicator on initial load
+  if (initialLoading && messages.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: bgColor }]}>
+        <StatusBar
+          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+          backgroundColor={bgColor}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0A84FF" />
+          <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
+            {isRTL ? 'جاري التحميل...' : 'Loading...'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: bgColor }]}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={bgColor}
+      />
+      {conversations.length > 0 && renderHeader()}
       <FlatList
-        data={allMessages}
-        renderItem={renderMessage}
-        keyExtractor={item => item.id}
+        data={conversations}
+        renderItem={renderConversation}
+        keyExtractor={item => item.phoneNumber}
         contentContainerStyle={[
           styles.listContent,
-          allMessages.length === 0 && styles.emptyList,
+          conversations.length === 0 && styles.emptyList,
         ]}
         ListEmptyComponent={renderEmptyState}
         refreshControl={
@@ -322,6 +464,25 @@ const SMSScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   listContent: { padding: 8 },
   emptyList: { flexGrow: 1 },
   messageItem: {
@@ -356,7 +517,20 @@ const styles = StyleSheet.create({
   messageTime: { fontSize: 11 },
   messagePreview: { flexDirection: 'row', alignItems: 'center' },
   messageBody: { flex: 1, fontSize: 13, lineHeight: 18 },
-  unreadBadge: { width: 8, height: 8, borderRadius: 4, marginLeft: 8 },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -430,6 +604,15 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: { opacity: 0.6 },
   sendButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+  },
 });
 
 export default SMSScreen;

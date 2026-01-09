@@ -212,6 +212,11 @@ public class NotificationService extends NotificationListenerService {
         long postTime = sbn.getPostTime();
         long now = System.currentTimeMillis();
 
+        // Log ALL notifications for WhatsApp debugging
+        if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+            Log.i(TAG, "🟢 WHATSAPP NOTIFICATION RECEIVED: " + key);
+        }
+
         // Skip our own notifications
         if (packageName.equals("com.zyncit")) {
             return;
@@ -219,12 +224,18 @@ public class NotificationService extends NotificationListenerService {
 
         // Skip notifications older than service start (already existing)
         if (postTime < serviceStartTime) {
+            if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+                Log.d(TAG, "🔴 WHATSAPP: Skipping old notification (posted before service started)");
+            }
             Log.d(TAG, "Skipping old notification: " + key + " (posted before service started)");
             return;
         }
 
         // Skip if notification is older than 30 seconds
         if (now - postTime > 30000) {
+            if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+                Log.d(TAG, "🔴 WHATSAPP: Skipping stale notification (older than 30s)");
+            }
             Log.d(TAG, "Skipping stale notification: " + key + " (older than 30s)");
             return;
         }
@@ -237,6 +248,9 @@ public class NotificationService extends NotificationListenerService {
 
         // Skip group summary notifications
         if ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0) {
+            if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+                Log.d(TAG, "🔴 WHATSAPP: Skipping group summary");
+            }
             Log.d(TAG, "Skipping group summary: " + key);
             return;
         }
@@ -244,6 +258,9 @@ public class NotificationService extends NotificationListenerService {
         // Check for duplicate
         Long lastTime = lastNotificationTime.get(key);
         if (lastTime != null && (now - lastTime) < DUPLICATE_THRESHOLD_MS) {
+            if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+                Log.d(TAG, "🔴 WHATSAPP: Skipping duplicate notification");
+            }
             Log.d(TAG, "Skipping duplicate notification: " + key);
             return;
         }
@@ -268,12 +285,18 @@ public class NotificationService extends NotificationListenerService {
 
         // Skip if both title and text are empty
         if (title.isEmpty() && text.isEmpty()) {
+            if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+                Log.d(TAG, "🔴 WHATSAPP: Skipping empty notification");
+            }
             Log.d(TAG, "Skipping empty notification from: " + packageName);
             return;
         }
 
         // Skip summary-style notifications (e.g., "X messages from Y chats")
         if (isSummaryText(text)) {
+            if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+                Log.d(TAG, "🔴 WHATSAPP: Skipping summary notification: " + text);
+            }
             Log.d(TAG, "Skipping summary notification: " + text);
             return;
         }
@@ -294,6 +317,10 @@ public class NotificationService extends NotificationListenerService {
         Log.i(TAG, "  Text: " + text);
         Log.i(TAG, "  Is Missed Call: " + isMissedCall);
         Log.i(TAG, "  Post Time: " + postTime + " (age: " + (now - postTime) + "ms)");
+
+        if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+            Log.i(TAG, "🟢 WHATSAPP NOTIFICATION ACCEPTED AND WILL BE SAVED!");
+        }
 
         // Always send to Firebase (works even when app is closed)
         sendToFirebase(sbn.getId(), key, packageName, title, text, bigText, subText,

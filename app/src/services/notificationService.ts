@@ -18,6 +18,7 @@ export interface AppNotification {
   timestamp: number;
   appName: string;
   read: boolean;
+  smsType?: 'sent' | 'inbox'; // For SMS messages: sent or received
 }
 
 class NotificationServiceClass {

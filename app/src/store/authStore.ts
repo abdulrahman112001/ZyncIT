@@ -43,36 +43,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const unsubscribe = auth().onAuthStateChanged(async firebaseUser => {
       if (firebaseUser) {
         try {
-          // Get or create user document
-          const userDoc = await firestore()
+          // Create or update user document using set with merge
+          const userData: User = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            createdAt: Date.now(),
+            lastLoginAt: Date.now(),
+          };
+
+          // Use set with merge to create or update
+          await firestore()
             .collection(COLLECTIONS.USERS)
             .doc(firebaseUser.uid)
-            .get();
-
-          let userData: User;
-
-          if (userDoc.exists) {
-            userData = userDoc.data() as User;
-            // Update last login
-            await firestore()
-              .collection(COLLECTIONS.USERS)
-              .doc(firebaseUser.uid)
-              .update({ lastLoginAt: Date.now() });
-          } else {
-            // Create new user document
-            userData = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-              createdAt: Date.now(),
-              lastLoginAt: Date.now(),
-            };
-            await firestore()
-              .collection(COLLECTIONS.USERS)
-              .doc(firebaseUser.uid)
-              .set(userData);
-          }
+            .set(userData, { merge: true });
 
           set({
             user: userData,
@@ -82,9 +67,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             error: null,
           });
         } catch (error: any) {
+          console.error('[AuthStore] Error in onAuthStateChanged:', error);
+          // Even if Firestore fails, we should still authenticate the user
           set({
-            error: error.message,
+            user: {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL,
+              createdAt: Date.now(),
+              lastLoginAt: Date.now(),
+            } as User,
+            firebaseUser,
+            isAuthenticated: true,
             isLoading: false,
+            error: null,
           });
         }
       } else {
@@ -123,12 +120,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
       await result.user.updateProfile({ displayName });
 
-      // Create user document
+      // Create user document with photoURL
       const userData: User = {
         uid: result.user.uid,
         email: email,
         displayName: displayName,
-        photoURL: null,
+        photoURL: result.user.photoURL || null,
         createdAt: Date.now(),
         lastLoginAt: Date.now(),
       };
@@ -152,15 +149,63 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       // Get the users ID token
-      const { idToken } = await GoogleSignin.signIn();
+      const signInResult = await GoogleSignin.signIn();
+
+      // Check if sign in was successful (v16.x returns { type: 'success', data: {...} })
+      if (!signInResult || signInResult.type === 'cancelled') {
+        throw new Error('Google Sign-In was cancelled');
+      }
+
+      // Handle v16.x response format: { type: 'success', data: { idToken, user } }
+      let idToken: string | null = null;
+      let googleDisplayName: string | null = null;
+      let googlePhotoURL: string | null = null;
+
+      if ('data' in signInResult && signInResult.data) {
+        idToken = signInResult.data.idToken;
+        googleDisplayName = signInResult.data.user?.name || null;
+        googlePhotoURL = signInResult.data.user?.photo || null;
+      }
+
+      if (!idToken) {
+        throw new Error('No ID token received from Google');
+      }
 
       // Create a Google credential with the token
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
 
       // Sign-in the user with the credential
-      await auth().signInWithCredential(googleCredential);
+      const userCredential = await auth().signInWithCredential(
+        googleCredential,
+      );
+
+      // Create or update user document with photoURL
+      const userData: User = {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email || '',
+        displayName:
+          googleDisplayName || userCredential.user.displayName || 'User',
+        photoURL: googlePhotoURL || userCredential.user.photoURL || null,
+        createdAt: Date.now(),
+        lastLoginAt: Date.now(),
+      };
+
+      await firestore()
+        .collection(COLLECTIONS.USERS)
+        .doc(userCredential.user.uid)
+        .set(userData, { merge: true });
+
+      // Note: isLoading will be set to false by onAuthStateChanged listener
+      // But add a fallback in case it doesn't fire
+      console.log(
+        '[AuthStore] Google Sign-In successful, waiting for auth state change...',
+      );
     } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+      // Handle specific Google Sign-In errors
+      const errorMessage =
+        error?.message || error?.code || 'Google Sign-In failed';
+      console.error('[AuthStore] Google Sign-In error:', error);
+      set({ error: errorMessage, isLoading: false });
       throw error;
     }
   },
@@ -182,6 +227,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch (e) {
         // Ignore if not signed in with Google
       }
+
+      // Clear all stores data before signing out
+      const { useSMSStore } = require('./smsStore');
+      const { useDeviceStore } = require('./deviceStore');
+      const { useChatStore } = require('./chatStore');
+      const { useCallStore } = require('./callStore');
+      const { useNotificationStore } = require('./notificationStore');
+
+      useSMSStore.getState().cleanup();
+      useDeviceStore.getState().cleanup();
+      useChatStore.getState().cleanup();
+      useCallStore.getState().cleanup();
+      useNotificationStore.getState().cleanup();
+
+      console.log('[AuthStore] All stores cleaned up');
 
       await auth().signOut();
     } catch (error: any) {

@@ -7,7 +7,9 @@
   "host_permissions": [
     "https://*.firebaseio.com/*",
     "https://*.googleapis.com/*",
-    "https://firestore.googleapis.com/*"
+    "https://firestore.googleapis.com/*",
+    "https://*.gstatic.com/*",
+    "https://*.firebaseapp.com/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",

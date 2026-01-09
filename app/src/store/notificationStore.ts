@@ -8,12 +8,14 @@ interface NotificationState {
   notifications: AppNotification[];
   addNotification: (notification: AppNotification) => void;
   removeNotification: (id: string) => void;
+  removeNotificationsByKeys: (keys: string[]) => void;
   markAsRead: (ids: string[]) => void;
   markGroupAsRead: (title: string, appName: string, type: string) => void;
   clearNotifications: () => void;
   getNotificationsByType: (type: string) => AppNotification[];
   getUnreadCount: (title: string, appName: string, type: string) => number;
   syncFromFirebase: (userId: string) => Promise<void>;
+  cleanup: () => void;
 }
 
 export const useNotificationStore = create<NotificationState>()(
@@ -58,6 +60,16 @@ export const useNotificationStore = create<NotificationState>()(
       removeNotification: (id: string) => {
         set(state => ({
           notifications: state.notifications.filter(n => n.id !== id),
+        }));
+      },
+
+      removeNotificationsByKeys: (keys: string[]) => {
+        set(state => ({
+          notifications: state.notifications.filter(n => {
+            // Check if notification's group key matches any of the keys to delete
+            const notificationGroupKey = `${n.title}_${n.appName}_${n.type}`;
+            return !keys.includes(notificationGroupKey);
+          }),
         }));
       },
 
@@ -144,6 +156,11 @@ export const useNotificationStore = create<NotificationState>()(
             error,
           );
         }
+      },
+
+      cleanup: () => {
+        set({ notifications: [] });
+        console.log('[NotificationStore] Cleaned up');
       },
     }),
     {

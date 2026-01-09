@@ -30,6 +30,10 @@ interface SMSState {
   stopListeningForSMSRequests: () => void;
   markAsRead: (messageId: string) => Promise<void>;
   markMessagesAsReadBySender: (sender: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  deleteMessage: (messageId: string) => Promise<void>;
+  deleteMessagesBySender: (sender: string) => Promise<void>;
+  deleteAllMessages: () => Promise<void>;
   cleanup: () => void;
 }
 
@@ -55,7 +59,7 @@ export const useSMSStore = create<SMSState>((set, get) => ({
   // إضافة رسالة وحفظها في Firebase مباشرة
   addMessageAndSync: async (message: SMS, userId: string) => {
     const { messages } = get();
-    const { currentDevice } = useDeviceStore.getState();
+    let { currentDevice } = useDeviceStore.getState();
 
     // تجنب التكرار
     if (!messages.find(m => m.id === message.id)) {
@@ -66,6 +70,18 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       );
     } else {
       console.log('⚠️ SMS already exists in store:', message.id);
+    }
+
+    // If no currentDevice, try to register it first
+    if (!currentDevice && userId) {
+      console.log('📱 No currentDevice found, attempting to register...');
+      try {
+        await useDeviceStore.getState().registerDevice();
+        currentDevice = useDeviceStore.getState().currentDevice;
+        console.log('📱 Device registered:', currentDevice?.id);
+      } catch (e) {
+        console.error('❌ Failed to register device:', e);
+      }
     }
 
     // حفظ في Firebase كإشعار (في نفس مسار الإشعارات)
@@ -85,11 +101,14 @@ export const useSMSStore = create<SMSState>((set, get) => ({
           content: message.body || message.text || '',
           appName: 'SMS',
           type: 'sms',
+          smsType: message.type || 'inbox', // حفظ نوع الرسالة: sent أو inbox
           timestamp: message.timestamp,
           receivedAt: message.timestamp,
           read: message.read || false,
           userId,
           deviceId: currentDevice.id,
+          deviceName:
+            currentDevice.nickname || currentDevice.name || 'Android Device',
           phoneNumber,
           contactName,
           syncedAt: Date.now(),
@@ -115,6 +134,13 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       } catch (error) {
         console.error('❌ Error saving SMS to Firebase:', error);
       }
+    } else {
+      console.warn(
+        '⚠️ SMS NOT saved to Firebase - userId:',
+        userId,
+        'currentDevice:',
+        currentDevice?.id || 'null',
+      );
     }
   },
 
@@ -191,10 +217,10 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       .limit(SMS_PAGE_SIZE)
       .onSnapshot(
         snapshot => {
-          const messages: SMS[] = [];
+          const firebaseMessages: SMS[] = [];
           snapshot.forEach(doc => {
             const data = doc.data();
-            messages.push({
+            firebaseMessages.push({
               id: doc.id,
               threadId: data.threadId || '',
               userId: data.userId || user.uid,
@@ -206,14 +232,25 @@ export const useSMSStore = create<SMSState>((set, get) => ({
               contactName: data.contactName || '',
               timestamp: data.timestamp || data.receivedAt || Date.now(),
               read: data.read || false,
-              type: 'inbox',
+              type: data.smsType || 'inbox', // استخدام smsType من Firebase (sent أو inbox)
               syncedAt: data.syncedAt || Date.now(),
             } as SMS);
           });
+          
+          // دمج الرسائل المحلية الجديدة مع رسائل Firebase
+          const { messages: currentMessages } = get();
+          const firebaseIds = new Set(firebaseMessages.map(m => m.id));
+          
+          // الاحتفاظ بالرسائل المحلية التي لم تُحفظ بعد في Firebase
+          const localOnlyMessages = currentMessages.filter(m => !firebaseIds.has(m.id));
+          
+          // دمج الرسائل
+          const mergedMessages = [...localOnlyMessages, ...firebaseMessages];
+          
           // ترتيب محلياً بعد جلب البيانات
-          messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-          console.log('📬 SMS loaded from Firebase:', messages.length);
-          set({ messages, isLoading: false });
+          mergedMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+          console.log('📬 SMS loaded from Firebase:', firebaseMessages.length, '| Local only:', localOnlyMessages.length, '| Total:', mergedMessages.length);
+          set({ messages: mergedMessages, isLoading: false });
         },
         error => {
           console.error('❌ Error loading SMS:', error);
@@ -280,74 +317,17 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       return;
     }
 
+    // NOTE: SmsRequestService.java handles SMS sending in background
+    // We only need to listen here when the app is in foreground and service is not running
+    // To avoid duplicates, we'll skip this listener since the service handles everything
     console.log(
-      '📡 Starting SMS requests listener for device:',
+      '📡 SMS requests handled by SmsRequestService - skipping JS listener for device:',
       currentDevice.id,
     );
 
-    // Listen for SMS requests from other devices (like Chrome extension)
-    smsRequestsUnsubscribe = firestore()
-      .collection(COLLECTIONS.SMS_REQUESTS)
-      .where('toDeviceId', '==', currentDevice.id)
-      .where('status', '==', 'pending')
-      .onSnapshot(snapshot => {
-        console.log(
-          '📨 SMS requests snapshot received, changes:',
-          snapshot.docChanges().length,
-        );
-        snapshot.docChanges().forEach(async change => {
-          console.log('📨 SMS request change type:', change.type);
-          if (change.type === 'added') {
-            const request = change.doc.data() as SendSMSRequest;
-            console.log(
-              '📨 New SMS request:',
-              request.phoneNumber,
-              request.message,
-            );
-
-            // Send the SMS using native module
-            try {
-              if (SmsModule) {
-                await SmsModule.sendSms(request.phoneNumber, request.message);
-                console.log('📤 SMS sent to:', request.phoneNumber);
-
-                // Save sent message to notifications collection
-                const sentMessage = {
-                  type: 'sms',
-                  phoneNumber: request.phoneNumber,
-                  contactName: request.phoneNumber, // Will be the phone number for sent messages
-                  body: request.message,
-                  timestamp: Date.now(),
-                  read: true,
-                  direction: 'outgoing', // Mark as sent message
-                };
-
-                await firestore()
-                  .collection(COLLECTIONS.USERS)
-                  .doc(user.uid)
-                  .collection(COLLECTIONS.DEVICES)
-                  .doc(currentDevice.id)
-                  .collection(COLLECTIONS.NOTIFICATIONS)
-                  .add(sentMessage);
-
-                console.log('💾 Sent message saved to Firebase');
-              }
-
-              // Update request status
-              await firestore()
-                .collection(COLLECTIONS.SMS_REQUESTS)
-                .doc(change.doc.id)
-                .update({ status: 'sent' });
-            } catch (error) {
-              console.error('❌ SMS send error:', error);
-              await firestore()
-                .collection(COLLECTIONS.SMS_REQUESTS)
-                .doc(change.doc.id)
-                .update({ status: 'failed' });
-            }
-          }
-        });
-      });
+    // Commenting out to avoid duplicate SMS sends and saves
+    // The SmsRequestService.java foreground service handles this
+    return;
   },
 
   stopListeningForSMSRequests: () => {
@@ -432,6 +412,181 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       }
     }
   },
+
+  // تحديد جميع الرسائل كمقروءة
+  markAllAsRead: async () => {
+    const { user } = useAuthStore.getState();
+    const { currentDevice } = useDeviceStore.getState();
+    const { messages } = get();
+
+    // تحديث محلي
+    set(state => ({
+      messages: state.messages.map(msg => ({ ...msg, read: true } as SMS)),
+    }));
+    console.log('📖 Marked all messages as read locally');
+
+    // تحديث في Firebase
+    if (user && currentDevice && messages.length > 0) {
+      try {
+        const batch = firestore().batch();
+        let count = 0;
+
+        for (const msg of messages) {
+          if (!msg.read) {
+            const docRef = firestore()
+              .collection(COLLECTIONS.USERS)
+              .doc(user.uid)
+              .collection(COLLECTIONS.DEVICES)
+              .doc(currentDevice.id)
+              .collection(COLLECTIONS.NOTIFICATIONS)
+              .doc(msg.id);
+            batch.update(docRef, { read: true });
+            count++;
+          }
+        }
+
+        if (count > 0) {
+          await batch.commit();
+          console.log('✅ Marked all', count, 'messages as read in Firebase');
+        }
+      } catch (error) {
+        console.error('❌ Error marking all messages as read:', error);
+      }
+    }
+  },
+
+  // حذف رسائل حسب المرسل
+  deleteMessagesBySender: async (sender: string) => {
+    const { user } = useAuthStore.getState();
+    const { currentDevice } = useDeviceStore.getState();
+    const { messages } = get();
+
+    // Find messages from this sender
+    const senderMessages = messages.filter(msg => {
+      const msgSender =
+        (msg as any).sender || (msg as any).phoneNumber || (msg as any).address;
+      return (
+        msgSender === sender ||
+        msgSender?.includes(sender) ||
+        sender?.includes(msgSender)
+      );
+    });
+
+    if (senderMessages.length === 0) {
+      console.log('⚠️ No messages found for sender:', sender);
+      return;
+    }
+
+    // حذف من المتجر المحلي
+    set(state => ({
+      messages: state.messages.filter(msg => {
+        const msgSender =
+          (msg as any).sender ||
+          (msg as any).phoneNumber ||
+          (msg as any).address;
+        return !(
+          msgSender === sender ||
+          msgSender?.includes(sender) ||
+          sender?.includes(msgSender)
+        );
+      }),
+    }));
+    console.log(
+      `🗑️ Deleted ${senderMessages.length} messages locally for sender:`,
+      sender,
+    );
+
+    // حذف من Firebase
+    if (user && currentDevice) {
+      try {
+        const batch = firestore().batch();
+        for (const msg of senderMessages) {
+          const docRef = firestore()
+            .collection(COLLECTIONS.USERS)
+            .doc(user.uid)
+            .collection(COLLECTIONS.DEVICES)
+            .doc(currentDevice.id)
+            .collection(COLLECTIONS.NOTIFICATIONS)
+            .doc(msg.id);
+          batch.delete(docRef);
+        }
+        await batch.commit();
+        console.log(
+          `✅ Deleted ${senderMessages.length} messages from Firebase`,
+        );
+      } catch (error) {
+        console.error('❌ Error deleting messages by sender:', error);
+      }
+    }
+  },
+
+  // حذف رسالة واحدة
+  deleteMessage: async (messageId: string) => {
+    const { user } = useAuthStore.getState();
+    const { currentDevice } = useDeviceStore.getState();
+
+    // حذف من المتجر المحلي
+    set(state => ({
+      messages: state.messages.filter(msg => msg.id !== messageId),
+    }));
+    console.log('🗑️ Message deleted locally:', messageId);
+
+    // حذف من Firebase
+    if (user && currentDevice) {
+      try {
+        await firestore()
+          .collection(COLLECTIONS.USERS)
+          .doc(user.uid)
+          .collection(COLLECTIONS.DEVICES)
+          .doc(currentDevice.id)
+          .collection(COLLECTIONS.NOTIFICATIONS)
+          .doc(messageId)
+          .delete();
+        console.log('✅ Message deleted from Firebase:', messageId);
+      } catch (error) {
+        console.error('❌ Error deleting message:', error);
+      }
+    }
+  },
+
+  // حذف جميع الرسائل
+  deleteAllMessages: async () => {
+    const { user } = useAuthStore.getState();
+    const { currentDevice } = useDeviceStore.getState();
+    const { messages } = get();
+
+    // حذف من المتجر المحلي
+    set({ messages: [] });
+    console.log('🗑️ All messages deleted locally');
+
+    // حذف من Firebase
+    if (user && currentDevice && messages.length > 0) {
+      try {
+        const batch = firestore().batch();
+
+        for (const msg of messages) {
+          const docRef = firestore()
+            .collection(COLLECTIONS.USERS)
+            .doc(user.uid)
+            .collection(COLLECTIONS.DEVICES)
+            .doc(currentDevice.id)
+            .collection(COLLECTIONS.NOTIFICATIONS)
+            .doc(msg.id);
+          batch.delete(docRef);
+        }
+
+        await batch.commit();
+        console.log(
+          '✅ All',
+          messages.length,
+          'messages deleted from Firebase',
+        );
+      } catch (error) {
+        console.error('❌ Error deleting all messages:', error);
+      }
+    }
+  },
+
   cleanup: () => {
     const { unsubscribe } = get();
     if (unsubscribe) {

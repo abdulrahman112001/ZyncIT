@@ -16,8 +16,9 @@ const { ZyncITModule, CallLogModule, SmsModule } = NativeModules;
 /**
  * Hook للاستماع للأحداث من Native Module
  * يربط بين الـ Native Android Code و React Native
+ * @param listenToEvents - إذا كان true، يستمع للأحداث الجديدة (SMS/Calls). استخدمه فقط مرة واحدة في App.tsx
  */
-export const useNativeEvents = () => {
+export const useNativeEvents = (listenToEvents: boolean = false) => {
   const {
     addMessage,
     addMessageAndSync,
@@ -26,15 +27,19 @@ export const useNativeEvents = () => {
   } = useSMSStore();
   const { addCall, addCallAndSync, syncCallsToFirebase } = useCallStore();
   const { user } = useAuthStore();
-  const { currentDevice, registerDevice } = useDeviceStore();
+  const { currentDevice, registerDevice, startOnlineStatusTracking } =
+    useDeviceStore();
 
   // تسجيل الجهاز عند تحميل المستخدم
   useEffect(() => {
     if (user && !currentDevice) {
       console.log('📱 Registering device...');
-      registerDevice();
+      registerDevice().then(() => {
+        console.log('🟢 Starting online status tracking...');
+        startOnlineStatusTracking();
+      });
     }
-  }, [user, currentDevice, registerDevice]);
+  }, [user, currentDevice, registerDevice, startOnlineStatusTracking]);
 
   // الاستماع لطلبات إرسال SMS من Chrome Extension + بدء Foreground Service
   useEffect(() => {
@@ -176,9 +181,9 @@ export const useNativeEvents = () => {
     }
   }, []);
 
-  // الاستماع للأحداث من Native Module
+  // الاستماع للأحداث من Native Module - فقط إذا كان listenToEvents = true
   useEffect(() => {
-    if (Platform.OS !== 'android' || !user) return;
+    if (!listenToEvents || Platform.OS !== 'android' || !user) return;
 
     console.log('📱 Setting up native event listeners...');
 
@@ -247,18 +252,31 @@ export const useNativeEvents = () => {
       smsSubscription?.remove();
       callSubscription?.remove();
     };
-  }, [user, addMessageAndSync, addCallAndSync]); // Start call listener for real-time call events
+  }, [listenToEvents, user, addMessageAndSync, addCallAndSync]);
+
+  // Start call listener for real-time call events
   const startCallListener = useCallback(async () => {
     if (Platform.OS !== 'android') return;
 
     try {
       const hasPermissions = await requestPermissions();
-      if (hasPermissions && ZyncITModule?.startCallListener) {
-        await ZyncITModule.startCallListener();
-        console.log('[startCallListener] Call listener started');
-      } else {
-        // Even without native module, the event listeners are already set up
-        console.log('[startCallListener] Using event emitter for calls');
+      if (hasPermissions) {
+        // Use CallLogModule.startListening to register the receiver
+        if (CallLogModule?.startListening) {
+          await CallLogModule.startListening();
+          console.log(
+            '[startCallListener] Call listener started via CallLogModule',
+          );
+        } else if (ZyncITModule?.startCallListener) {
+          await ZyncITModule.startCallListener();
+          console.log(
+            '[startCallListener] Call listener started via ZyncITModule',
+          );
+        } else {
+          console.log(
+            '[startCallListener] Using event emitter for calls (no native start method)',
+          );
+        }
       }
     } catch (error) {
       console.error('Error starting call listener:', error);

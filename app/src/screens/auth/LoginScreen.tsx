@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import { AuthStackParamList } from '../../types';
 import { useTheme } from '../../contexts/ThemeContext';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -69,7 +70,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <View style={[styles.logoBox, { backgroundColor: colors.primary }]}>
-              <Text style={styles.logoText}>Z</Text>
+              <Icon name="sync" size={50} color="#FFFFFF" />
             </View>
             <Text style={[styles.appName, { color: colors.text }]}>ZyncIT</Text>
             <Text style={[styles.tagline, { color: colors.textSecondary }]}>
@@ -93,7 +94,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              <Text style={styles.inputIcon}>📧</Text>
+              <Icon
+                name="mail-outline"
+                size={20}
+                color={colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="Email"
@@ -113,7 +119,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              <Text style={styles.inputIcon}>🔒</Text>
+              <Icon
+                name="lock-closed-outline"
+                size={20}
+                color={colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="Password"
@@ -247,16 +258,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   inputIcon: {
-    fontSize: 18,
-    marginRight: 8,
+    marginRight: 10,
+    width: 20,
   },
   input: {
     flex: 1,
     height: 50,
     fontSize: 15,
-  },
-  eyeIcon: {
-    fontSize: 18,
   },
   button: {
     height: 50,

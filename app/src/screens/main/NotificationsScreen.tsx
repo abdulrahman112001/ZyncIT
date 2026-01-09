@@ -17,6 +17,7 @@ import {
   StatusBar,
   TextInput,
   Dimensions,
+  I18nManager,
 } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
@@ -73,6 +74,9 @@ const SwipeableItem = ({
   isRTL,
   colors,
   isDarkMode,
+  isSelectMode,
+  isSelected,
+  onToggleSelect,
 }: {
   item: GroupedNotification;
   onPress: () => void;
@@ -81,6 +85,9 @@ const SwipeableItem = ({
   isRTL: boolean;
   colors: any;
   isDarkMode: boolean;
+  isSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) => {
   const translateX = useRef(new Animated.Value(0)).current;
   const [swiped, setSwiped] = useState(false);
@@ -151,52 +158,74 @@ const SwipeableItem = ({
   return (
     <View style={[styles.swipeContainer, { backgroundColor: bgColor }]}>
       {/* Actions Background - Right side for LTR, Left side for RTL */}
-      <View
-        style={[
-          styles.actionsContainer,
-          isRTL ? styles.actionsLeft : styles.actionsRight,
-        ]}
-      >
-        <TouchableOpacity
-          style={[styles.actionButton, styles.muteButton]}
-          onPress={() => {
-            onMute();
-            resetSwipe();
-          }}
+      {!isSelectMode && (
+        <View
+          style={[
+            styles.actionsContainer,
+            isRTL ? styles.actionsLeft : styles.actionsRight,
+          ]}
         >
-          <Text style={styles.actionIcon}>ًں”•</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => {
-            onDelete();
-          }}
-        >
-          <Text style={styles.actionIcon}>ًں—‘ï¸ڈ</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.muteButton]}
+            onPress={() => {
+              onMute();
+              resetSwipe();
+            }}
+          >
+            <Ionicons name="notifications-off" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={() => {
+              onDelete();
+            }}
+          >
+            <Ionicons name="trash" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <Animated.View
         style={[
           styles.messageRow,
-          { backgroundColor: bgColor, transform: [{ translateX }] },
+          {
+            backgroundColor: bgColor,
+            transform: [{ translateX: isSelectMode ? 0 : translateX }],
+          },
         ]}
       >
         <TouchableOpacity
           onPress={() => {
-            if (swiped) {
+            if (isSelectMode && onToggleSelect) {
+              onToggleSelect();
+            } else if (swiped) {
               resetSwipe();
             } else {
               onPress();
             }
           }}
           onLongPress={() => {
-            handleSwipe(isRTL ? 'right' : 'left');
+            if (!isSelectMode) {
+              handleSwipe(isRTL ? 'right' : 'left');
+            }
           }}
           delayLongPress={300}
           style={styles.rowContent}
           activeOpacity={0.7}
         >
+          {/* Checkbox for select mode */}
+          {isSelectMode && (
+            <View style={styles.checkboxContainer}>
+              <View
+                style={[styles.checkbox, isSelected && styles.checkboxSelected]}
+              >
+                {isSelected && (
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Avatar with Badge */}
           <View style={styles.avatarContainer}>
             <View style={[styles.avatar, { backgroundColor: avatarBgColor }]}>
@@ -248,7 +277,13 @@ const SwipeableItem = ({
           </View>
         </TouchableOpacity>
       </Animated.View>
-      <View style={[styles.separator, { backgroundColor: separatorColor }]} />
+      <View
+        style={[
+          styles.separator,
+          isRTL ? styles.separatorRTL : styles.separatorLTR,
+          { backgroundColor: separatorColor },
+        ]}
+      />
     </View>
   );
 };
@@ -259,20 +294,35 @@ const NotificationsScreen = () => {
     notifications,
     addNotification,
     removeNotification,
+    removeNotificationsByKeys,
     markGroupAsRead,
   } = useNotificationStore();
   const {
     messages: smsMessages,
     markMessagesAsReadBySender,
     loadMessages: loadSmsMessages,
+    deleteMessagesBySender,
   } = useSMSStore();
   const { user } = useAuthStore();
   const { currentDevice } = useDeviceStore();
   const [isLoading, setIsLoading] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const { isRTL, t, colors, isDarkMode } = useTheme();
+
+  // Debug log
+  console.log(
+    '📱 NotificationsScreen - isRTL from theme:',
+    isRTL,
+    '| I18nManager.isRTL:',
+    I18nManager.isRTL,
+  );
+
   const [isEditMode, setIsEditMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedNotifications, setSelectedNotifications] = useState<string[]>(
+    [],
+  );
 
   // Dynamic colors based on theme
   const bgColor = isDarkMode ? '#000000' : colors.background;
@@ -284,16 +334,100 @@ const NotificationsScreen = () => {
   const groupedNotifications = useMemo(() => {
     const groups: { [key: string]: GroupedNotification } = {};
 
+    // التأكد من أن البيانات arrays قبل المعالجة
+    const validSmsMessages = Array.isArray(smsMessages) ? smsMessages : [];
+    const validNotifications = Array.isArray(notifications)
+      ? notifications
+      : [];
+
+    console.log('[NotificationsScreen] Grouping notifications:', {
+      smsCount: validSmsMessages.length,
+      notificationsCount: validNotifications.length,
+      smsMessages: validSmsMessages.slice(0, 2),
+    });
+
+    // بناء جدول ربط بين الأسماء والأرقام من الرسائل التي لديها كلاهما
+    const nameToPhoneMap: { [name: string]: string } = {};
+    const phoneToNameMap: { [phone: string]: string } = {};
+    
+    validSmsMessages.forEach(sms => {
+      const rawPhone = (sms as any).phoneNumber || (sms as any).sender || '';
+      const name = (sms as any).contactName || '';
+      const isPhone = /^[\+\d\s\-\(\)]+$/.test(rawPhone.trim());
+      
+      if (isPhone && name && rawPhone) {
+        // تطبيع الرقم
+        let normalized = rawPhone.replace(/[\s\-\(\)\+]/g, '').trim();
+        if (normalized.startsWith('20') && normalized.length > 10) {
+          normalized = normalized.substring(2);
+        }
+        if (normalized.startsWith('0') && normalized.length > 10) {
+          normalized = normalized.substring(1);
+        }
+        
+        nameToPhoneMap[name] = normalized;
+        phoneToNameMap[normalized] = name;
+      }
+    });
+
+    console.log('[NotificationsScreen] Name-Phone mapping:', nameToPhoneMap);
+
     // أولاً: تجميع رسائل SMS حسب رقم المرسل
-    smsMessages.forEach(sms => {
-      const phoneNumber =
-        (sms as any).sender ||
+    validSmsMessages.forEach((sms, index) => {
+      // استخراج رقم الهاتف واسم جهة الاتصال
+      let phoneNumber =
         (sms as any).phoneNumber ||
+        (sms as any).sender ||
         (sms as any).address ||
-        'Unknown';
-      const contactName = (sms as any).contactName || '';
-      const displayName = contactName || phoneNumber;
-      const groupKey = `sms_${phoneNumber}`;
+        '';
+      let contactName = (sms as any).contactName || '';
+
+      // التحقق مما إذا كان phoneNumber يحتوي على رقم فعلي أم اسم
+      // الرقم الحقيقي يبدأ بـ + أو أرقام فقط
+      const isActualPhoneNumber = /^[\+\d\s\-\(\)]+$/.test(phoneNumber.trim());
+      
+      // تخطي الرسائل التي ليس لديها رقم هاتف حقيقي
+      if (!isActualPhoneNumber) {
+        console.log('[SMS Skip] No valid phone number:', phoneNumber || contactName);
+        return; // تخطي هذه الرسالة
+      }
+
+      // Debug: طباعة أول 10 رسائل
+      if (index < 10) {
+        console.log('[SMS Debug]', {
+          index,
+          phoneNumber,
+          contactName,
+          isActualPhoneNumber,
+          sender: (sms as any).sender,
+        });
+      }
+
+      // تطبيع رقم الهاتف: إزالة المسافات والرموز غير الضرورية وكود الدولة
+      let normalizedPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, '').trim();
+      // إزالة كود الدولة المصري إذا وجد (20)
+      if (normalizedPhone.startsWith('20') && normalizedPhone.length > 10) {
+        normalizedPhone = normalizedPhone.substring(2);
+      }
+      // إزالة الصفر البادئ إذا وجد
+      if (normalizedPhone.startsWith('0') && normalizedPhone.length > 10) {
+        normalizedPhone = normalizedPhone.substring(1);
+      }
+
+      // استخدام جدول الربط: إذا كان لدينا اسم بدون رقم، ابحث عن الرقم المرتبط به
+      let groupingKey = '';
+      if (normalizedPhone) {
+        groupingKey = normalizedPhone;
+      } else if (contactName && nameToPhoneMap[contactName]) {
+        // لدينا اسم ولدينا رقم مرتبط به في الجدول
+        groupingKey = nameToPhoneMap[contactName];
+      } else {
+        groupingKey = contactName || 'Unknown';
+      }
+
+      // عرض اسم جهة الاتصال إذا وجد، وإلا الرقم
+      const displayName = contactName || phoneToNameMap[normalizedPhone] || phoneNumber || 'Unknown';
+      const groupKey = `sms_${groupingKey}`;
       const smsId = sms.id || `sms_${sms.timestamp}`;
 
       const notificationItem: AppNotification = {
@@ -301,11 +435,13 @@ const NotificationsScreen = () => {
         key: `sms_${smsId}`,
         packageName: 'com.android.mms',
         title: displayName,
-        text: (sms as any).body || (sms as any).message || '',
+        text: (sms as any).body || (sms as any).message || (sms as any).text || '',
         appName: 'SMS',
         type: 'sms',
+        smsType: (sms as any).type || 'inbox', // inbox أو sent
         timestamp: sms.timestamp || Date.now(),
         read: (sms as any).read || false,
+        phoneNumber: phoneNumber, // إضافة رقم الهاتف للإشعار
       };
 
       if (!groups[groupKey]) {
@@ -331,8 +467,14 @@ const NotificationsScreen = () => {
       }
     });
 
+    console.log('[NotificationsScreen] After SMS grouping:', {
+      groupsCount: Object.keys(groups).length,
+      smsGroups: Object.keys(groups).filter(k => k.startsWith('sms_')).length,
+      smsGroupKeys: Object.keys(groups).filter(k => k.startsWith('sms_')),
+    });
+
     // ثانياً: تجميع الإشعارات العادية (Filter out calls)
-    notifications
+    validNotifications
       .filter(n => n.type !== 'call' && n.type !== 'missed_call')
       .forEach(n => {
         const groupKey = `${n.title}_${n.appName}_${n.type}`;
@@ -369,10 +511,20 @@ const NotificationsScreen = () => {
       const query = searchQuery.toLowerCase();
       result = result.filter(
         g =>
-          g.title.toLowerCase().includes(query) ||
-          g.lastText.toLowerCase().includes(query),
+          (g.title || '').toLowerCase().includes(query) ||
+          (g.lastText || '').toLowerCase().includes(query),
       );
     }
+
+    console.log('[NotificationsScreen] Final grouped result:', {
+      totalGroups: result.length,
+      smsGroups: result.filter(g => g.type === 'sms').length,
+      groups: result.map(g => ({
+        type: g.type,
+        title: g.title,
+        count: g.count,
+      })),
+    });
 
     return result;
   }, [notifications, smsMessages, searchQuery]);
@@ -453,6 +605,55 @@ const NotificationsScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, currentDevice]);
 
+  // تحميل الإشعارات العادية من Firebase
+  useEffect(() => {
+    if (!user || !currentDevice) return;
+
+    console.log(
+      '[NotificationsScreen] Setting up Firebase listener for regular notifications',
+    );
+
+    const unsubscribe = firestore()
+      .collection('users')
+      .doc(user.uid)
+      .collection('devices')
+      .doc(currentDevice.id)
+      .collection('notifications')
+      .where('type', '!=', 'sms') // جلب كل الإشعارات ماعدا SMS
+      .limit(100)
+      .onSnapshot(
+        snapshot => {
+          console.log(
+            '[NotificationsScreen] Firebase notifications updated:',
+            snapshot.size,
+          );
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const notification: AppNotification = {
+              id: doc.id,
+              key: data.key || `${data.packageName}_${data.timestamp}`,
+              packageName: data.packageName || '',
+              title: data.title || '',
+              text: data.text || '',
+              type: data.type || 'other',
+              timestamp: data.timestamp || Date.now(),
+              appName: data.appName || '',
+              read: data.read ?? false,
+            };
+            addNotification(notification);
+          });
+        },
+        error => {
+          console.error(
+            '[NotificationsScreen] Error loading notifications:',
+            error,
+          );
+        },
+      );
+
+    return () => unsubscribe();
+  }, [user, currentDevice, addNotification]);
+
   useEffect(() => {
     if (!hasPermission) {
       console.log('[NotificationsScreen] No permission, skipping listener');
@@ -462,6 +663,12 @@ const NotificationsScreen = () => {
     console.log('[NotificationsScreen] Setting up notification listener');
     const unsubscribe = notificationService.onNotificationReceived(
       notification => {
+        // تخطي إشعارات SMS بالكامل - يتم معالجتها من SMS listener
+        if (notification.type === 'sms' || notification.packageName?.includes('messaging') || notification.packageName?.includes('mms')) {
+          console.log('[NotificationsScreen] Skipping SMS notification:', notification.title);
+          return;
+        }
+        
         console.log(
           '[NotificationsScreen] Received notification:',
           notification.title,
@@ -498,15 +705,24 @@ const NotificationsScreen = () => {
 
   const handleDelete = (group: GroupedNotification) => {
     Alert.alert(
-      'Delete Conversation',
-      `Delete all messages from ${group.title}?`,
+      isRTL ? 'حذف المحادثة' : 'Delete Conversation',
+      isRTL
+        ? `حذف جميع الرسائل من ${group.title}؟`
+        : `Delete all messages from ${group.title}?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: isRTL ? 'حذف' : 'Delete',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            // Delete notifications
             group.notifications.forEach(n => removeNotification(n.id));
+
+            // If SMS type, also delete from SMS store
+            if (group.type === 'sms') {
+              const phoneNumber = group.key.replace('sms_', '');
+              await deleteMessagesBySender(phoneNumber);
+            }
           },
         },
       ],
@@ -515,6 +731,67 @@ const NotificationsScreen = () => {
 
   const handleMute = (group: GroupedNotification) => {
     Alert.alert('Muted', `Notifications from ${group.title} are now muted.`);
+  };
+
+  const toggleSelectNotification = (key: string) => {
+    setSelectedNotifications(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key],
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedNotifications.length === groupedNotifications.length) {
+      setSelectedNotifications([]);
+    } else {
+      setSelectedNotifications(groupedNotifications.map(g => g.key));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedNotifications.length === 0) return;
+
+    Alert.alert(
+      isRTL ? 'حذف الإشعارات المحددة' : 'Delete Selected Notifications',
+      isRTL
+        ? `هل أنت متأكد من حذف ${selectedNotifications.length} محادثة؟`
+        : `Are you sure you want to delete ${selectedNotifications.length} conversations?`,
+      [
+        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRTL ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // Delete each selected group's notifications
+            for (const key of selectedNotifications) {
+              const group = groupedNotifications.find(g => g.key === key);
+              if (group) {
+                // Delete from notifications store
+                group.notifications.forEach(n => removeNotification(n.id));
+
+                // If SMS type, also delete from SMS store
+                if (group.type === 'sms') {
+                  const phoneNumber = key.replace('sms_', '');
+                  await deleteMessagesBySender(phoneNumber);
+                }
+              }
+            }
+            setSelectedNotifications([]);
+            setIsSelectMode(false);
+            Alert.alert(
+              isRTL ? 'تم' : 'Done',
+              isRTL
+                ? 'تم حذف الإشعارات المحددة'
+                : 'Selected notifications deleted',
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const cancelSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedNotifications([]);
   };
 
   const renderItem = ({ item }: { item: GroupedNotification }) => (
@@ -526,11 +803,44 @@ const NotificationsScreen = () => {
       isRTL={isRTL}
       colors={colors}
       isDarkMode={isDarkMode}
+      isSelectMode={isSelectMode}
+      isSelected={selectedNotifications.includes(item.key)}
+      onToggleSelect={() => toggleSelectNotification(item.key)}
     />
   );
 
   const renderHeader = () => (
-    <View style={[styles.header, { backgroundColor: bgColor }]} />
+    <View style={[styles.header, { backgroundColor: bgColor }]}>
+      {isSelectMode ? (
+        <>
+          <TouchableOpacity onPress={cancelSelectMode}>
+            <Text style={[styles.headerButtonText, { color: '#0A84FF' }]}>
+              {isRTL ? 'إلغاء' : 'Cancel'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleSelectAll}>
+            <Text style={[styles.headerButtonText, { color: '#0A84FF' }]}>
+              {selectedNotifications.length === groupedNotifications.length
+                ? isRTL
+                  ? 'إلغاء تحديد الكل'
+                  : 'Deselect All'
+                : isRTL
+                ? 'تحديد الكل'
+                : 'Select All'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <View style={styles.headerSpacer} />
+          <TouchableOpacity onPress={() => setIsSelectMode(true)}>
+            <Text style={[styles.headerButtonText, { color: '#0A84FF' }]}>
+              {isRTL ? 'تحديد' : 'Select'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
   );
 
   const renderTitle = () => (
@@ -538,6 +848,23 @@ const NotificationsScreen = () => {
       <Text style={[styles.title, { color: textColor }]}>
         {isRTL ? 'الإشعارات' : 'Notifications'}
       </Text>
+      {isSelectMode && (
+        <TouchableOpacity
+          onPress={handleDeleteSelected}
+          style={[
+            styles.deleteSelectedButton,
+            selectedNotifications.length === 0 && { opacity: 0.5 },
+          ]}
+          disabled={selectedNotifications.length === 0}
+        >
+          <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+          {selectedNotifications.length > 0 && (
+            <Text style={styles.deleteSelectedText}>
+              ({selectedNotifications.length})
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -681,8 +1008,29 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   titleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 8,
+  },
+  headerSpacer: {
+    width: 36,
+  },
+  headerButtonText: {
+    fontSize: 17,
+    fontWeight: '400',
+  },
+  deleteSelectedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+  },
+  deleteSelectedText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    marginLeft: 4,
+    fontWeight: '600',
   },
   title: {
     fontSize: 34,
@@ -752,9 +1100,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  rowContentRTL: {
+    flexDirection: 'row-reverse',
+  },
   avatarContainer: {
     position: 'relative',
     marginRight: 12,
+  },
+  avatarContainerRTL: {
+    marginRight: 0,
+    marginLeft: 12,
+  },
+  checkboxContainer: {
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxContainerRTL: {
+    marginRight: 0,
+    marginLeft: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#8E8E93',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxSelected: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
   },
   avatar: {
     width: 56,
@@ -795,11 +1173,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  topRowRTL: {
+    flexDirection: 'row-reverse',
+  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 8,
+  },
+  titleRowRTL: {
+    flexDirection: 'row-reverse',
   },
   senderName: {
     fontSize: 17,
@@ -824,7 +1207,12 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 0.5,
+  },
+  separatorLTR: {
     marginLeft: 84,
+  },
+  separatorRTL: {
+    marginRight: 84,
   },
   emptyContainer: {
     flex: 1,

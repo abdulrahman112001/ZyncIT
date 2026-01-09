@@ -16,6 +16,8 @@ import {
   StatusBar,
   TextInput,
   Animated,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -50,6 +52,9 @@ const SwipeableCallItem = ({
   secondaryTextColor,
   bgColor,
   avatarBgColor,
+  isSelectMode,
+  isSelected,
+  onToggleSelect,
 }: {
   item: GroupedCall;
   onPress: () => void;
@@ -60,6 +65,9 @@ const SwipeableCallItem = ({
   secondaryTextColor: string;
   bgColor: string;
   avatarBgColor: string;
+  isSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) => {
   const translateX = useRef(new Animated.Value(0)).current;
   const [swiped, setSwiped] = useState(false);
@@ -142,43 +150,65 @@ const SwipeableCallItem = ({
 
   return (
     <View style={[styles.swipeContainer, { backgroundColor: bgColor }]}>
-      <View
-        style={[
-          styles.actionsContainer,
-          isRTL ? styles.actionsLeft : styles.actionsRight,
-        ]}
-      >
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => {
-            onDelete();
-          }}
+      {!isSelectMode && (
+        <View
+          style={[
+            styles.actionsContainer,
+            isRTL ? styles.actionsLeft : styles.actionsRight,
+          ]}
         >
-          <Text style={styles.actionIcon}>🗑️</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={() => {
+              onDelete();
+            }}
+          >
+            <Text style={styles.actionIcon}>🗑️</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <Animated.View
         style={[
           styles.callRow,
-          { backgroundColor: bgColor, transform: [{ translateX }] },
+          {
+            backgroundColor: bgColor,
+            transform: [{ translateX: isSelectMode ? 0 : translateX }],
+          },
         ]}
       >
         <TouchableOpacity
           onPress={() => {
-            if (swiped) {
+            if (isSelectMode && onToggleSelect) {
+              onToggleSelect();
+            } else if (swiped) {
               resetSwipe();
             } else {
               onPress();
             }
           }}
           onLongPress={() => {
-            handleSwipe(isRTL ? 'right' : 'left');
+            if (!isSelectMode) {
+              handleSwipe(isRTL ? 'right' : 'left');
+            }
           }}
           delayLongPress={300}
           style={styles.rowContent}
           activeOpacity={0.7}
         >
+          {/* Checkbox for select mode */}
+          {isSelectMode && (
+            <View style={styles.checkboxContainer}>
+              <View
+                style={[styles.checkbox, isSelected && styles.checkboxSelected]}
+              >
+                {isSelected && (
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                )}
+              </View>
+            </View>
+          )}
+
           <View style={styles.avatarContainer}>
             <View style={[styles.avatar, { backgroundColor: avatarBgColor }]}>
               <Text style={[styles.avatarText, { color: textColor }]}>
@@ -233,7 +263,15 @@ const SwipeableCallItem = ({
 
 const CallsScreen = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { calls, isLoading, loadCalls, addCall, syncCalls } = useCallStore();
+  const {
+    calls,
+    isLoading,
+    loadCalls,
+    addCall,
+    syncCalls,
+    clearAllCalls,
+    deleteCallsByPhoneNumbers,
+  } = useCallStore();
   const { requestPermissions, startCallListener, loadCallLog } =
     useNativeEvents();
   const { isRTL, isDarkMode } = useTheme();
@@ -246,6 +284,8 @@ const CallsScreen = () => {
   const avatarBgColor = isDarkMode ? '#3A3A3C' : '#E5E5EA';
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
 
   // Load calls from device
   const loadFromDevice = useCallback(async () => {
@@ -292,13 +332,13 @@ const CallsScreen = () => {
       if (hasPermissions) {
         await startCallListener();
         console.log('[CallsScreen] Call listener started');
-        // Load calls from device
-        await loadFromDevice();
+        // Don't auto-sync from device - only listen for new calls
+        // This prevents deleted calls from coming back
       }
     }
     // Load existing calls from Firebase
     loadCalls();
-  }, [requestPermissions, startCallListener, loadCalls, loadFromDevice]);
+  }, [requestPermissions, startCallListener, loadCalls]);
 
   useEffect(() => {
     initializeCallListener();
@@ -307,7 +347,10 @@ const CallsScreen = () => {
   const groupedCalls = useMemo(() => {
     const groups: { [key: string]: GroupedCall } = {};
 
-    calls.forEach(call => {
+    // التأكد من أن calls array قبل المعالجة
+    const validCalls = Array.isArray(calls) ? calls : [];
+
+    validCalls.forEach(call => {
       const groupKey = call.phoneNumber;
 
       if (!groups[groupKey]) {
@@ -362,6 +405,54 @@ const CallsScreen = () => {
     console.log('Delete call group:', group.phoneNumber);
   };
 
+  const toggleSelectCall = (phoneNumber: string) => {
+    setSelectedCalls(prev =>
+      prev.includes(phoneNumber)
+        ? prev.filter(p => p !== phoneNumber)
+        : [...prev, phoneNumber],
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCalls.length === groupedCalls.length) {
+      setSelectedCalls([]);
+    } else {
+      setSelectedCalls(groupedCalls.map(g => g.phoneNumber));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedCalls.length === 0) return;
+
+    Alert.alert(
+      isRTL ? 'حذف المكالمات المحددة' : 'Delete Selected Calls',
+      isRTL
+        ? `هل أنت متأكد من حذف ${selectedCalls.length} مجموعة مكالمات؟`
+        : `Are you sure you want to delete ${selectedCalls.length} call groups?`,
+      [
+        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRTL ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteCallsByPhoneNumbers(selectedCalls);
+            setSelectedCalls([]);
+            setIsSelectMode(false);
+            Alert.alert(
+              isRTL ? 'تم' : 'Done',
+              isRTL ? 'تم حذف المكالمات المحددة' : 'Selected calls deleted',
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  const cancelSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedCalls([]);
+  };
+
   const renderItem = ({ item }: { item: GroupedCall }) => (
     <SwipeableCallItem
       item={item}
@@ -373,16 +464,106 @@ const CallsScreen = () => {
       secondaryTextColor={secondaryTextColor}
       bgColor={bgColor}
       avatarBgColor={avatarBgColor}
+      isSelectMode={isSelectMode}
+      isSelected={selectedCalls.includes(item.phoneNumber)}
+      onToggleSelect={() => toggleSelectCall(item.phoneNumber)}
     />
   );
 
-  const renderHeader = () => <View style={styles.header} />;
+  const renderHeader = () => (
+    <View style={[styles.header, { backgroundColor: bgColor }]}>
+      {isSelectMode ? (
+        <>
+          <TouchableOpacity onPress={cancelSelectMode}>
+            <Text style={[styles.headerButtonText, { color: '#0A84FF' }]}>
+              {isRTL ? 'إلغاء' : 'Cancel'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleSelectAll}>
+            <Text style={[styles.headerButtonText, { color: '#0A84FF' }]}>
+              {selectedCalls.length === groupedCalls.length
+                ? isRTL
+                  ? 'إلغاء تحديد الكل'
+                  : 'Deselect All'
+                : isRTL
+                ? 'تحديد الكل'
+                : 'Select All'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <View style={styles.headerSpacer} />
+          <TouchableOpacity onPress={() => setIsSelectMode(true)}>
+            <Text style={[styles.headerButtonText, { color: '#0A84FF' }]}>
+              {isRTL ? 'تحديد' : 'Select'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+
+  const handleDeleteAllCalls = () => {
+    if (groupedCalls.length === 0) {
+      Alert.alert(
+        isRTL ? 'لا توجد مكالمات' : 'No Calls',
+        isRTL ? 'لا توجد مكالمات للحذف' : 'There are no calls to delete',
+      );
+      return;
+    }
+
+    Alert.alert(
+      isRTL ? 'حذف جميع المكالمات' : 'Delete All Calls',
+      isRTL
+        ? 'هل أنت متأكد من حذف جميع سجلات المكالمات؟'
+        : 'Are you sure you want to delete all call logs?',
+      [
+        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRTL ? 'حذف الكل' : 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAllCalls();
+            Alert.alert(
+              isRTL ? 'تم' : 'Done',
+              isRTL ? 'تم حذف جميع المكالمات' : 'All calls deleted',
+            );
+          },
+        },
+      ],
+    );
+  };
 
   const renderTitle = () => (
     <View style={styles.titleContainer}>
       <Text style={[styles.title, { color: textColor }]}>
         {isRTL ? 'المكالمات' : 'Calls'}
       </Text>
+      {isSelectMode ? (
+        <TouchableOpacity
+          onPress={handleDeleteSelected}
+          style={[
+            styles.deleteSelectedButton,
+            selectedCalls.length === 0 && { opacity: 0.5 },
+          ]}
+          disabled={selectedCalls.length === 0}
+        >
+          <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+          {selectedCalls.length > 0 && (
+            <Text style={styles.deleteSelectedText}>
+              ({selectedCalls.length})
+            </Text>
+          )}
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          onPress={handleDeleteAllCalls}
+          style={styles.deleteAllButton}
+        >
+          <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -443,6 +624,26 @@ const CallsScreen = () => {
     </View>
   );
 
+  // Show loading indicator on initial load
+  if (isLoading && calls.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: bgColor }]}>
+        <StatusBar
+          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+          backgroundColor={bgColor}
+        />
+        {renderHeader()}
+        {renderTitle()}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0A84FF" />
+          <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
+            {isRTL ? 'جاري التحميل...' : 'Loading...'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <StatusBar
@@ -499,8 +700,29 @@ const styles = StyleSheet.create({
     width: 36,
   },
   titleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 8,
+  },
+  deleteAllButton: {
+    padding: 8,
+  },
+  deleteSelectedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+  },
+  deleteSelectedText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    marginLeft: 4,
+    fontWeight: '600',
+  },
+  headerButtonText: {
+    fontSize: 17,
+    fontWeight: '400',
   },
   title: {
     color: '#FFFFFF',
@@ -575,6 +797,25 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     marginRight: 12,
+  },
+  checkboxContainer: {
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#8E8E93',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxSelected: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
   },
   avatar: {
     width: 56,
@@ -671,6 +912,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
   },
 });
 

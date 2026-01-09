@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {
   View,
@@ -14,6 +14,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, CallLog } from '../../types';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useCallStore } from '../../store/callStore';
 
 type CallDetailRouteProp = RouteProp<RootStackParamList, 'CallDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -23,6 +24,14 @@ const CallDetailScreen = () => {
   const route = useRoute<CallDetailRouteProp>();
   const { call } = route.params;
   const { isRTL, t, isDarkMode } = useTheme();
+  const { calls } = useCallStore();
+
+  // Get all calls for this phone number
+  const callHistory = useMemo(() => {
+    return calls
+      .filter(c => c.phoneNumber === call.phoneNumber)
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }, [calls, call.phoneNumber]);
 
   // Dynamic colors based on theme
   const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
@@ -107,27 +116,86 @@ const CallDetailScreen = () => {
   };
 
   const handleVideo = () => {
-    Alert.alert('Video Call', 'Video calling feature coming soon');
+    // Try to open video call apps in order of preference
+    const phoneNumber = call.phoneNumber;
+    // First try FaceTime (iOS), then fallback to regular call
+    Linking.canOpenURL('facetime://')
+      .then(supported => {
+        if (supported) {
+          Linking.openURL(`facetime:${phoneNumber}`);
+        } else {
+          // Try Google Duo/Meet
+          Linking.canOpenURL('https://duo.google.com').then(duoSupported => {
+            if (duoSupported) {
+              Linking.openURL(`https://duo.google.com/call/${phoneNumber}`);
+            } else {
+              // Fallback to WhatsApp video call
+              const whatsappUrl = `whatsapp://send?phone=${phoneNumber.replace(
+                /[^0-9]/g,
+                '',
+              )}`;
+              Linking.canOpenURL(whatsappUrl).then(waSupported => {
+                if (waSupported) {
+                  Linking.openURL(whatsappUrl);
+                } else {
+                  Alert.alert(
+                    'Video Call',
+                    'No video calling app available. Please install WhatsApp, Duo, or FaceTime.',
+                  );
+                }
+              });
+            }
+          });
+        }
+      })
+      .catch(() => {
+        Alert.alert('Error', 'Unable to initiate video call');
+      });
   };
 
   const handleEmail = () => {
-    Alert.alert('Email', 'No email address available for this contact');
+    // Open email composer with empty recipient
+    Linking.openURL('mailto:').catch(() => {
+      Alert.alert('Error', 'Unable to open email app');
+    });
   };
 
   const displayName = call.contactName || call.phoneNumber;
 
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={bgColor} />
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={bgColor}
+      />
 
       {/* Header with gradient background */}
-      <View style={[styles.headerGradient, { backgroundColor: isDarkMode ? '#1a1a2e' : '#E8E8ED' }]}>
+      <View
+        style={[
+          styles.headerGradient,
+          { backgroundColor: isDarkMode ? '#1a1a2e' : '#E8E8ED' },
+        ]}
+      >
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={[styles.backIcon, { color: isDarkMode ? '#0A84FF' : '#007AFF' }]}>‹</Text>
-          <Text style={[styles.backText, { color: isDarkMode ? '#0A84FF' : '#007AFF' }]}>{isRTL ? 'المكالمات' : 'Calls'}</Text>
+          <Text
+            style={[
+              styles.backIcon,
+              { color: isDarkMode ? '#0A84FF' : '#007AFF' },
+            ]}
+          >
+            ‹
+          </Text>
+          <Text
+            style={[
+              styles.backText,
+              { color: isDarkMode ? '#0A84FF' : '#007AFF' },
+            ]}
+          >
+            {isRTL ? 'المكالمات' : 'Calls'}
+          </Text>
         </TouchableOpacity>
 
         {/* Large Avatar */}
@@ -138,12 +206,19 @@ const CallDetailScreen = () => {
         </View>
 
         {/* Contact Name */}
-        <Text style={[styles.contactName, { color: textColor }]}>{displayName}</Text>
+        <Text style={[styles.contactName, { color: textColor }]}>
+          {displayName}
+        </Text>
 
         {/* Action Buttons */}
         <View style={styles.actionsRow}>
           <TouchableOpacity style={styles.actionButton} onPress={handleMessage}>
-            <View style={[styles.actionIconContainer, { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' }]}>
+            <View
+              style={[
+                styles.actionIconContainer,
+                { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
+              ]}
+            >
               <Icon name="chatbubble" size={24} color="#0A84FF" />
             </View>
             <Text style={styles.actionLabel}>
@@ -152,21 +227,24 @@ const CallDetailScreen = () => {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
-            <View style={[styles.actionIconContainer, { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' }]}>
+            <View
+              style={[
+                styles.actionIconContainer,
+                { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
+              ]}
+            >
               <Icon name="call" size={24} color="#0A84FF" />
             </View>
             <Text style={styles.actionLabel}>{isRTL ? 'اتصال' : 'call'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton} onPress={handleVideo}>
-            <View style={[styles.actionIconContainer, { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' }]}>
-              <Icon name="videocam" size={24} color="#0A84FF" />
-            </View>
-            <Text style={styles.actionLabel}>{isRTL ? 'فيديو' : 'video'}</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.actionButton} onPress={handleEmail}>
-            <View style={[styles.actionIconContainer, { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' }]}>
+            <View
+              style={[
+                styles.actionIconContainer,
+                { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
+              ]}
+            >
               <Icon name="mail" size={24} color="#0A84FF" />
             </View>
             <Text style={styles.actionLabel}>{isRTL ? 'بريد' : 'mail'}</Text>
@@ -176,12 +254,19 @@ const CallDetailScreen = () => {
 
       {/* Tabs */}
       <View style={[styles.tabContainer, { backgroundColor: surfaceColor }]}>
-        <TouchableOpacity style={[styles.tab, styles.activeTab, { backgroundColor: isDarkMode ? '#3A3A3C' : '#FFFFFF' }]}>
-          <Text style={[styles.tabText, styles.activeTabText, { color: textColor }]}>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            styles.activeTab,
+            { backgroundColor: isDarkMode ? '#3A3A3C' : '#FFFFFF' },
+          ]}
+        >
+          <Text
+            style={[styles.tabText, styles.activeTabText, { color: textColor }]}
+          >
             {isRTL ? 'التفاصيل' : 'Details'}
           </Text>
         </TouchableOpacity>
-        
       </View>
 
       {/* Content */}
@@ -190,8 +275,16 @@ const CallDetailScreen = () => {
         <View style={[styles.section, { backgroundColor: surfaceColor }]}>
           <View style={styles.callInfoRow}>
             <View style={styles.callTypeContainer}>
-              <Icon 
-                name={call.type === 'incoming' ? 'arrow-down' : call.type === 'outgoing' ? 'arrow-up' : call.type === 'missed' ? 'close-circle' : 'close'}
+              <Icon
+                name={
+                  call.type === 'incoming'
+                    ? 'arrow-down'
+                    : call.type === 'outgoing'
+                    ? 'arrow-up'
+                    : call.type === 'missed'
+                    ? 'close-circle'
+                    : 'close'
+                }
                 size={20}
                 color={call.type === 'missed' ? '#FF3B30' : '#34C759'}
                 style={styles.callTypeIcon}
@@ -200,13 +293,17 @@ const CallDetailScreen = () => {
                 <Text style={[styles.callTypeLabel, { color: textColor }]}>
                   {getCallTypeLabel(call.type)}
                 </Text>
-                <Text style={[styles.callDateTime, { color: secondaryTextColor }]}>
+                <Text
+                  style={[styles.callDateTime, { color: secondaryTextColor }]}
+                >
                   {formatDateTime(call.timestamp)}
                 </Text>
               </View>
             </View>
             {call.duration > 0 && (
-              <Text style={[styles.callDuration, { color: secondaryTextColor }]}>
+              <Text
+                style={[styles.callDuration, { color: secondaryTextColor }]}
+              >
                 {formatDuration(call.duration)}
               </Text>
             )}
@@ -214,24 +311,81 @@ const CallDetailScreen = () => {
         </View>
 
         {/* Call History Section */}
-        <TouchableOpacity style={[styles.menuRow, { backgroundColor: surfaceColor }]}>
-          <Icon name="time-outline" size={20} color="#0A84FF" style={styles.menuIcon} />
-          <Text style={[styles.menuText, { color: textColor }]}>
-            {isRTL ? 'سجل المكالمات' : 'Call History'}
-          </Text>
-          <Text style={[styles.menuChevron, { color: secondaryTextColor }]}>›</Text>
-        </TouchableOpacity>
+        <View style={[styles.section, { backgroundColor: surfaceColor }]}>
+          <View style={styles.sectionHeader}>
+            <Icon name="time-outline" size={20} color="#0A84FF" />
+            <Text style={[styles.sectionTitle, { color: textColor }]}>
+              {isRTL ? 'سجل المكالمات' : 'Call History'} ({callHistory.length})
+            </Text>
+          </View>
+
+          {callHistory.map((historyCall, index) => (
+            <View
+              key={historyCall.id}
+              style={[
+                styles.historyItem,
+                index < callHistory.length - 1 && {
+                  borderBottomWidth: 0.5,
+                  borderBottomColor: borderColor,
+                },
+              ]}
+            >
+              <Icon
+                name={
+                  historyCall.type === 'incoming'
+                    ? 'arrow-down'
+                    : historyCall.type === 'outgoing'
+                    ? 'arrow-up'
+                    : historyCall.type === 'missed'
+                    ? 'close-circle'
+                    : 'close'
+                }
+                size={18}
+                color={historyCall.type === 'missed' ? '#FF3B30' : '#34C759'}
+              />
+              <View style={styles.historyInfo}>
+                <Text style={[styles.historyType, { color: textColor }]}>
+                  {getCallTypeLabel(historyCall.type)}
+                </Text>
+                <Text
+                  style={[styles.historyTime, { color: secondaryTextColor }]}
+                >
+                  {formatDateTime(historyCall.timestamp)}
+                </Text>
+              </View>
+              {historyCall.duration > 0 && (
+                <Text
+                  style={[
+                    styles.historyDuration,
+                    { color: secondaryTextColor },
+                  ]}
+                >
+                  {formatDuration(historyCall.duration)}
+                </Text>
+              )}
+            </View>
+          ))}
+        </View>
 
         {/* Phone Number Section */}
         <View style={[styles.section, { backgroundColor: surfaceColor }]}>
-          <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>{isRTL ? 'الهاتف' : 'Phone'}</Text>
+          <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>
+            {isRTL ? 'الهاتف' : 'Phone'}
+          </Text>
           <TouchableOpacity style={styles.phoneRow} onPress={handleCall}>
-            <Text style={[styles.phoneNumber, { color: isDarkMode ? '#0A84FF' : '#007AFF' }]}>{call.phoneNumber}</Text>
-            <Text style={[styles.phoneLabel, { color: secondaryTextColor }]}>{isRTL ? 'محمول' : 'mobile'}</Text>
+            <Text
+              style={[
+                styles.phoneNumber,
+                { color: isDarkMode ? '#0A84FF' : '#007AFF' },
+              ]}
+            >
+              {call.phoneNumber}
+            </Text>
+            <Text style={[styles.phoneLabel, { color: secondaryTextColor }]}>
+              {isRTL ? 'محمول' : 'mobile'}
+            </Text>
           </TouchableOpacity>
         </View>
-
-        
       </ScrollView>
     </View>
   );
@@ -245,7 +399,7 @@ const styles = StyleSheet.create({
   headerGradient: {
     backgroundColor: '#1a1a2e',
     paddingTop: 50,
-    paddingBottom: 24,
+    paddingBottom: 20,
     alignItems: 'center',
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
@@ -465,10 +619,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
+  historyDuration: {
+    fontSize: 13,
+  },
 });
 
 export default CallDetailScreen;
-
-
-
-

@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/authStore';
 import { AuthStackParamList } from '../../types';
 import { useTheme } from '../../contexts/ThemeContext';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 type SignUpScreenProps = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'SignUp'>;
@@ -105,7 +106,12 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              <Text style={styles.inputIcon}>👤</Text>
+              <Icon
+                name="person-outline"
+                size={20}
+                color={colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="Full Name"
@@ -123,7 +129,12 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              <Text style={styles.inputIcon}>📧</Text>
+              <Icon
+                name="mail-outline"
+                size={20}
+                color={colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="Email"
@@ -143,7 +154,12 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              <Text style={styles.inputIcon}>🔒</Text>
+              <Icon
+                name="lock-closed-outline"
+                size={20}
+                color={colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="Password"
@@ -153,7 +169,11 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                <Icon
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={colors.textSecondary}
+                />
               </TouchableOpacity>
             </View>
 
@@ -164,7 +184,12 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              <Text style={styles.inputIcon}>🔒</Text>
+              <Icon
+                name="lock-closed-outline"
+                size={20}
+                color={colors.textSecondary}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
                 placeholder="Confirm Password"
@@ -277,16 +302,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   inputIcon: {
-    fontSize: 18,
-    marginRight: 8,
+    marginRight: 10,
+    width: 20,
   },
   input: {
     flex: 1,
     height: 50,
     fontSize: 15,
-  },
-  eyeIcon: {
-    fontSize: 18,
   },
   button: {
     height: 50,

@@ -19,6 +19,8 @@ interface CallState {
   addCallAndSync: (call: CallLog, userId: string) => Promise<void>;
   syncCalls: (localCalls: any[]) => Promise<void>;
   syncCallsToFirebase: (userId: string) => Promise<void>;
+  clearAllCalls: () => Promise<void>;
+  deleteCallsByPhoneNumbers: (phoneNumbers: string[]) => Promise<void>;
   cleanup: () => void;
 }
 
@@ -62,6 +64,8 @@ export const useCallStore = create<CallState>((set, get) => ({
           id: call.id,
           userId,
           deviceId: currentDevice.id,
+          deviceName:
+            currentDevice.nickname || currentDevice.name || 'Android Device',
           phoneNumber,
           contactName: call.contactName || null,
           type: call.type || 'incoming',
@@ -104,6 +108,8 @@ export const useCallStore = create<CallState>((set, get) => ({
           id: call.id,
           userId,
           deviceId: currentDevice.id,
+          deviceName:
+            currentDevice.nickname || currentDevice.name || 'Android Device',
           phoneNumber,
           contactName: call.contactName || null,
           type: call.type || 'incoming',
@@ -214,6 +220,72 @@ export const useCallStore = create<CallState>((set, get) => ({
       set({ isSyncing: false });
     } catch (error: any) {
       set({ error: error.message, isSyncing: false });
+    }
+  },
+
+  clearAllCalls: async () => {
+    const { user } = useAuthStore.getState();
+    if (!user) return;
+
+    try {
+      // Get all calls for this user
+      const snapshot = await firestore()
+        .collection(COLLECTIONS.CALLS)
+        .where('userId', '==', user.uid)
+        .get();
+
+      // Delete in batches
+      const batch = firestore().batch();
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
+      // Clear local state
+      set({ calls: [] });
+      console.log('✅ All calls deleted');
+    } catch (error) {
+      console.error('❌ Error deleting calls:', error);
+    }
+  },
+
+  deleteCallsByPhoneNumbers: async (phoneNumbers: string[]) => {
+    const { user } = useAuthStore.getState();
+    const { calls } = get();
+    if (!user || phoneNumbers.length === 0) return;
+
+    try {
+      // Get calls for these phone numbers
+      const snapshot = await firestore()
+        .collection(COLLECTIONS.CALLS)
+        .where('userId', '==', user.uid)
+        .get();
+
+      // Filter docs that match the phone numbers
+      const docsToDelete = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return phoneNumbers.includes(data.phoneNumber);
+      });
+
+      // Delete in batches (Firestore limit is 500 per batch)
+      const batchSize = 500;
+      for (let i = 0; i < docsToDelete.length; i += batchSize) {
+        const batch = firestore().batch();
+        const chunk = docsToDelete.slice(i, i + batchSize);
+        chunk.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+      }
+
+      // Update local state
+      const updatedCalls = calls.filter(
+        call => !phoneNumbers.includes(call.phoneNumber),
+      );
+      set({ calls: updatedCalls });
+      console.log(`✅ Deleted calls for ${phoneNumbers.length} phone numbers`);
+    } catch (error) {
+      console.error('❌ Error deleting selected calls:', error);
     }
   },
 

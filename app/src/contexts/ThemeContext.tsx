@@ -1,5 +1,13 @@
-import React, { createContext, useContext, useEffect, useMemo } from 'react';
-import { I18nManager } from 'react-native';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
+import { I18nManager, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNRestart from 'react-native-restart';
 import { useSettingsStore } from '../store/settingsStore';
 import {
   LIGHT_COLORS,
@@ -26,6 +34,47 @@ const AR_TRANSLATIONS = {
   about: 'لمحة عن التطبيق',
   deleteAccount: 'حذف الحساب',
   logout: 'تسجيل الخروج',
+  menuTitle: 'القائمة',
+  editProfile: 'تعديل الملف الشخصي',
+  updateInfo: 'تحديث معلوماتك',
+  smsCallsAlerts: 'الرسائل والمكالمات والتنبيهات',
+  deviceSettings: 'إعدادات الجهاز',
+  manageDevices: 'إدارة أجهزتك',
+  legalPrivacy: 'قانوني وخصوصية',
+  protectData: 'كيف نحمي بياناتك',
+  termsConditions: 'الشروط والأحكام',
+  dangerZone: 'منطقة الخطر',
+  signOutAccount: 'تسجيل الخروج من حسابك',
+
+  // User Settings
+  userSettings: 'إعدادات المستخدم',
+  profileInfo: 'معلومات الملف الشخصي',
+  email: 'البريد الإلكتروني',
+  displayName: 'اسم العرض',
+  edit: 'تعديل',
+  changePassword: 'تغيير كلمة المرور',
+  updatePassword: 'تحديث كلمة المرور',
+  permanentlyDelete: 'حذف الحساب نهائياً',
+  smsVibration: 'اهتزاز الرسائل',
+  smsVibrationDesc: 'اهتزاز عند وصول رسالة',
+  callNotifications: 'إشعارات المكالمات',
+  enableDoNotDisturb: 'تفعيل عدم الإزعاج',
+  enableDoNotDisturbDesc: 'كتم الإشعارات خلال الساعات المحددة',
+
+  // Notification Settings
+  notificationSettings: 'إعدادات الإشعارات',
+  enableSmsNotif: 'تفعيل إشعارات الرسائل',
+  enableSmsNotifDesc: 'عرض إشعارات الرسائل الواردة',
+  smsSound: 'صوت الرسائل',
+  smsSoundDesc: 'تشغيل صوت لإشعارات الرسائل',
+  enableCallNotif: 'تفعيل إشعارات المكالمات',
+  enableCallNotifDesc: 'عرض إشعارات المكالمات الواردة',
+  callSound: 'صوت المكالمات',
+  callSoundDesc: 'تشغيل صوت لإشعارات المكالمات',
+  vibration: 'الاهتزاز',
+  vibrationDesc: 'تفعيل الاهتزاز للإشعارات',
+  doNotDisturb: 'عدم الإزعاج',
+  doNotDisturbDesc: 'كتم جميع الإشعارات مؤقتاً',
 
   // Settings
   notifications: 'الإشعارات',
@@ -53,6 +102,29 @@ const AR_TRANSLATIONS = {
   arabic: 'العربية',
   english: 'English',
 
+  // Status
+  on: 'مفعل',
+  off: 'معطل',
+
+  // Change Password
+  currentPassword: 'كلمة المرور الحالية',
+  newPassword: 'كلمة المرور الجديدة',
+  confirmPassword: 'تأكيد كلمة المرور',
+  enterCurrentPassword: 'أدخل كلمة المرور الحالية',
+  enterNewPassword: 'أدخل كلمة المرور الجديدة',
+  confirmNewPassword: 'أكد كلمة المرور الجديدة',
+  passwordChanged: 'تم تغيير كلمة المرور بنجاح',
+  passwordsDoNotMatch: 'كلمتا المرور غير متطابقتين',
+  passwordTooShort: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
+  wrongPassword: 'كلمة المرور الحالية غير صحيحة',
+  weakPassword: 'كلمة المرور ضعيفة جداً',
+  recentLoginRequired:
+    'يرجى تسجيل الخروج وإعادة تسجيل الدخول ثم المحاولة مرة أخرى',
+  fillAllFields: 'يرجى ملء جميع الحقول',
+  error: 'خطأ',
+  success: 'نجاح',
+  ok: 'حسناً',
+
   // Time
   everyMinute: 'كل دقيقة',
   every5Minutes: 'كل 5 دقائق',
@@ -78,6 +150,47 @@ const EN_TRANSLATIONS = {
   about: 'About',
   deleteAccount: 'Delete Account',
   logout: 'Logout',
+  menuTitle: 'Menu',
+  editProfile: 'Edit Profile',
+  updateInfo: 'Update your information',
+  smsCallsAlerts: 'SMS, Calls, and alerts',
+  deviceSettings: 'Device Settings',
+  manageDevices: 'Manage your devices',
+  legalPrivacy: 'Legal & Privacy',
+  protectData: 'How we protect your data',
+  termsConditions: 'Our terms and conditions',
+  dangerZone: 'Danger Zone',
+  signOutAccount: 'Sign out of your account',
+
+  // User Settings
+  userSettings: 'User Settings',
+  profileInfo: 'Profile Information',
+  email: 'Email',
+  displayName: 'Display Name',
+  edit: 'Edit',
+  changePassword: 'Change Password',
+  updatePassword: 'Update your password',
+  permanentlyDelete: 'Permanently delete your account',
+  smsVibration: 'SMS Vibration',
+  smsVibrationDesc: 'Vibrate on SMS alerts',
+  callNotifications: 'Call Notifications',
+  enableDoNotDisturb: 'Enable Do Not Disturb',
+  enableDoNotDisturbDesc: 'Silence notifications during set hours',
+
+  // Notification Settings
+  notificationSettings: 'Notification Settings',
+  enableSmsNotif: 'Enable SMS Notifications',
+  enableSmsNotifDesc: 'Show notifications for incoming SMS',
+  smsSound: 'SMS Sound',
+  smsSoundDesc: 'Play sound for SMS alerts',
+  enableCallNotif: 'Enable Call Notifications',
+  enableCallNotifDesc: 'Show notifications for incoming calls',
+  callSound: 'Call Sound',
+  callSoundDesc: 'Play sound for call alerts',
+  vibration: 'Vibration',
+  vibrationDesc: 'Enable vibration for notifications',
+  doNotDisturb: 'Do Not Disturb',
+  doNotDisturbDesc: 'Mute all notifications temporarily',
 
   // Settings
   notifications: 'Notifications',
@@ -104,6 +217,28 @@ const EN_TRANSLATIONS = {
   back: 'Back',
   arabic: 'العربية',
   english: 'English',
+
+  // Status
+  on: 'On',
+  off: 'Off',
+
+  // Change Password
+  currentPassword: 'Current Password',
+  newPassword: 'New Password',
+  confirmPassword: 'Confirm Password',
+  enterCurrentPassword: 'Enter current password',
+  enterNewPassword: 'Enter new password',
+  confirmNewPassword: 'Confirm new password',
+  passwordChanged: 'Password changed successfully',
+  passwordsDoNotMatch: 'Passwords do not match',
+  passwordTooShort: 'Password must be at least 6 characters',
+  wrongPassword: 'Current password is incorrect',
+  weakPassword: 'Password is too weak',
+  recentLoginRequired: 'Please logout and login again, then try again',
+  fillAllFields: 'Please fill all fields',
+  error: 'Error',
+  success: 'Success',
+  ok: 'OK',
 
   // Time
   everyMinute: 'Every minute',
@@ -132,15 +267,74 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const { darkMode, language } = useSettingsStore();
+  const [isHydrated, setIsHydrated] = React.useState(false);
+
+  // Wait for Zustand persist to hydrate before checking language
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsHydrated(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
-    // Handle RTL for Arabic
-    const isRTL = language === 'ar';
-    if (I18nManager.isRTL !== isRTL) {
-      I18nManager.allowRTL(isRTL);
-      I18nManager.forceRTL(isRTL);
-    }
-  }, [language]);
+    if (!isHydrated) return; // Don't run until store is hydrated
+
+    const handleLanguageChange = async () => {
+      // Check saved language
+      const savedLanguage = await AsyncStorage.getItem('app_language');
+
+      console.log(
+        '🌍 Language Check - Current:',
+        language,
+        '| Saved:',
+        savedLanguage,
+        '| I18nManager.isRTL:',
+        I18nManager.isRTL,
+      );
+
+      if (!savedLanguage) {
+        // First time - just save and set RTL
+        const isRTL = language === 'ar';
+        I18nManager.allowRTL(isRTL);
+        I18nManager.forceRTL(isRTL);
+        await AsyncStorage.setItem('app_language', language);
+        console.log(
+          '🌍 First time - Language saved:',
+          language,
+          '| RTL set to:',
+          isRTL,
+        );
+        return;
+      }
+
+      // Language changed - need to restart
+      if (savedLanguage !== language) {
+        const isRTL = language === 'ar';
+        I18nManager.allowRTL(isRTL);
+        I18nManager.forceRTL(isRTL);
+
+        // Save BEFORE restart
+        await AsyncStorage.setItem('app_language', language);
+
+        console.log(
+          '🔄 Language changed from',
+          savedLanguage,
+          'to',
+          language,
+          '- RESTARTING APP...',
+        );
+
+        // Restart to apply RTL changes
+        if (Platform.OS === 'android') {
+          RNRestart.restart();
+        }
+      }
+      // If savedLanguage === language, do nothing (already correct)
+    };
+
+    handleLanguageChange();
+  }, [language, isHydrated]);
 
   const value = useMemo(() => {
     const colors = darkMode ? DARK_COLORS : LIGHT_COLORS;

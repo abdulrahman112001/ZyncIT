@@ -6,6 +6,7 @@ import { MainTabParamList } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettingsStore } from '../store/settingsStore';
 import { LIGHT_COLORS, DARK_COLORS } from '../constants/theme';
+import ServiceStatusBanner from '../components/ServiceStatusBanner';
 
 import NotificationsScreen from '../screens/main/NotificationsScreen';
 import CallsScreen from '../screens/main/CallsScreen';
@@ -16,10 +17,10 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const MainNavigator = () => {
   const { isRTL, t } = useTheme();
-  const { darkMode } = useSettingsStore();
+  const { darkMode, language } = useSettingsStore();
   const colors = darkMode ? DARK_COLORS : LIGHT_COLORS;
 
-  // Define tabs in order - will be reversed for RTL
+  // Define tabs in order - will be reversed for LTR
   const tabs = [
     {
       name: 'SMS' as const,
@@ -50,48 +51,70 @@ const MainNavigator = () => {
       icon: 'menu',
     },
   ];
-  // Reverse order for LTR (so notifications is on left in English)
-  const orderedTabs = isRTL ? tabs : [...tabs].reverse();
+
+  // Manual tab ordering based on RTL/LTR
+  // In both RTL and LTR, we want SMS (Notifications) to appear first from the starting side
+  // RTL (Arabic): SMS should be on the right (first in array)
+  // LTR (English): SMS should be on the left (first in array)
+  // So we always use the same order
+  const orderedTabs = tabs;
+
+  // Debug log to verify tab order
+  console.log(
+    '🔄 MainNavigator rendered - Language:',
+    language,
+    '| I18nManager.isRTL:',
+    I18nManager.isRTL,
+    '| Tab Order:',
+    orderedTabs.map(t => t.name).join(' → '),
+  );
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 0.5,
-          paddingTop: 8,
-          paddingBottom: 25,
-          height: 85,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '500',
-          marginTop: 2,
-        },
-        headerShown: false,
-      }}
-    >
-      {orderedTabs.map(tab => (
-        <Tab.Screen
-          key={tab.name}
-          name={tab.name}
-          component={tab.component}
-          options={{
-            title: isRTL ? tab.titleAr : tab.titleEn,
-            tabBarIcon: ({ color, focused }) => (
-              <Icon
-                name={focused ? tab.icon : `${tab.icon}-outline`}
-                size={24}
-                color={color}
-              />
-            ),
+    <>
+      <ServiceStatusBanner />
+      <View style={{ flex: 1, direction: isRTL ? 'rtl' : 'ltr' }}>
+        <Tab.Navigator
+          key={language} // Force re-mount when language changes
+          screenOptions={{
+            tabBarActiveTintColor: colors.primary,
+            tabBarInactiveTintColor: colors.textSecondary,
+            tabBarStyle: {
+              backgroundColor: colors.surface,
+              borderTopColor: colors.border,
+              borderTopWidth: 0.5,
+              paddingTop: 8,
+              paddingBottom: 25,
+              height: 85,
+              flexDirection: isRTL ? 'row-reverse' : 'row',
+            },
+            tabBarLabelStyle: {
+              fontSize: 10,
+              fontWeight: '500',
+              marginTop: 2,
+            },
+            headerShown: false,
           }}
-        />
-      ))}
-    </Tab.Navigator>
+        >
+          {orderedTabs.map(tab => (
+            <Tab.Screen
+              key={tab.name}
+              name={tab.name}
+              component={tab.component}
+              options={{
+                title: isRTL ? tab.titleAr : tab.titleEn,
+                tabBarIcon: ({ color, focused }) => (
+                  <Icon
+                    name={focused ? tab.icon : `${tab.icon}-outline`}
+                    size={24}
+                    color={color}
+                  />
+                ),
+              }}
+            />
+          ))}
+        </Tab.Navigator>
+      </View>
+    </>
   );
 };
 

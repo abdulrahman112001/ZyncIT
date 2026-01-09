@@ -24,8 +24,8 @@ const AppContent = () => {
   const { initialize, isLoading, isAuthenticated, error } = useAuthStore();
   const { darkMode } = useSettingsStore();
 
-  // Initialize native event listeners for SMS and Calls
-  useNativeEvents();
+  // Initialize native event listeners for SMS and Calls - true to enable listening
+  useNativeEvents(true);
   useEffect(() => {
     console.log('App mounted - initializing...');
     initializeFirebase();

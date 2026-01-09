@@ -77,7 +77,7 @@ public class SmsReceiver extends BroadcastReceiver {
                     // جلب اسم جهة الاتصال
                     String contactName = getContactName(context, sender);
                     
-                    sendSmsEvent(sender, fullMessage.toString(), timestamp, contactName);
+                    sendSmsEvent(context, sender, fullMessage.toString(), timestamp, contactName);
                 }
             }
         }
@@ -122,7 +122,21 @@ public class SmsReceiver extends BroadcastReceiver {
         return "";
     }
     
-    private void sendSmsEvent(String sender, String message, long timestamp, String contactName) {
+    private void sendSmsEvent(Context context, String sender, String message, long timestamp, String contactName) {
+        // Always try to save to Firebase using background service
+        try {
+            Intent backgroundIntent = new Intent(context, BackgroundSmsService.class);
+            backgroundIntent.putExtra("sender", sender);
+            backgroundIntent.putExtra("message", message);
+            backgroundIntent.putExtra("contactName", contactName);
+            backgroundIntent.putExtra("timestamp", timestamp);
+            context.startService(backgroundIntent);
+            Log.d(TAG, "Starting BackgroundSmsService to save SMS");
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting BackgroundSmsService", e);
+        }
+        
+        // Also send to React if available
         if (reactContext != null && reactContext.hasActiveReactInstance()) {
             WritableMap params = Arguments.createMap();
             params.putString("id", String.valueOf(System.currentTimeMillis()));
@@ -136,7 +150,19 @@ public class SmsReceiver extends BroadcastReceiver {
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
                 .emit("onSmsReceived", params);
         } else {
-            Log.w(TAG, "Cannot send SMS event, no active React instance");
+            Log.w(TAG, "Cannot send SMS event, no active React instance - but will save to Firebase");
         }
+    }
+
+    private void saveSmsToFirebaseBackground(String sender, String message, long timestamp, String contactName) {
+        // This will be called from background and save SMS directly to Firebase
+        new Thread(() -> {
+            try {
+                Log.d(TAG, "Saving SMS to Firebase in background...");
+                // SMS will be saved by BackgroundSmsService when it's started
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving SMS to Firebase", e);
+            }
+        }).start();
     }
 }

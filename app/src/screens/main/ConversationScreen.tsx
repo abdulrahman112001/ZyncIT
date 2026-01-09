@@ -53,6 +53,8 @@ const MessageBubble = ({
   bubbleColor: string;
   bgColor: string;
 }) => {
+  // Determine if message is sent (for SMS)
+  const isSent = item.smsType === 'sent';
   const translateX = useRef(new Animated.Value(0)).current;
   const swipeThreshold = 100;
   const maxSwipe = 100;
@@ -180,11 +182,28 @@ const MessageBubble = ({
           { transform: [{ translateX }], backgroundColor: bgColor },
         ]}
       >
-        <Text style={[styles.timeLabel, { color: secondaryTextColor }]}>
+        <Text
+          style={[
+            styles.timeLabel,
+            { color: secondaryTextColor },
+            isSent && styles.timeRight,
+          ]}
+        >
           {formatTime(item.timestamp)}
         </Text>
-        <View style={[styles.bubble, { backgroundColor: bubbleColor }]}>
-          <Text style={[styles.bubbleText, { color: textColor }]}>
+        <View
+          style={[
+            styles.bubble,
+            { backgroundColor: isSent ? '#0A84FF' : bubbleColor },
+            isSent && styles.bubbleSent,
+          ]}
+        >
+          <Text
+            style={[
+              styles.bubbleText,
+              { color: isSent ? '#FFFFFF' : textColor },
+            ]}
+          >
             {renderTextWithLinks(item.text)}
           </Text>
         </View>
@@ -219,14 +238,20 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
 
   // تحويل رسائل SMS إلى AppNotification ودمجها
   const conversationNotifications = useMemo(() => {
+    // التأكد من أن البيانات arrays قبل المعالجة
+    const validNotifications = Array.isArray(allNotifications)
+      ? allNotifications
+      : [];
+    const validSmsMessages = Array.isArray(smsMessages) ? smsMessages : [];
+
     // أولاً: الإشعارات العادية
-    const regularNotifications = allNotifications.filter(
+    const regularNotifications = validNotifications.filter(
       n => n.title === title && n.appName === appName && n.type === type,
     );
 
     // ثانياً: إذا كان النوع sms، أضف رسائل SMS من smsStore
     if (type === 'sms') {
-      const smsNotifications: AppNotification[] = smsMessages
+      const smsNotifications: AppNotification[] = validSmsMessages
         .filter(sms => {
           const sender =
             (sms as any).sender ||
@@ -252,6 +277,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
           type: 'sms' as const,
           timestamp: sms.timestamp || Date.now(),
           read: (sms as any).read || false,
+          smsType: (sms as any).type || 'inbox', // 'sent' or 'inbox'
         }));
 
       // دمج وإزالة التكرار
@@ -474,53 +500,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
         }}
       />
 
-      {/* Input for SMS */}
-      {isSMSType && (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-        >
-          <View
-            style={[
-              styles.inputContainer,
-              { backgroundColor: inputBgColor, borderTopColor: borderColor },
-              Platform.OS === 'android' &&
-                keyboardHeight > 0 && { paddingBottom: 10 },
-            ]}
-          >
-            <View
-              style={[
-                styles.inputWrapper,
-                { backgroundColor: isDarkMode ? '#3A3A3C' : '#F2F2F7' },
-              ]}
-            >
-              <TextInput
-                style={[
-                  styles.input,
-                  { color: textColor },
-                  isRTL && { textAlign: 'right' },
-                ]}
-                placeholder={isRTL ? 'اكتب رسالة...' : 'Type a message...'}
-                placeholderTextColor={isDarkMode ? '#AAAAAA' : '#8E8E93'}
-                value={smsText}
-                onChangeText={setSmsText}
-                multiline
-                maxLength={160}
-              />
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.sendButton,
-                (!smsText.trim() || isSending) && styles.sendButtonDisabled,
-              ]}
-              onPress={handleSendSMS}
-              disabled={!smsText.trim() || isSending}
-            >
-              <Icon name="send" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      )}
+      {/* SMS Input removed - not needed for notification viewer */}
     </View>
   );
 };
@@ -620,6 +600,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     maxWidth: '85%',
     alignSelf: 'flex-start',
+  },
+  bubbleSent: {
+    alignSelf: 'flex-end',
+  },
+  timeRight: {
+    textAlign: 'right',
   },
   bubbleText: {
     color: '#FFFFFF',
