@@ -18,6 +18,9 @@ import {
   setDoc,
 } from "../config/firebase.js"
 
+import { parseAuthError, logError } from "../utils/errors.js"
+import { authLogger as logger } from "../utils/logger.js"
+
 import {
   authContainer,
   mainContainer,
@@ -87,10 +90,14 @@ async function handleLogin() {
 
   showLoadingOverlay()
   try {
+    logger.info(`Signing in: ${email}`)
     await signInWithEmailAndPassword(auth, email, password)
+    logger.info("Sign in successful")
     showToast("Signed in successfully", "success")
   } catch (error) {
-    showToast(error.message, "error")
+    const parsed = parseAuthError(error)
+    logError(error, "handleLogin")
+    showToast(parsed.message, "error")
     hideLoading()
   }
 }
@@ -110,6 +117,7 @@ async function handleSignup() {
 
   showLoadingOverlay()
   try {
+    logger.info(`Creating account: ${email}`)
     const result = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(result.user, { displayName: name })
 
@@ -123,9 +131,12 @@ async function handleSignup() {
       lastLoginAt: Date.now(),
     })
 
+    logger.info("Account created successfully")
     showToast("Account created successfully", "success")
   } catch (error) {
-    showToast(error.message, "error")
+    const parsed = parseAuthError(error)
+    logError(error, "handleSignup")
+    showToast(parsed.message, "error")
     hideLoading()
   }
 }
@@ -164,7 +175,9 @@ async function handleGoogleSignIn() {
 
     showToast("Signed in with Google", "success")
   } catch (error) {
-    showToast(error.message, "error")
+    const parsed = parseAuthError(error)
+    logError(error, "handleGoogleSignIn")
+    showToast(parsed.message, "error")
     hideLoading()
   }
 }
@@ -218,6 +231,17 @@ export function initAuthObserver(onLogin, onLogout) {
       state.setCurrentUser(user)
       console.log("Logged in as:", user.uid, user.email)
       showMainUI()
+
+      // إعلام Service Worker بتسجيل الدخول لبدء الاستماع
+      try {
+        chrome.runtime
+          .sendMessage({ type: "userLoggedIn", userId: user.uid })
+          .then(() => console.log("✅ Service worker notified of login"))
+          .catch(() => console.log("⚠️ Could not notify service worker"))
+      } catch (e) {
+        console.log("⚠️ Service worker notification error:", e)
+      }
+
       if (onLogin) await onLogin(user)
     } else {
       state.setCurrentUser(null)

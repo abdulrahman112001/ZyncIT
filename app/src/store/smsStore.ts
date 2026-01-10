@@ -5,6 +5,19 @@ import { SMS, SendSMSRequest } from '../types';
 import { COLLECTIONS, SMS_PAGE_SIZE } from '../constants';
 import { useAuthStore } from './authStore';
 import { useDeviceStore } from './deviceStore';
+import {
+  AppError,
+  parseSmsError,
+  parseFirestoreError,
+  logError,
+  ErrorCode,
+} from '../utils/errors';
+import { smsLogger as logger } from '../utils/logger';
+import {
+  BatchProcessor,
+  deduplicateById,
+  mergeByIdKeepNewest,
+} from '../utils/performance';
 
 const { SmsModule } = NativeModules;
 
@@ -236,20 +249,31 @@ export const useSMSStore = create<SMSState>((set, get) => ({
               syncedAt: data.syncedAt || Date.now(),
             } as SMS);
           });
-          
+
           // دمج الرسائل المحلية الجديدة مع رسائل Firebase
           const { messages: currentMessages } = get();
           const firebaseIds = new Set(firebaseMessages.map(m => m.id));
-          
+
           // الاحتفاظ بالرسائل المحلية التي لم تُحفظ بعد في Firebase
-          const localOnlyMessages = currentMessages.filter(m => !firebaseIds.has(m.id));
-          
+          const localOnlyMessages = currentMessages.filter(
+            m => !firebaseIds.has(m.id),
+          );
+
           // دمج الرسائل
           const mergedMessages = [...localOnlyMessages, ...firebaseMessages];
-          
+
           // ترتيب محلياً بعد جلب البيانات
-          mergedMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-          console.log('📬 SMS loaded from Firebase:', firebaseMessages.length, '| Local only:', localOnlyMessages.length, '| Total:', mergedMessages.length);
+          mergedMessages.sort(
+            (a, b) => (b.timestamp || 0) - (a.timestamp || 0),
+          );
+          console.log(
+            '📬 SMS loaded from Firebase:',
+            firebaseMessages.length,
+            '| Local only:',
+            localOnlyMessages.length,
+            '| Total:',
+            mergedMessages.length,
+          );
           set({ messages: mergedMessages, isLoading: false });
         },
         error => {

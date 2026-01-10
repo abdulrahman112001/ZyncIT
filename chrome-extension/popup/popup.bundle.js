@@ -21804,10 +21804,10 @@ ${this.customData.serverResponse}`;
         cancel(_appDelete = false) {
         }
       };
-      (function(ErrorCode3) {
-        ErrorCode3[ErrorCode3["NO_ERROR"] = 0] = "NO_ERROR";
-        ErrorCode3[ErrorCode3["NETWORK_ERROR"] = 1] = "NETWORK_ERROR";
-        ErrorCode3[ErrorCode3["ABORT"] = 2] = "ABORT";
+      (function(ErrorCode4) {
+        ErrorCode4[ErrorCode4["NO_ERROR"] = 0] = "NO_ERROR";
+        ErrorCode4[ErrorCode4["NETWORK_ERROR"] = 1] = "NETWORK_ERROR";
+        ErrorCode4[ErrorCode4["ABORT"] = 2] = "ABORT";
       })(ErrorCode2 || (ErrorCode2 = {}));
       NetworkRequest = class {
         constructor(url_, method_, headers_, body_, successCodes_, additionalRetryCodes_, callback_, errorCallback_, timeout_, progressCallback_, connectionFactory_, retry = true, isUsingEmulator = false) {
@@ -22742,9 +22742,12 @@ ${this.customData.serverResponse}`;
       (msg) => !msg.read && msg.senderId !== user.uid
     ).length;
     updateBadge("chatBadge", chatUnread);
-    const smsUnread = Object.values(allSMS).reduce((count, conversation) => {
-      return count + conversation.filter((msg) => !msg.read).length;
-    }, 0);
+    const smsUnread = Object.values(allSMS).reduce(
+      (count, conversation) => {
+        return count + conversation.filter((msg) => !msg.read).length;
+      },
+      0
+    );
     updateBadge("smsBadge", smsUnread);
     const missedCalls = allCallsData.filter(
       (call) => call.type === "missed" && !call.viewed
@@ -22846,7 +22849,9 @@ ${this.customData.serverResponse}`;
       } else {
         content = `<div>${msg.content}</div>`;
       }
-      const senderDevice = devices.find((d) => d.id === msg.senderDeviceId);
+      const senderDevice = devices.find(
+        (d) => d.id === msg.senderDeviceId
+      );
       const deviceName = senderDevice?.nickname || senderDevice?.name || senderDevice?.model || msg.senderPlatform || "";
       const isSentFromExtension = msg.senderPlatform === "chrome-extension" || msg.senderDeviceId && msg.senderDeviceId.startsWith("ext_");
       return `
@@ -22856,7 +22861,10 @@ ${this.customData.serverResponse}`;
              data-msg-sender="${msg.senderId}" 
              onclick="window.setReplyTo && window.setReplyTo(this)">
           ${showDeviceName && deviceName ? `<div class="chat-message-device">${deviceName}</div>` : ""}
-          ${msg.replyTo ? `<div class="chat-reply-preview">\u21A9 ${msg.replyTo.content.substring(0, 50)}${msg.replyTo.content.length > 50 ? "..." : ""}</div>` : ""}
+          ${msg.replyTo ? `<div class="chat-reply-preview">\u21A9 ${msg.replyTo.content.substring(
+        0,
+        50
+      )}${msg.replyTo.content.length > 50 ? "..." : ""}</div>` : ""}
           ${content}
           <div class="chat-message-time">${formatTime(msg.timestamp)}</div>
         </div>
@@ -22937,7 +22945,10 @@ ${this.customData.serverResponse}`;
         timestamp: Date.now(),
         participants: [user.uid]
       });
-      showToast(`${result.fileType === "image" ? "Image" : "File"} sent!`, "success");
+      showToast(
+        `${result.fileType === "image" ? "Image" : "File"} sent!`,
+        "success"
+      );
     } catch (error) {
       showToast("Failed to send file", "error");
       console.error(error);
@@ -23045,26 +23056,166 @@ ${this.customData.serverResponse}`;
 
   // src/services/sms.js
   init_firebase();
+
+  // src/config/constants.js
+  var COLLECTIONS = {
+    USERS: "users",
+    DEVICES: "devices",
+    SMS: "sms",
+    CALLS: "calls",
+    NOTIFICATIONS: "notifications",
+    SMS_REQUESTS: "sms_requests",
+    CHATS: "chats"
+  };
+
+  // src/utils/errors.js
+  var ErrorCode3 = {
+    // Auth
+    AUTH_INVALID_CREDENTIALS: "AUTH_INVALID_CREDENTIALS",
+    AUTH_USER_NOT_FOUND: "AUTH_USER_NOT_FOUND",
+    AUTH_EMAIL_IN_USE: "AUTH_EMAIL_IN_USE",
+    AUTH_NETWORK_ERROR: "AUTH_NETWORK_ERROR",
+    AUTH_GOOGLE_CANCELLED: "AUTH_GOOGLE_CANCELLED",
+    // Firebase
+    FIREBASE_PERMISSION_DENIED: "FIREBASE_PERMISSION_DENIED",
+    FIREBASE_UNAVAILABLE: "FIREBASE_UNAVAILABLE",
+    // SMS
+    SMS_SEND_FAILED: "SMS_SEND_FAILED",
+    // General
+    UNKNOWN_ERROR: "UNKNOWN_ERROR",
+    NETWORK_OFFLINE: "NETWORK_OFFLINE"
+  };
+  var ErrorMessages = {
+    [ErrorCode3.AUTH_INVALID_CREDENTIALS]: "Invalid email or password",
+    [ErrorCode3.AUTH_USER_NOT_FOUND]: "User not found",
+    [ErrorCode3.AUTH_EMAIL_IN_USE]: "Email is already in use",
+    [ErrorCode3.AUTH_NETWORK_ERROR]: "Network error. Please check your connection",
+    [ErrorCode3.AUTH_GOOGLE_CANCELLED]: "Google Sign-In was cancelled",
+    [ErrorCode3.FIREBASE_PERMISSION_DENIED]: "Permission denied",
+    [ErrorCode3.FIREBASE_UNAVAILABLE]: "Service unavailable. Please try later",
+    [ErrorCode3.SMS_SEND_FAILED]: "Failed to send message",
+    [ErrorCode3.UNKNOWN_ERROR]: "An unexpected error occurred",
+    [ErrorCode3.NETWORK_OFFLINE]: "No internet connection"
+  };
+  function parseAuthError(error) {
+    const code = error?.code || error?.message || "";
+    if (code.includes("auth/invalid-credential") || code.includes("auth/wrong-password") || code.includes("auth/invalid-email")) {
+      return {
+        code: ErrorCode3.AUTH_INVALID_CREDENTIALS,
+        message: ErrorMessages[ErrorCode3.AUTH_INVALID_CREDENTIALS]
+      };
+    }
+    if (code.includes("auth/user-not-found")) {
+      return {
+        code: ErrorCode3.AUTH_USER_NOT_FOUND,
+        message: ErrorMessages[ErrorCode3.AUTH_USER_NOT_FOUND]
+      };
+    }
+    if (code.includes("auth/email-already-in-use")) {
+      return {
+        code: ErrorCode3.AUTH_EMAIL_IN_USE,
+        message: ErrorMessages[ErrorCode3.AUTH_EMAIL_IN_USE]
+      };
+    }
+    if (code.includes("auth/network")) {
+      return {
+        code: ErrorCode3.AUTH_NETWORK_ERROR,
+        message: ErrorMessages[ErrorCode3.AUTH_NETWORK_ERROR]
+      };
+    }
+    return {
+      code: ErrorCode3.UNKNOWN_ERROR,
+      message: error?.message || ErrorMessages[ErrorCode3.UNKNOWN_ERROR]
+    };
+  }
+  function logError(error, context = "Error") {
+    console.error(`\u274C [${context}]`, {
+      code: error?.code,
+      message: error?.message,
+      stack: error?.stack
+    });
+  }
+
+  // src/utils/logger.js
+  var LOG_LEVELS = {
+    debug: 0,
+    info: 1,
+    warn: 2,
+    error: 3
+  };
+  var Logger2 = class {
+    constructor(prefix = "ZyncIT", minLevel = "debug") {
+      this.prefix = prefix;
+      this.minLevel = LOG_LEVELS[minLevel] ?? 0;
+    }
+    shouldLog(level) {
+      return LOG_LEVELS[level] >= this.minLevel;
+    }
+    formatMessage(message, context) {
+      const timestamp = (/* @__PURE__ */ new Date()).toISOString().slice(11, 23);
+      const ctx = context ? `[${context}]` : "";
+      return `${timestamp} [${this.prefix}]${ctx} ${message}`;
+    }
+    debug(message, context, ...args) {
+      if (this.shouldLog("debug")) {
+        console.log(`\u{1F50D} ${this.formatMessage(message, context)}`, ...args);
+      }
+    }
+    info(message, context, ...args) {
+      if (this.shouldLog("info")) {
+        console.log(`\u2139\uFE0F ${this.formatMessage(message, context)}`, ...args);
+      }
+    }
+    warn(message, context, ...args) {
+      if (this.shouldLog("warn")) {
+        console.warn(`\u26A0\uFE0F ${this.formatMessage(message, context)}`, ...args);
+      }
+    }
+    error(message, context, error) {
+      if (this.shouldLog("error")) {
+        console.error(`\u274C ${this.formatMessage(message, context)}`, error || "");
+      }
+    }
+    child(context) {
+      return {
+        debug: (msg, ...args) => this.debug(msg, context, ...args),
+        info: (msg, ...args) => this.info(msg, context, ...args),
+        warn: (msg, ...args) => this.warn(msg, context, ...args),
+        error: (msg, err) => this.error(msg, context, err)
+      };
+    }
+  };
+  var logger2 = new Logger2();
+  var authLogger = logger2.child("Auth");
+  var smsLogger = logger2.child("SMS");
+  var callsLogger = logger2.child("Calls");
+  var deviceLogger = logger2.child("Device");
+
+  // src/services/sms.js
   init_dom();
   init_toasts();
   init_helpers();
   init_state();
   init_badges();
   async function loadSMS() {
+    console.log("\u{1F50D} loadSMS() called");
     const user = currentUser;
+    console.log("\u{1F50D} currentUser:", user?.uid || "NO USER");
     if (!user) {
-      console.log("\u274C loadSMS: No current user");
+      console.warn("\u26A0\uFE0F No current user - cannot load SMS");
+      smsLogger.warn("No current user");
       return;
     }
-    console.log("\u{1F4F1} loadSMS: Starting for user:", user.uid);
+    console.log(`\u{1F50D} Loading SMS for user: ${user.uid}`);
+    smsLogger.info(`Loading SMS for user: ${user.uid}`);
     try {
       const devicesQuery = query(
-        collection(db, "devices"),
+        collection(db, COLLECTIONS.DEVICES),
         where("userId", "==", user.uid)
       );
-      console.log("\u{1F4F1} loadSMS: Fetching devices...");
+      smsLogger.debug("Fetching devices...");
       const devicesSnapshot = await getDocs(devicesQuery);
-      console.log("\u{1F4F1} loadSMS: Got", devicesSnapshot.size, "devices");
+      smsLogger.debug(`Found ${devicesSnapshot.size} devices`);
       const deviceIds = [];
       devicesSnapshot.forEach((doc2) => {
         const data = doc2.data();
@@ -23082,22 +23233,19 @@ ${this.customData.serverResponse}`;
       });
       console.log("Found mobile devices for SMS:", deviceIds);
       if (deviceIds.length === 0) {
-        console.warn("\u26A0\uFE0F No devices found for SMS loading");
+        console.warn(
+          "\u26A0\uFE0F No mobile devices found for SMS loading - showing empty state"
+        );
         renderSMS([]);
         return;
       }
+      console.log(`\u{1F50D} Will load SMS from ${deviceIds.length} devices:`, deviceIds);
       for (const deviceId of deviceIds) {
+        console.log(`\u{1F50D} Querying SMS for device: ${deviceId}`);
         const q2 = query(
-          collection(
-            db,
-            "users",
-            user.uid,
-            "devices",
-            deviceId,
-            "notifications"
-          ),
+          collection(db, "users", user.uid, "devices", deviceId, "notifications"),
           where("type", "==", "sms"),
-          limit(50)
+          limit(200)
         );
         console.log("\u{1F4F1} Loading SMS for device:", deviceId);
         try {
@@ -23149,8 +23297,15 @@ ${this.customData.serverResponse}`;
   }
   function renderSMS(messages) {
     console.log("\u{1F3A8} renderSMS called with", messages.length, "messages");
+    if (messages.length > 0) {
+      console.log("\u{1F3A8} First message:", messages[0]);
+    }
     const smsListElement = document.getElementById("smsList");
     console.log("\u{1F3A8} smsList element found:", !!smsListElement);
+    console.log(
+      "\u{1F3A8} smsList innerHTML before:",
+      smsListElement?.innerHTML?.substring(0, 100)
+    );
     if (!smsListElement) {
       console.error("\u274C smsList element not found in DOM!");
       return;
@@ -23221,7 +23376,9 @@ ${this.customData.serverResponse}`;
         ${conv.lastMessage.deviceName ? `<div class="device-tag">${conv.lastMessage.deviceName}</div>` : ""}
       </div>
       <div class="list-item-meta">
-        <span class="list-item-time">${formatTime(conv.lastMessage.timestamp)}</span>
+        <span class="list-item-time">${formatTime(
+        conv.lastMessage.timestamp
+      )}</span>
         ${conv.unreadCount > 0 ? `<div class="list-item-badge">${conv.unreadCount}</div>` : ""}
       </div>
     </div>
@@ -23308,7 +23465,10 @@ ${this.customData.serverResponse}`;
     });
     const sendBtn = document.getElementById("sendConversationSms");
     const messageInput = document.getElementById("conversationMessageInput");
-    sendBtn?.addEventListener("click", () => sendConversationMessage(phoneNumber, messageInput));
+    sendBtn?.addEventListener(
+      "click",
+      () => sendConversationMessage(phoneNumber, messageInput)
+    );
     messageInput?.addEventListener("keypress", (e) => {
       if (e.key === "Enter") sendConversationMessage(phoneNumber, messageInput);
     });
@@ -23391,7 +23551,10 @@ ${this.customData.serverResponse}`;
       if (count > 0) {
         await batch.commit();
         showToast(`${count} messages marked as read`, "success");
-        const updatedMessages = allSMSMessages.map((msg) => ({ ...msg, read: true }));
+        const updatedMessages = allSMSMessages.map((msg) => ({
+          ...msg,
+          read: true
+        }));
         setAllSMSMessages(updatedMessages);
         if (currentConversation) {
           showConversation(currentConversation);
@@ -23444,7 +23607,9 @@ ${this.customData.serverResponse}`;
       showToast("No messages to delete", "info");
       return;
     }
-    if (!confirm(`Are you sure you want to delete all ${allSMSMessages.length} messages?`)) {
+    if (!confirm(
+      `Are you sure you want to delete all ${allSMSMessages.length} messages?`
+    )) {
       return;
     }
     showLoadingOverlay();
@@ -23630,10 +23795,14 @@ ${this.customData.serverResponse}`;
     }
     showLoadingOverlay();
     try {
+      authLogger.info(`Signing in: ${email}`);
       await signInWithEmailAndPassword(auth, email, password);
+      authLogger.info("Sign in successful");
       showToast("Signed in successfully", "success");
     } catch (error) {
-      showToast(error.message, "error");
+      const parsed = parseAuthError(error);
+      logError(error, "handleLogin");
+      showToast(parsed.message, "error");
       hideLoading();
     }
   }
@@ -23647,6 +23816,7 @@ ${this.customData.serverResponse}`;
     }
     showLoadingOverlay();
     try {
+      authLogger.info(`Creating account: ${email}`);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName: name5 });
       await setDoc(doc(db, "users", result.user.uid), {
@@ -23657,9 +23827,12 @@ ${this.customData.serverResponse}`;
         createdAt: Date.now(),
         lastLoginAt: Date.now()
       });
+      authLogger.info("Account created successfully");
       showToast("Account created successfully", "success");
     } catch (error) {
-      showToast(error.message, "error");
+      const parsed = parseAuthError(error);
+      logError(error, "handleSignup");
+      showToast(parsed.message, "error");
       hideLoading();
     }
   }
@@ -23690,7 +23863,9 @@ ${this.customData.serverResponse}`;
       }
       showToast("Signed in with Google", "success");
     } catch (error) {
-      showToast(error.message, "error");
+      const parsed = parseAuthError(error);
+      logError(error, "handleGoogleSignIn");
+      showToast(parsed.message, "error");
       hideLoading();
     }
   }
@@ -23714,6 +23889,11 @@ ${this.customData.serverResponse}`;
         setCurrentUser(user);
         console.log("Logged in as:", user.uid, user.email);
         showMainUI();
+        try {
+          chrome.runtime.sendMessage({ type: "userLoggedIn", userId: user.uid }).then(() => console.log("\u2705 Service worker notified of login")).catch(() => console.log("\u26A0\uFE0F Could not notify service worker"));
+        } catch (e) {
+          console.log("\u26A0\uFE0F Service worker notification error:", e);
+        }
         if (onLogin) await onLogin(user);
       } else {
         setCurrentUser(null);
@@ -24158,7 +24338,9 @@ ${this.customData.serverResponse}`;
         ${group.lastCall.deviceName ? `<div class="device-tag">${group.lastCall.deviceName}</div>` : ""}
       </div>
       <div class="list-item-meta">
-        <span class="list-item-time">${formatTime(group.lastCall.timestamp)}</span>
+        <span class="list-item-time">${formatTime(
+        group.lastCall.timestamp
+      )}</span>
         ${group.unviewedMissedCount > 0 ? `<div class="list-item-badge missed">${group.unviewedMissedCount}</div>` : ""}
       </div>
     </div>
@@ -24177,7 +24359,9 @@ ${this.customData.serverResponse}`;
     if (calls.length === 0) return;
     const contactName = calls[0].contactName || phoneNumber;
     setCurrentCallConversation(phoneNumber);
-    const missedToMark = calls.filter((call) => call.type === "missed" && !call.viewed);
+    const missedToMark = calls.filter(
+      (call) => call.type === "missed" && !call.viewed
+    );
     if (missedToMark.length > 0) {
       const updatedCalls = allCallsData.map(
         (call) => call.phoneNumber === phoneNumber && call.type === "missed" ? { ...call, viewed: true } : call
@@ -24280,7 +24464,12 @@ ${this.customData.serverResponse}`;
       const unsub = onSnapshot(
         q2,
         (snapshot) => {
-          console.log("\u{1F514} Notifications found for device", deviceId, ":", snapshot.size);
+          console.log(
+            "\u{1F514} Notifications found for device",
+            deviceId,
+            ":",
+            snapshot.size
+          );
           const notifications = [];
           snapshot.forEach((doc2) => {
             const data = doc2.data();
@@ -24290,7 +24479,12 @@ ${this.customData.serverResponse}`;
           updateNotificationsList(deviceId, notifications);
         },
         (error) => {
-          console.error("\u274C Error loading notifications for device", deviceId, ":", error);
+          console.error(
+            "\u274C Error loading notifications for device",
+            deviceId,
+            ":",
+            error
+          );
         }
       );
       addUnsubscriber(unsub);
@@ -24345,7 +24539,9 @@ ${this.customData.serverResponse}`;
           ${notif.deviceName ? `<span class="notification-device">\u{1F4F1} ${notif.deviceName}</span>` : ""}
         </div>
       </div>
-      <span class="list-item-time">${formatTime(notif.receivedAt || notif.timestamp)}</span>
+      <span class="list-item-time">${formatTime(
+        notif.receivedAt || notif.timestamp
+      )}</span>
     </div>
   `
     ).join("");
@@ -24530,7 +24726,11 @@ ${this.customData.serverResponse}`;
       showLoadingOverlay();
       try {
         const user = currentUser;
-        const credential = await signInWithEmailAndPassword(auth, user.email, currentPassword);
+        const credential = await signInWithEmailAndPassword(
+          auth,
+          user.email,
+          currentPassword
+        );
         await updatePassword(credential.user, newPassword);
         showToast("Password changed successfully", "success");
         modal.remove();
@@ -24560,7 +24760,9 @@ ${this.customData.serverResponse}`;
     document.getElementById("saveDisplayNameBtn")?.addEventListener("click", saveDisplayName);
     document.getElementById("changePasswordBtn")?.addEventListener("click", showChangePasswordModal);
     document.getElementById("deleteAccountBtn")?.addEventListener("click", () => {
-      if (confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+      if (confirm(
+        "Are you sure you want to delete your account? This action cannot be undone."
+      )) {
         showToast("Account deletion coming soon", "info");
       }
     });
@@ -24571,7 +24773,10 @@ ${this.customData.serverResponse}`;
         const newLang = e.target.value;
         setCurrentLanguage(newLang);
         applyTranslations();
-        showToast(newLang === "ar" ? "\u062A\u0645 \u062A\u063A\u064A\u064A\u0631 \u0627\u0644\u0644\u063A\u0629" : "Language changed", "success");
+        showToast(
+          newLang === "ar" ? "\u062A\u0645 \u062A\u063A\u064A\u064A\u0631 \u0627\u0644\u0644\u063A\u0629" : "Language changed",
+          "success"
+        );
       });
     }
   }

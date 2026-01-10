@@ -1,0 +1,91 @@
+# ZyncIT - Git Ignore File
+
+# ===================
+# Environment & Secrets
+# ===================
+.env
+.env.local
+.env.*.local
+*.env
+firebase-config.js
+!firebase-config.example.js
+google-services.json
+GoogleService-Info.plist
+
+# ===================
+# Dependencies
+# ===================
+node_modules/
+*/node_modules/
+
+# ===================
+# Build Outputs
+# ===================
+build/
+dist/
+*.apk
+*.aab
+*.ipa
+
+# ===================
+# React Native / Android
+# ===================
+app/android/app/build/
+app/android/build/
+app/android/.gradle/
+app/android/local.properties
+app/android/app/google-services.json
+*.keystore
+!debug.keystore
+
+# ===================
+# React Native / iOS
+# ===================
+app/ios/Pods/
+app/ios/*.xcworkspace
+app/ios/build/
+app/ios/DerivedData/
+
+# ===================
+# Metro Bundler
+# ===================
+.metro-health-check*
+
+# ===================
+# IDE & Editor
+# ===================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===================
+# Debug & Logs
+# ===================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+
+# ===================
+# Testing
+# ===================
+coverage/
+.jest/
+
+# ===================
+# Chrome Extension
+# ===================
+chrome-extension/popup/popup.bundle.js
+chrome-extension/*.zip
+
+# ===================
+# Misc
+# ===================
+*.tmp
+*.temp
+.cache/

@@ -14,8 +14,12 @@ import {
   query,
   where,
   limit,
+  orderBy,
 } from "../config/firebase.js"
 
+import { COLLECTIONS, SYNC_CONFIG } from "../config/constants.js"
+import { parseFirestoreError, logError } from "../utils/errors.js"
+import { smsLogger as logger } from "../utils/logger.js"
 import { smsList } from "../ui/dom.js"
 import { showToast, showLoadingOverlay, hideLoading } from "../ui/toasts.js"
 import {
@@ -31,23 +35,27 @@ import { updateTabBadges } from "./badges.js"
  * Load SMS from all user devices
  */
 export async function loadSMS() {
+  console.log("🔍 loadSMS() called")
   const user = state.currentUser
+  console.log("🔍 currentUser:", user?.uid || "NO USER")
   if (!user) {
-    console.log("❌ loadSMS: No current user")
+    console.warn("⚠️ No current user - cannot load SMS")
+    logger.warn("No current user")
     return
   }
-  console.log("📱 loadSMS: Starting for user:", user.uid)
+  console.log(`🔍 Loading SMS for user: ${user.uid}`)
+  logger.info(`Loading SMS for user: ${user.uid}`)
 
   try {
     // First, get all user devices
     const devicesQuery = query(
-      collection(db, "devices"),
+      collection(db, COLLECTIONS.DEVICES),
       where("userId", "==", user.uid)
     )
 
-    console.log("📱 loadSMS: Fetching devices...")
+    logger.debug("Fetching devices...")
     const devicesSnapshot = await getDocs(devicesQuery)
-    console.log("📱 loadSMS: Got", devicesSnapshot.size, "devices")
+    logger.debug(`Found ${devicesSnapshot.size} devices`)
 
     const deviceIds = []
     devicesSnapshot.forEach((doc) => {
@@ -73,17 +81,24 @@ export async function loadSMS() {
     console.log("Found mobile devices for SMS:", deviceIds)
 
     if (deviceIds.length === 0) {
-      console.warn("⚠️ No devices found for SMS loading")
+      console.warn(
+        "⚠️ No mobile devices found for SMS loading - showing empty state"
+      )
       renderSMS([])
       return
     }
 
+    console.log(`🔍 Will load SMS from ${deviceIds.length} devices:`, deviceIds)
+
     // Load SMS notifications from each device
     for (const deviceId of deviceIds) {
+      console.log(`🔍 Querying SMS for device: ${deviceId}`)
+      // Note: Using limit without orderBy to avoid needing composite index
+      // Sorting is done in JavaScript after fetching
       const q = query(
         collection(db, "users", user.uid, "devices", deviceId, "notifications"),
         where("type", "==", "sms"),
-        limit(50)
+        limit(200)
       )
 
       console.log("📱 Loading SMS for device:", deviceId)
@@ -157,8 +172,17 @@ export function updateSMSList(deviceId, newMessages) {
 export function renderSMS(messages) {
   console.log("🎨 renderSMS called with", messages.length, "messages")
 
+  // DEBUG: Alert for testing
+  if (messages.length > 0) {
+    console.log("🎨 First message:", messages[0])
+  }
+
   const smsListElement = document.getElementById("smsList")
   console.log("🎨 smsList element found:", !!smsListElement)
+  console.log(
+    "🎨 smsList innerHTML before:",
+    smsListElement?.innerHTML?.substring(0, 100)
+  )
 
   if (!smsListElement) {
     console.error("❌ smsList element not found in DOM!")

@@ -2,9 +2,17 @@
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import Config from 'react-native-config';
 import { User } from '../types';
 import { COLLECTIONS } from '../constants';
 import { NativeCredentialsService } from '../services/nativeCredentials';
+import {
+  AppError,
+  parseFirebaseAuthError,
+  ErrorCode,
+  logError,
+} from '../utils/errors';
+import { authLogger as logger } from '../utils/logger';
 
 interface AuthState {
   user: User | null;
@@ -26,10 +34,9 @@ interface AuthState {
   clearError: () => void;
 }
 
-// Configure Google Sign In
+// Configure Google Sign In - Client ID from .env
 GoogleSignin.configure({
-  webClientId:
-    '772958487002-cs178nsvp3qh9bdl7qk7jmsvleesjcm7.apps.googleusercontent.com',
+  webClientId: Config.GOOGLE_WEB_CLIENT_ID,
 });
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -100,10 +107,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signInWithEmail: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
+      logger.info(`Signing in user: ${email}`);
       await auth().signInWithEmailAndPassword(email, password);
+      logger.info('Sign in successful');
     } catch (error: any) {
-      set({ error: error.message, isLoading: false });
-      throw error;
+      const appError = parseFirebaseAuthError(error);
+      logError(appError, 'signInWithEmail');
+      set({ error: appError.getLocalizedMessage('en'), isLoading: false });
+      throw appError;
     }
   },
 
@@ -114,6 +125,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   ) => {
     set({ isLoading: true, error: null });
     try {
+      logger.info(`Creating new user: ${email}`);
       const result = await auth().createUserWithEmailAndPassword(
         email,
         password,
@@ -134,9 +146,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .collection(COLLECTIONS.USERS)
         .doc(result.user.uid)
         .set(userData);
+
+      logger.info('User created successfully');
     } catch (error: any) {
-      set({ error: error.message, isLoading: false });
-      throw error;
+      const appError = parseFirebaseAuthError(error);
+      logError(appError, 'signUpWithEmail');
+      set({ error: appError.getLocalizedMessage('en'), isLoading: false });
+      throw appError;
     }
   },
 
@@ -150,6 +166,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Get the users ID token
       const signInResult = await GoogleSignin.signIn();
+      console.log(
+        '[AuthStore] Google signIn result:',
+        JSON.stringify(signInResult, null, 2),
+      );
 
       // Check if sign in was successful (v16.x returns { type: 'success', data: {...} })
       if (!signInResult || signInResult.type === 'cancelled') {
@@ -158,21 +178,57 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Handle v16.x response format: { type: 'success', data: { idToken, user } }
       let idToken: string | null = null;
+      let accessToken: string | null = null;
       let googleDisplayName: string | null = null;
       let googlePhotoURL: string | null = null;
 
+      // Try different response formats
       if ('data' in signInResult && signInResult.data) {
+        // v16.x format
         idToken = signInResult.data.idToken;
         googleDisplayName = signInResult.data.user?.name || null;
         googlePhotoURL = signInResult.data.user?.photo || null;
+      } else if ('idToken' in signInResult) {
+        // Older format
+        idToken = (signInResult as any).idToken;
+        googleDisplayName = (signInResult as any).user?.name || null;
+        googlePhotoURL = (signInResult as any).user?.photo || null;
       }
 
+      // If still no idToken, try getTokens()
       if (!idToken) {
-        throw new Error('No ID token received from Google');
+        console.log(
+          '[AuthStore] No idToken in signInResult, trying getTokens()...',
+        );
+        try {
+          const tokens = await GoogleSignin.getTokens();
+          console.log(
+            '[AuthStore] getTokens result:',
+            JSON.stringify(tokens, null, 2),
+          );
+          idToken = tokens.idToken;
+          // If no idToken but have accessToken, use it
+          if (!idToken && tokens.accessToken) {
+            console.log('[AuthStore] Using accessToken instead of idToken');
+            accessToken = tokens.accessToken;
+          }
+        } catch (tokenError) {
+          console.log('[AuthStore] getTokens failed:', tokenError);
+        }
       }
 
+      // We can use either idToken or accessToken with Firebase
+      if (!idToken && !accessToken) {
+        throw new Error('No ID token or access token received from Google');
+      }
+
+  
       // Create a Google credential with the token
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      // GoogleAuthProvider.credential(idToken, accessToken) - either can be null
+      const googleCredential = auth.GoogleAuthProvider.credential(
+        idToken,
+        accessToken as string | undefined,
+      );
 
       // Sign-in the user with the credential
       const userCredential = await auth().signInWithCredential(

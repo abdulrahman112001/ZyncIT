@@ -29,8 +29,28 @@ const db = getFirestore(app)
 
 let currentUser = null
 let currentDeviceId = null
-let lastNotificationTimestamp = Date.now()
+// تحميل آخر timestamp من التخزين، أو استخدام وقت قبل 5 دقائق للسماح برسائل جديدة
+let lastNotificationTimestamp = Date.now() - 5 * 60 * 1000 // 5 minutes ago
 let unsubscribeNotifications = []
+let seenNotifications = new Set() // لتجنب تكرار الإشعارات
+
+// تحميل آخر timestamp من التخزين
+chrome.storage.local.get(
+  ["lastNotificationTimestamp", "seenNotifications"],
+  (result) => {
+    if (result.lastNotificationTimestamp) {
+      lastNotificationTimestamp = result.lastNotificationTimestamp
+      console.log(
+        "ZyncIT: Loaded lastNotificationTimestamp:",
+        new Date(lastNotificationTimestamp).toLocaleString()
+      )
+    }
+    if (result.seenNotifications) {
+      seenNotifications = new Set(result.seenNotifications)
+      console.log("ZyncIT: Loaded seenNotifications:", seenNotifications.size)
+    }
+  }
+)
 
 // Listen for auth state changes
 onAuthStateChanged(auth, async (user) => {
@@ -125,7 +145,7 @@ function listenToDevice(deviceId) {
       deviceId,
       "notifications"
     ),
-    limit(20)
+    limit(50) // زيادة الحد للحصول على رسائل أكثر
   )
 
   const unsub = onSnapshot(
@@ -135,11 +155,14 @@ function listenToDevice(deviceId) {
         "ZyncIT: Snapshot from device",
         deviceId,
         "- changes:",
-        snapshot.docChanges().length
+        snapshot.docChanges().length,
+        "- total:",
+        snapshot.size
       )
       snapshot.docChanges().forEach((change) => {
         if (change.type === "added") {
           const notification = change.doc.data()
+          const docId = change.doc.id
           const notificationTime =
             notification.timestamp || notification.receivedAt || Date.now()
 
@@ -148,24 +171,48 @@ function listenToDevice(deviceId) {
             notification.type,
             notification.title,
             "time:",
-            notificationTime
+            new Date(notificationTime).toLocaleString(),
+            "docId:",
+            docId
           )
 
-          // Only show notifications newer than when we started listening
-          if (notificationTime > lastNotificationTimestamp) {
-            showNotification(notification)
-            lastNotificationTimestamp = notificationTime
-
-            // Send update to popup
-            chrome.runtime
-              .sendMessage({
-                type: "newNotification",
-                data: notification,
-              })
-              .catch(() => {
-                // Popup may not be open, ignore error
-              })
+          // تجنب تكرار الإشعارات باستخدام docId
+          if (seenNotifications.has(docId)) {
+            console.log("ZyncIT: Notification already seen, skipping:", docId)
+            return
           }
+
+          // إضافة للقائمة المرئية
+          seenNotifications.add(docId)
+
+          // حفظ في التخزين (آخر 100 إشعار فقط)
+          const seenArray = Array.from(seenNotifications).slice(-100)
+          chrome.storage.local.set({
+            seenNotifications: seenArray,
+            lastNotificationTimestamp: Date.now(),
+          })
+
+          // عرض الإشعار فقط إذا كان جديداً (آخر 10 دقائق)
+          const tenMinutesAgo = Date.now() - 10 * 60 * 1000
+          if (notificationTime > tenMinutesAgo) {
+            showNotification(notification)
+            console.log("ZyncIT: ✅ Notification shown:", notification.title)
+          } else {
+            console.log(
+              "ZyncIT: ⏭️ Notification too old, not showing:",
+              notification.title
+            )
+          }
+
+          // Send update to popup
+          chrome.runtime
+            .sendMessage({
+              type: "newNotification",
+              data: notification,
+            })
+            .catch(() => {
+              // Popup may not be open, ignore error
+            })
         }
       })
     },
@@ -292,7 +339,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         : null,
       deviceId: currentDeviceId,
       listening: unsubscribeNotifications.length > 0,
+      listenersCount: unsubscribeNotifications.length,
+      seenCount: seenNotifications.size,
     })
+  }
+
+  // إعادة تفعيل الاستماع عند تسجيل الدخول من popup
+  if (message.type === "userLoggedIn") {
+    console.log("ZyncIT: User logged in notification from popup")
+    // Auth state should update automatically, but force restart listening
+    if (currentUser) {
+      console.log("ZyncIT: Restarting listeners for user:", currentUser.uid)
+      startListening()
+    }
+    sendResponse({ success: true })
+  }
+
+  // مسح الإشعارات المرئية (عند تسجيل الخروج أو إعادة التعيين)
+  if (message.type === "clearSeenNotifications") {
+    seenNotifications.clear()
+    chrome.storage.local.remove([
+      "seenNotifications",
+      "lastNotificationTimestamp",
+    ])
+    console.log("ZyncIT: Cleared seen notifications")
+    sendResponse({ success: true })
+  }
+
+  // طلب إعادة بدء الاستماع يدوياً
+  if (message.type === "restartListening") {
+    console.log("ZyncIT: Manual restart listening requested")
+    startListening()
+    sendResponse({ success: true, listening: true })
   }
 
   return true

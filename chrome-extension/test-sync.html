@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <title>ZyncIT Sync Test</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                padding: 20px;
+                direction: ltr;
+            }
+
+            .log {
+                background: #f5f5f5;
+                padding: 10px;
+                margin: 5px 0;
+                border-radius: 5px;
+            }
+
+            .error {
+                background: #ffebee;
+                color: #c62828;
+            }
+
+            .success {
+                background: #e8f5e9;
+                color: #2e7d32;
+            }
+
+            .info {
+                background: #e3f2fd;
+                color: #1565c0;
+            }
+
+            button {
+                padding: 10px 20px;
+                margin: 5px;
+                cursor: pointer;
+            }
+
+            #logs {
+                max-height: 400px;
+                overflow-y: auto;
+            }
+
+        </style>
+    </head>
+
+    <body>
+        <h1>🔄 ZyncIT Sync Tester</h1>
+
+        <div>
+            <button onclick="checkServiceWorker()">Check Service Worker</button>
+            <button onclick="checkFirestore()">Check Firestore</button>
+            <button onclick="restartListening()">Restart Listening</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <h3>Logs:</h3>
+        <div id="logs"></div>
+
+        <script type="module">
+            import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+            import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+            import { getFirestore, collection, getDocs, query, where, limit, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+            const firebaseConfig = {
+                apiKey: 'AIzaSyCMqENmothJXy6XrP7214d0c6ILsOdqtcs',
+                authDomain: 'zyncit-f1ced.firebaseapp.com',
+                projectId: 'zyncit-f1ced',
+            };
+
+            const app = initializeApp( firebaseConfig );
+            const auth = getAuth( app );
+            const db = getFirestore( app );
+
+            function log ( msg, type = 'info' )
+            {
+                const logs = document.getElementById( 'logs' );
+                const div = document.createElement( 'div' );
+                div.className = `log ${ type }`;
+                div.textContent = `[${ new Date().toLocaleTimeString() }] ${ msg }`;
+                logs.insertBefore( div, logs.firstChild );
+                console.log( msg );
+            }
+
+            window.clearLogs = () =>
+            {
+                document.getElementById( 'logs' ).innerHTML = '';
+            };
+
+            window.checkServiceWorker = async () =>
+            {
+                try
+                {
+                    const response = await chrome.runtime.sendMessage( { type: 'getStatus' } );
+                    log( `Service Worker Status: ${ JSON.stringify( response, null, 2 ) }`, response.user ? 'success' : 'error' );
+                } catch ( e )
+                {
+                    log( `Service Worker Error: ${ e.message }`, 'error' );
+                }
+            };
+
+            window.restartListening = async () =>
+            {
+                try
+                {
+                    const response = await chrome.runtime.sendMessage( { type: 'restartListening' } );
+                    log( `Restart result: ${ JSON.stringify( response ) }`, 'success' );
+                } catch ( e )
+                {
+                    log( `Restart Error: ${ e.message }`, 'error' );
+                }
+            };
+
+            window.checkFirestore = async () =>
+            {
+                onAuthStateChanged( auth, async ( user ) =>
+                {
+                    if ( !user )
+                    {
+                        log( '❌ Not logged in! Please login from popup first.', 'error' );
+                        return;
+                    }
+
+                    log( `✅ Logged in as: ${ user.email } (${ user.uid })`, 'success' );
+
+                    // Get devices
+                    const devicesQuery = query(
+                        collection( db, 'devices' ),
+                        where( 'userId', '==', user.uid )
+                    );
+
+                    const devicesSnap = await getDocs( devicesQuery );
+                    log( `📱 Found ${ devicesSnap.size } devices`, 'info' );
+
+                    devicesSnap.forEach( async ( deviceDoc ) =>
+                    {
+                        const device = deviceDoc.data();
+                        log( `  Device: ${ device.id } | Platform: ${ device.platform } | Name: ${ device.name }`, 'info' );
+
+                        // Check notifications for each mobile device
+                        if ( device.platform !== 'chrome' && device.platform !== 'chrome-extension' )
+                        {
+                            const notifQuery = query(
+                                collection( db, 'users', user.uid, 'devices', device.id, 'notifications' ),
+                                where( 'type', '==', 'sms' ),
+                                limit( 5 )
+                            );
+
+                            try
+                            {
+                                const notifSnap = await getDocs( notifQuery );
+                                log( `    📨 SMS notifications in device ${ device.id }: ${ notifSnap.size }`, notifSnap.size > 0 ? 'success' : 'error' );
+
+                                notifSnap.forEach( ( doc ) =>
+                                {
+                                    const data = doc.data();
+                                    log( `      - ${ data.title }: ${ data.text?.substring( 0, 50 ) }...`, 'info' );
+                                } );
+                            } catch ( e )
+                            {
+                                log( `    ❌ Error reading notifications: ${ e.message }`, 'error' );
+                            }
+                        }
+                    } );
+                } );
+            };
+
+            // Auto check on load
+            log( '🚀 Test page loaded. Click buttons to test.', 'info' );
+        </script>
+    </body>
+
+</html>

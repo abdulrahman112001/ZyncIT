@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <title>SMS Debug Test</title>
+        <script type="module">
+            import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+            import { getFirestore, collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+            import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+            const config = {
+                apiKey: "AIzaSyCMqENmothJXy6XrP7214d0c6ILsOdqtcs",
+                authDomain: "zyncit-f1ced.firebaseapp.com",
+                projectId: "zyncit-f1ced",
+                storageBucket: "zyncit-f1ced.firebasestorage.app",
+                messagingSenderId: "772958487002",
+                appId: "1:772958487002:web:c2dcb8043d3bfed2ec40e3"
+            };
+
+            const app = initializeApp( config );
+            const db = getFirestore( app );
+            const auth = getAuth( app );
+
+            const log = ( msg ) =>
+            {
+                document.getElementById( 'log' ).innerHTML += msg + '<br>';
+                console.log( msg );
+            };
+
+            window.login = async () =>
+            {
+                const email = document.getElementById( 'email' ).value;
+                const password = document.getElementById( 'password' ).value;
+                try
+                {
+                    await signInWithEmailAndPassword( auth, email, password );
+                    log( '✅ Logged in successfully' );
+                } catch ( e )
+                {
+                    log( '❌ Login failed: ' + e.message );
+                }
+            };
+
+            window.loadSMS = async () =>
+            {
+                const user = auth.currentUser;
+                if ( !user )
+                {
+                    log( '❌ Not logged in' );
+                    return;
+                }
+                log( '🔍 Loading SMS for user: ' + user.uid );
+
+                // Step 1: Get devices
+                const devQ = query( collection( db, 'devices' ), where( 'userId', '==', user.uid ) );
+                const devs = await getDocs( devQ );
+                log( '📱 Found ' + devs.size + ' devices' );
+
+                const deviceIds = [];
+                devs.forEach( d =>
+                {
+                    const data = d.data();
+                    log( '  - ' + data.id + ' | ' + data.platform );
+                    if ( data.platform !== 'chrome-extension' && data.platform !== 'chrome' && !data.id?.startsWith( 'ext_' ) )
+                    {
+                        deviceIds.push( data.id );
+                    }
+                } );
+
+                log( '📱 Mobile devices: ' + deviceIds.join( ', ' ) );
+
+                // Step 2: Load SMS from each device
+                let allSMS = [];
+                for ( const deviceId of deviceIds )
+                {
+                    const q = query(
+                        collection( db, 'users', user.uid, 'devices', deviceId, 'notifications' ),
+                        where( 'type', '==', 'sms' ),
+                        limit( 50 )
+                    );
+                    const snap = await getDocs( q );
+                    log( '  Device ' + deviceId + ' -> ' + snap.size + ' SMS' );
+
+                    snap.forEach( d =>
+                    {
+                        const data = d.data();
+                        allSMS.push( {
+                            from: data.title || data.phoneNumber || 'Unknown',
+                            text: ( data.text || data.body || '' ).substring( 0, 50 ),
+                            timestamp: data.timestamp
+                        } );
+                    } );
+                }
+
+                // Sort and show
+                allSMS.sort( ( a, b ) => b.timestamp - a.timestamp );
+                log( '<br>📨 Latest 10 SMS:' );
+                allSMS.slice( 0, 10 ).forEach( ( m, i ) =>
+                {
+                    const date = new Date( m.timestamp );
+                    log( ( i + 1 ) + '. <b>' + m.from + '</b> | ' + m.text + ' | ' + date.toLocaleTimeString() );
+                } );
+            };
+
+            onAuthStateChanged( auth, ( user ) =>
+            {
+                if ( user )
+                {
+                    log( '👤 Already logged in: ' + user.email );
+                } else
+                {
+                    log( '🔐 Not logged in' );
+                }
+            } );
+        </script>
+    </head>
+
+    <body style="font-family: sans-serif; padding: 20px;">
+        <h1>SMS Debug Test</h1>
+
+        <div>
+            <input id="email" type="email" placeholder="Email" value="aboodalfatlawi62@gmail.com">
+            <input id="password" type="password" placeholder="Password">
+            <button onclick="login()">Login</button>
+            <button onclick="loadSMS()">Load SMS</button>
+        </div>
+
+        <div id="log"
+            style="margin-top: 20px; padding: 10px; background: #f5f5f5; font-family: monospace; white-space: pre-wrap;">
+        </div>
+    </body>
+
+</html>

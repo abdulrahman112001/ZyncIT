@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "772958487002-jjopvu1h5ilij3rd4p4hdcfjp8m9jslr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zyncit",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
           "client_id": "772958487002-cs178nsvp3qh9bdl7qk7jmsvleesjcm7.apps.googleusercontent.com",
           "client_type": 3
         }
