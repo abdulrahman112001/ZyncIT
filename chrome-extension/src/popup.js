@@ -1,6 +1,6 @@
 /**
  * ZyncIT Chrome Extension - Main Entry Point
- * 
+ *
  * This is the main popup.js file that initializes all modules
  * and coordinates the extension functionality.
  */
@@ -12,7 +12,13 @@ import "./config/firebase.js"
 import * as state from "./state/index.js"
 
 // Import UI modules
-import { smsList, callsList, notificationsList, markAllReadBtn, deleteAllSmsBtn } from "./ui/dom.js"
+import {
+  smsList,
+  callsList,
+  notificationsList,
+  markAllReadBtn,
+  deleteAllSmsBtn,
+} from "./ui/dom.js"
 import { showToast, showListLoading } from "./ui/toasts.js"
 import { initTabs } from "./ui/tabs.js"
 import { initSmsModal, initProfileFooter } from "./ui/modals.js"
@@ -20,7 +26,16 @@ import { initSmsModal, initProfileFooter } from "./ui/modals.js"
 // Import services
 import { initAuthObserver, initAuthListeners } from "./services/auth.js"
 import { registerDevice, loadDevices } from "./services/devices.js"
-import { loadSMS, renderSMS, markAllSmsAsRead, deleteAllSms, startPolling, stopPolling } from "./services/sms.js"
+import {
+  loadSMS,
+  renderSMS,
+  markAllSmsAsRead,
+  deleteAllSms,
+  startPolling,
+  stopPolling,
+  startSMSListener,
+  stopSMSListener,
+} from "./services/sms.js"
 import { loadCalls } from "./services/calls.js"
 import { loadNotifications } from "./services/notifications.js"
 import { subscribeToChat, initChatListeners } from "./services/chat.js"
@@ -51,8 +66,11 @@ function loadData() {
   loadUserSettings()
   subscribeToChat()
 
-  // Start polling for real-time SMS updates
-  startPolling()
+  // Start real-time SMS listener for instant updates
+  startSMSListener()
+
+  // Don't start polling - we get updates from real-time listener
+  // startPolling()
 }
 
 /**
@@ -61,6 +79,7 @@ function loadData() {
 function cleanupSubscriptions() {
   state.clearUnsubscribers()
   stopPolling()
+  stopSMSListener()
   state.clearAllSMS()
   state.clearAllNotifications()
   state.setDevices([])
@@ -75,12 +94,15 @@ function setupServiceWorkerListener() {
 
     if (message.type === "newNotification") {
       const notification = message.data
-      console.log("📨 New notification received:", notification.type, notification.title)
+      console.log(
+        "📨 New notification received:",
+        notification.type,
+        notification.title
+      )
 
-      if (notification.type === "sms") {
-        console.log("📨 Reloading SMS list due to new message")
-        loadSMS()
-      } else {
+      // Real-time listener will handle SMS updates automatically
+      // No need to manually reload
+      if (notification.type !== "sms") {
         loadNotifications()
       }
     }

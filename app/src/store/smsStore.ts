@@ -33,6 +33,7 @@ interface SMSState {
 
   // Actions
   loadMessages: () => void;
+  loadMessagesForSender: (sender: string) => Promise<SMS[]>;
   setMessages: (messages: SMS[]) => void;
   addMessage: (message: SMS) => void;
   addMessageAndSync: (message: SMS, userId: string) => Promise<void>;
@@ -103,6 +104,15 @@ export const useSMSStore = create<SMSState>((set, get) => ({
         const phoneNumber =
           (message as any).phoneNumber || (message as any).sender || 'unknown';
         const contactName = (message as any).contactName || '';
+        const messageText = message.body || message.text || '';
+
+        // استخدام messageHash بنفس طريقة BackgroundSmsService.java لتجنب التكرار
+        const messageHash = Math.abs(
+          `${phoneNumber}${messageText}`.split('').reduce((a, b) => {
+            a = (a << 5) - a + b.charCodeAt(0);
+            return a & a;
+          }, 0),
+        );
 
         // تحويل SMS إلى صيغة إشعار
         const notificationData = {
@@ -110,8 +120,8 @@ export const useSMSStore = create<SMSState>((set, get) => ({
           key: `sms_${message.id}`,
           packageName: 'com.android.mms',
           title: contactName || phoneNumber,
-          text: message.body || message.text || '',
-          content: message.body || message.text || '',
+          text: messageText,
+          content: messageText,
           appName: 'SMS',
           type: 'sms',
           smsType: message.type || 'inbox', // حفظ نوع الرسالة: sent أو inbox
@@ -127,11 +137,8 @@ export const useSMSStore = create<SMSState>((set, get) => ({
           syncedAt: Date.now(),
         };
 
-        const docId =
-          `sms_${currentDevice.id}_${message.timestamp}_${phoneNumber}`.replace(
-            /[\/\.]/g,
-            '_',
-          );
+        // استخدام نفس بنية docId مثل BackgroundSmsService.java: sms_deviceId_timestamp_messageHash
+        const docId = `sms_${currentDevice.id}_${message.timestamp}_${messageHash}`;
 
         // حفظ في مسار الإشعارات: users/{userId}/devices/{deviceId}/notifications
         await firestore()
@@ -283,6 +290,79 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       );
 
     set({ unsubscribe });
+  },
+
+  loadMessagesForSender: async (sender: string): Promise<SMS[]> => {
+    const { user } = useAuthStore.getState();
+    const { currentDevice } = useDeviceStore.getState();
+
+    console.log(
+      '📱 loadMessagesForSender called - sender:',
+      sender,
+      'user:',
+      user?.uid,
+      'device:',
+      currentDevice?.id,
+    );
+
+    if (!user || !currentDevice) {
+      console.log('⚠️ loadMessagesForSender: Missing user or device');
+      return [];
+    }
+
+    try {
+      // لا يمكن استخدام where على phoneNumber لأن بعض الرسائل تحفظ في حقول مختلفة
+      // نجلب كل SMS ثم نفلتر locally
+      const snapshot = await firestore()
+        .collection(COLLECTIONS.USERS)
+        .doc(user.uid)
+        .collection(COLLECTIONS.DEVICES)
+        .doc(currentDevice.id)
+        .collection(COLLECTIONS.NOTIFICATIONS)
+        .where('type', '==', 'sms')
+        .get();
+
+      const messages: SMS[] = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const messageSender =
+          data.phoneNumber || data.sender || data.title || '';
+
+        // فلترة: فقط الرسائل من هذا المرسل
+        if (messageSender === sender) {
+          messages.push({
+            id: doc.id,
+            threadId: data.threadId || '',
+            userId: data.userId || user.uid,
+            deviceId: data.deviceId || currentDevice.id,
+            body: data.text || data.content || data.body || '',
+            text: data.text || data.content || data.body || '',
+            phoneNumber: messageSender,
+            sender: messageSender,
+            contactName: data.contactName || '',
+            timestamp: data.timestamp || data.receivedAt || Date.now(),
+            read: data.read || false,
+            type: data.smsType || 'inbox',
+            syncedAt: data.syncedAt || Date.now(),
+          } as SMS);
+        }
+      });
+
+      // ترتيب حسب الوقت
+      messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+      console.log(
+        '📬 Loaded messages for sender',
+        sender,
+        ':',
+        messages.length,
+      );
+
+      return messages;
+    } catch (error) {
+      console.error('❌ Error loading messages for sender:', error);
+      return [];
+    }
   },
 
   syncMessages: async (localMessages: any[]) => {

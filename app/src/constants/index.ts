@@ -7,7 +7,7 @@ export const PRESENCE_INTERVAL = 60000; // 1 minute
 
 // Pagination
 export const PAGE_SIZE = 20;
-export const SMS_PAGE_SIZE = 50;
+export const SMS_PAGE_SIZE = 200;
 export const CALL_PAGE_SIZE = 50;
 
 // Limits

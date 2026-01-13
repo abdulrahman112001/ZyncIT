@@ -103,7 +103,9 @@ public class BackgroundSmsService extends Service {
 
         // Create notification document
         Map<String, Object> smsData = new HashMap<>();
-        String docId = "sms_" + deviceId + "_" + timestamp + "_" + sender.replaceAll("[^a-zA-Z0-9]", "");
+        // استخدام timestamp + hash للرسالة لضمان uniqueness (بدون random لمنع التكرار)
+        int messageHash = Math.abs((sender + message).hashCode());
+        String docId = "sms_" + deviceId + "_" + timestamp + "_" + messageHash;
         
         smsData.put("id", docId);
         smsData.put("key", "sms_" + docId);

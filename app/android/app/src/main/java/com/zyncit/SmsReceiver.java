@@ -21,9 +21,30 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class SmsReceiver extends BroadcastReceiver {
     private static final String TAG = "SmsReceiver";
     private static ReactApplicationContext reactContext;
+    
+    // Set لتتبع الرسائل التي تم معالجتها لتجنب التكرار
+    private static final Set<String> processedMessages = new HashSet<>();
+    private static final long MESSAGE_EXPIRY_MS = 5000; // 5 ثوان
+    
+    // تنظيف الرسائل القديمة من الـ Set
+    private static class MessageCleanupTask implements Runnable {
+        private final String messageKey;
+        
+        MessageCleanupTask(String key) {
+            this.messageKey = key;
+        }
+        
+        @Override
+        public void run() {
+            processedMessages.remove(messageKey);
+        }
+    }
 
     public static void setReactContext(ReactApplicationContext context) {
         reactContext = context;
@@ -73,6 +94,23 @@ public class SmsReceiver extends BroadcastReceiver {
                     }
                     
                     Log.d(TAG, "SMS received from: " + sender + ", message: " + fullMessage.toString());
+                    
+                    // إنشاء مفتاح فريد للرسالة (sender + timestamp + message hash)
+                    String messageKey = sender + "_" + timestamp + "_" + fullMessage.toString().hashCode();
+                    
+                    // التحقق من أن الرسالة لم تتم معالجتها مسبقاً
+                    if (processedMessages.contains(messageKey)) {
+                        Log.w(TAG, "⏭️ Duplicate SMS detected, skipping: " + messageKey);
+                        return;
+                    }
+                    
+                    // إضافة للقائمة المعالجة
+                    processedMessages.add(messageKey);
+                    Log.d(TAG, "✅ New unique SMS, processing: " + messageKey);
+                    
+                    // جدولة إزالة المفتاح بعد 5 ثوان لتجنب memory leak
+                    android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    handler.postDelayed(new MessageCleanupTask(messageKey), MESSAGE_EXPIRY_MS);
                     
                     // جلب اسم جهة الاتصال
                     String contactName = getContactName(context, sender);

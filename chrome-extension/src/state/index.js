@@ -79,6 +79,10 @@ export function setSMSData(deviceId, messages) {
   allSMS[deviceId] = messages
 }
 
+export function getSMSData(deviceId) {
+  return allSMS[deviceId]
+}
+
 export function clearAllSMS() {
   allSMS = {}
 }

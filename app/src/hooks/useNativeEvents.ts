@@ -193,30 +193,15 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
       async data => {
         console.log('📱 SMS received:', data);
 
-        // استخدام timestamp + sender كمفتاح فريد لتجنب التكرار
-        const sender = data.sender || data.address || 'Unknown';
-        const contactName = data.contactName || '';
-        const uniqueId = `sms_${data.timestamp}_${sender}`;
+        // ملاحظة: BackgroundSmsService يقوم بحفظ الرسالة في Firebase
+        // هنا فقط نستمع للحدث لتحديث الـ UI إذا لزم الأمر
+        // الرسالة ستظهر تلقائياً من real-time listener في smsStore
 
-        const newMessage = {
-          id: uniqueId,
-          sender: sender,
-          phoneNumber: sender,
-          contactName: contactName,
-          receiver: 'me',
-          body: data.body || data.message,
-          timestamp: data.timestamp || Date.now(),
-          read: false,
-          type: 'inbox' as const,
-          deviceId: 'android',
-          threadId: '',
-          userId: user.uid,
-          syncedAt: Date.now(),
-        };
-
-        // حفظ في Firebase مباشرة
-        await addMessageAndSync(newMessage, user.uid);
-        console.log('✅ SMS synced to Firebase:', sender, contactName);
+        console.log(
+          '✅ SMS event received:',
+          data.sender || data.address,
+          data.contactName,
+        );
       },
     );
 

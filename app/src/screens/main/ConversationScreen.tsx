@@ -219,7 +219,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
     removeNotification,
     addNotification,
   } = useNotificationStore();
-  const { messages: smsMessages } = useSMSStore();
+  const { messages: smsMessages, isLoading: isSmsLoading } = useSMSStore();
   const { isRTL, isDarkMode } = useTheme();
 
   // Dynamic colors based on theme
@@ -235,6 +235,32 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
   const [isSending, setIsSending] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+  // فلترة الرسائل محلياً من smsMessages بدلاً من تحميلها من Firebase في كل مرة
+  const senderMessages = useMemo(() => {
+    if (type === 'sms' && phoneNumber) {
+      // إذا كانت الرسائل لا تزال قيد التحميل، انتظر
+      if (isSmsLoading && smsMessages.length === 0) {
+        return [];
+      }
+
+      const filtered = smsMessages.filter(sms => {
+        const sender =
+          (sms as any).sender ||
+          (sms as any).phoneNumber ||
+          (sms as any).address ||
+          '';
+        return sender === phoneNumber;
+      });
+      console.log(
+        '🔍 Filtered messages for',
+        phoneNumber,
+        ':',
+        filtered.length,
+      );
+      return filtered;
+    }
+    return [];
+  }, [type, phoneNumber, smsMessages, isSmsLoading]);
 
   // تحويل رسائل SMS إلى AppNotification ودمجها
   const conversationNotifications = useMemo(() => {
@@ -243,53 +269,83 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
       ? allNotifications
       : [];
     const validSmsMessages = Array.isArray(smsMessages) ? smsMessages : [];
+    const validSenderMessages = Array.isArray(senderMessages)
+      ? senderMessages
+      : [];
 
     // أولاً: الإشعارات العادية
     const regularNotifications = validNotifications.filter(
       n => n.title === title && n.appName === appName && n.type === type,
     );
 
-    // ثانياً: إذا كان النوع sms، أضف رسائل SMS من smsStore
+    // ثانياً: إذا كان النوع sms، أضف رسائل SMS من smsStore + senderMessages
     if (type === 'sms') {
-      const smsNotifications: AppNotification[] = validSmsMessages
-        .filter(sms => {
-          const sender =
-            (sms as any).sender ||
-            (sms as any).phoneNumber ||
-            (sms as any).address ||
-            'Unknown';
-          // استخدام phoneNumber للتصفية إذا كان موجوداً، وإلا استخدم title
-          const filterKey = phoneNumber || title;
-          return sender === filterKey;
-        })
-        .map(sms => ({
-          id: sms.id || `sms_${sms.timestamp}`,
-          key: `sms_${sms.id || sms.timestamp}`,
-          packageName: 'com.android.mms',
-          title:
-            (sms as any).contactName ||
-            (sms as any).sender ||
-            (sms as any).phoneNumber ||
-            (sms as any).address ||
-            'Unknown',
-          text: (sms as any).body || (sms as any).message || '',
-          appName: 'SMS',
-          type: 'sms' as const,
-          timestamp: sms.timestamp || Date.now(),
-          read: (sms as any).read || false,
-          smsType: (sms as any).type || 'inbox', // 'sent' or 'inbox'
-        }));
+      console.log(
+        '🔍 Building conversation - senderMessages:',
+        validSenderMessages.length,
+        'smsMessages:',
+        validSmsMessages.length,
+      );
+
+      // استخدام senderMessages إذا كانت موجودة، وإلا استخدام الفلترة العادية
+      const messagesToUse =
+        validSenderMessages.length > 0
+          ? validSenderMessages
+          : validSmsMessages.filter(sms => {
+              const sender =
+                (sms as any).sender ||
+                (sms as any).phoneNumber ||
+                (sms as any).address ||
+                'Unknown';
+              // استخدام phoneNumber للتصفية إذا كان موجوداً، وإلا استخدم title
+              const filterKey = phoneNumber || title;
+              return sender === filterKey;
+            });
+
+      console.log('📝 messagesToUse:', messagesToUse.length);
+
+      const smsNotifications: AppNotification[] = messagesToUse.map(sms => ({
+        id: sms.id || `sms_${sms.timestamp}`,
+        key: `sms_${sms.id || sms.timestamp}`,
+        packageName: 'com.android.mms',
+        title:
+          (sms as any).contactName ||
+          (sms as any).sender ||
+          (sms as any).phoneNumber ||
+          (sms as any).address ||
+          'Unknown',
+        text: (sms as any).body || (sms as any).message || '',
+        appName: 'SMS',
+        type: 'sms' as const,
+        timestamp: sms.timestamp || Date.now(),
+        read: (sms as any).read || false,
+        smsType: (sms as any).type || 'inbox', // 'sent' or 'inbox'
+      }));
+
+      console.log('📬 smsNotifications:', smsNotifications.length);
 
       // دمج وإزالة التكرار
       const allMessages = [...regularNotifications, ...smsNotifications];
       const uniqueMessages = allMessages.filter(
         (msg, index, self) => index === self.findIndex(m => m.id === msg.id),
       );
-      return uniqueMessages.sort((a, b) => a.timestamp - b.timestamp);
+
+      console.log('✅ Final conversation messages:', uniqueMessages.length);
+
+      // ترتيب من الأحدث إلى الأقدم (عكسي) لأن FlatList معكوسة
+      return uniqueMessages.sort((a, b) => b.timestamp - a.timestamp);
     }
 
-    return regularNotifications.sort((a, b) => a.timestamp - b.timestamp);
-  }, [allNotifications, smsMessages, title, appName, type]);
+    return regularNotifications.sort((a, b) => b.timestamp - a.timestamp);
+  }, [
+    allNotifications,
+    smsMessages,
+    senderMessages,
+    title,
+    appName,
+    type,
+    phoneNumber,
+  ]);
 
   // Handle keyboard events for Android
   useEffect(() => {
@@ -472,33 +528,37 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
       </View>
 
       {/* Messages */}
-      <FlatList
-        ref={flatListRef}
-        data={conversationNotifications}
-        renderItem={({ item }) => (
-          <MessageBubble
-            item={item}
-            onDelete={handleDelete}
-            isRTL={isRTL}
-            textColor={textColor}
-            secondaryTextColor={secondaryTextColor}
-            bubbleColor={bubbleColor}
-            bgColor={bgColor}
-          />
-        )}
-        keyExtractor={item => item.id}
-        style={{ flex: 1, backgroundColor: bgColor }}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: isSMSType ? 20 : 20 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => {
-          if (conversationNotifications.length > 0) {
-            flatListRef.current?.scrollToEnd({ animated: false });
-          }
-        }}
-      />
+      {isSmsLoading && smsMessages.length === 0 && type === 'sms' ? (
+        <View
+          style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Text style={{ color: secondaryTextColor }}>Loading messages...</Text>
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={conversationNotifications}
+          renderItem={({ item }) => (
+            <MessageBubble
+              item={item}
+              onDelete={handleDelete}
+              isRTL={isRTL}
+              textColor={textColor}
+              secondaryTextColor={secondaryTextColor}
+              bubbleColor={bubbleColor}
+              bgColor={bgColor}
+            />
+          )}
+          keyExtractor={item => item.id}
+          inverted={true}
+          style={{ flex: 1, backgroundColor: bgColor }}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: isSMSType ? 20 : 20 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       {/* SMS Input removed - not needed for notification viewer */}
     </View>

@@ -15,6 +15,7 @@ import {
   where,
   limit,
   orderBy,
+  onSnapshot,
 } from "../config/firebase.js"
 
 import { COLLECTIONS, SYNC_CONFIG } from "../config/constants.js"
@@ -30,6 +31,151 @@ import {
 } from "../utils/helpers.js"
 import * as state from "../state/index.js"
 import { updateTabBadges } from "./badges.js"
+
+// Store unsubscribe functions for real-time listeners
+let smsUnsubscribeFunctions = []
+// Track processed message IDs to avoid duplicates
+let processedMessageIds = new Set()
+
+/**
+ * Start real-time listeners for SMS from all user devices
+ */
+export async function startSMSListener() {
+  const user = state.currentUser
+  if (!user) {
+    console.warn("⚠️ No current user - cannot start SMS listener")
+    return
+  }
+
+  console.log("🔄 Starting real-time SMS listeners for user:", user.uid)
+
+  // Stop previous listeners
+  stopSMSListener()
+
+  try {
+    // Get all user devices
+    const devicesQuery = query(
+      collection(db, COLLECTIONS.DEVICES),
+      where("userId", "==", user.uid)
+    )
+
+    const devicesSnapshot = await getDocs(devicesQuery)
+    console.log(`📱 Found ${devicesSnapshot.size} devices for SMS listening`)
+
+    devicesSnapshot.forEach((deviceDoc) => {
+      const data = deviceDoc.data()
+      // Only listen to mobile devices (not extension)
+      if (
+        data.platform !== "chrome-extension" &&
+        data.platform !== "chrome" &&
+        !data.id?.startsWith("ext_")
+      ) {
+        console.log(`👂 Setting up listener for device: ${data.id}`)
+        listenToDeviceSMS(user.uid, data.id)
+      }
+    })
+  } catch (error) {
+    console.error("❌ Error starting SMS listeners:", error)
+  }
+}
+
+/**
+ * Listen to SMS from a specific device in real-time
+ */
+function listenToDeviceSMS(userId, deviceId) {
+  const q = query(
+    collection(db, "users", userId, "devices", deviceId, "notifications"),
+    where("type", "==", "sms"),
+    limit(200)
+  )
+
+  let isInitialSnapshot = true
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      // Skip initial snapshot - we already loaded data with loadSMS()
+      if (isInitialSnapshot) {
+        console.log(
+          `📭 Initial snapshot from device ${deviceId} - skipping (already loaded)`
+        )
+        isInitialSnapshot = false
+        return
+      }
+
+      console.log(
+        `📬 Real-time update from device ${deviceId}: ${
+          snapshot.docChanges().length
+        } changes`
+      )
+
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const data = change.doc.data()
+          const messageId = change.doc.id
+
+          // Check if already processed
+          if (processedMessageIds.has(messageId)) {
+            console.log(`⏭️ Message already processed, skipping: ${messageId}`)
+            return
+          }
+
+          // Check if already exists in current SMS list
+          const currentSMS = state.getSMSData(deviceId) || []
+          const existsInList = currentSMS.some((msg) => msg.id === messageId)
+          if (existsInList) {
+            console.log(`⏭️ Message already in list, skipping: ${messageId}`)
+            processedMessageIds.add(messageId)
+            return
+          }
+
+          const message = {
+            id: messageId,
+            docRef: change.doc.ref,
+            deviceId: deviceId,
+            phoneNumber: data.phoneNumber || data.sender || data.title || "",
+            contactName: data.contactName || data.title || "",
+            body: data.text || data.content || data.body || "",
+            timestamp: data.timestamp || data.receivedAt || Date.now(),
+            read: data.read === true,
+            type: data.type || "sms",
+            ...data,
+          }
+
+          console.log(
+            `✨ New SMS detected: ${
+              message.phoneNumber
+            } - ${message.body?.substring(0, 30)}...`
+          )
+
+          // Mark as processed
+          processedMessageIds.add(messageId)
+
+          // Add to existing SMS list
+          const updatedSMS = [...currentSMS, message]
+          updateSMSList(deviceId, updatedSMS)
+        }
+      })
+    },
+    (error) => {
+      console.error(`❌ SMS listener error for device ${deviceId}:`, error)
+    }
+  )
+
+  smsUnsubscribeFunctions.push(unsubscribe)
+}
+
+/**
+ * Stop all SMS listeners
+ */
+export function stopSMSListener() {
+  console.log("🛑 Stopping SMS listeners:", smsUnsubscribeFunctions.length)
+  smsUnsubscribeFunctions.forEach((unsub) => unsub())
+  smsUnsubscribeFunctions = []
+  // Clear processed IDs when stopping listeners
+  processedMessageIds.clear()
+  console.log("🛑 Cleared processed message IDs")
+}
 
 /**
  * Load SMS from all user devices
@@ -109,8 +255,13 @@ export async function loadSMS() {
         const messages = []
         snapshot.forEach((doc) => {
           const data = doc.data()
+          const messageId = doc.id
+
+          // Add to processed IDs to avoid duplicates in real-time listener
+          processedMessageIds.add(messageId)
+
           messages.push({
-            id: doc.id,
+            id: messageId,
             docRef: doc.ref,
             deviceId: deviceId,
             phoneNumber: data.phoneNumber || data.sender || data.title || "",
@@ -155,13 +306,26 @@ export function updateSMSList(deviceId, newMessages) {
     merged = merged.concat(msgs)
   })
 
-  console.log("📬 Total merged SMS:", merged.length)
+  console.log("📬 Total merged SMS (before dedup):", merged.length)
+
+  // إزالة التكرار - الاحتفاظ بنسخة واحدة فقط من كل رسالة
+  const uniqueMessages = []
+  const seenIds = new Set()
+
+  for (const msg of merged) {
+    if (!seenIds.has(msg.id)) {
+      seenIds.add(msg.id)
+      uniqueMessages.push(msg)
+    }
+  }
+
+  console.log("📬 Total unique SMS (after dedup):", uniqueMessages.length)
 
   // Sort by timestamp descending
-  merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+  uniqueMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
 
-  state.setAllSMSMessages(merged)
-  renderSMS(merged.slice(0, 100))
+  state.setAllSMSMessages(uniqueMessages)
+  renderSMS(uniqueMessages.slice(0, 100))
   updateTabBadges()
 }
 
@@ -228,16 +392,23 @@ export function renderSMS(messages) {
         phoneNumber: rawPhone,
         contactName: contactName,
         messages: [],
+        messageIds: new Set(), // لتتبع IDs المستخدمة
         lastMessage: msg,
         unreadCount: 0,
       }
     }
-    grouped[key].messages.push(msg)
-    if (!msg.read) grouped[key].unreadCount++
-    if (msg.timestamp > (grouped[key].lastMessage.timestamp || 0)) {
-      grouped[key].lastMessage = msg
-      if (msg.contactName || msg.title) {
-        grouped[key].contactName = msg.contactName || msg.title
+
+    // تجنب إضافة نفس الرسالة مرتين
+    if (!grouped[key].messageIds.has(msg.id)) {
+      grouped[key].messages.push(msg)
+      grouped[key].messageIds.add(msg.id)
+
+      if (!msg.read) grouped[key].unreadCount++
+      if (msg.timestamp > (grouped[key].lastMessage.timestamp || 0)) {
+        grouped[key].lastMessage = msg
+        if (msg.contactName || msg.title) {
+          grouped[key].contactName = msg.contactName || msg.title
+        }
       }
     }
   })
@@ -312,7 +483,7 @@ export function renderSMS(messages) {
 export function showConversation(phoneNumber) {
   const normalizedInput = phoneNumber.replace(/[\s\-\(\)\.]/g, "").trim()
 
-  const conversation = state.allSMSMessages
+  let conversation = state.allSMSMessages
     .filter((msg) => {
       const msgPhone = (msg.phoneNumber || msg.sender || "")
         .replace(/[\s\-\(\)\.]/g, "")
@@ -325,6 +496,17 @@ export function showConversation(phoneNumber) {
       return msgPhone === normalizedInput || contactKey === normalizedInput
     })
     .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+
+  // إزالة التكرار في المحادثة
+  const uniqueConversation = []
+  const seenIds = new Set()
+  for (const msg of conversation) {
+    if (!seenIds.has(msg.id)) {
+      seenIds.add(msg.id)
+      uniqueConversation.push(msg)
+    }
+  }
+  conversation = uniqueConversation
 
   if (conversation.length === 0) return
 

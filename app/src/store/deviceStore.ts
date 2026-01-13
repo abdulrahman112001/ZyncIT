@@ -129,18 +129,22 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       return;
     }
 
-    // If already registered, skip
-    const { currentDevice } = get();
-    if (currentDevice) {
-      console.log('[DeviceStore] Device already registered:', currentDevice.id);
-      return;
-    }
-
     try {
       set({ isLoading: true, error: null });
 
       // Get persistent device ID
       const deviceId = await getOrCreateDeviceId();
+
+      // Check if already registered in state
+      const { currentDevice } = get();
+      if (currentDevice && currentDevice.id === deviceId) {
+        console.log(
+          '[DeviceStore] Device already registered:',
+          currentDevice.id,
+        );
+        set({ isLoading: false });
+        return;
+      }
 
       // Get real device info - with fallbacks to avoid undefined
       const deviceName = (await DeviceInfo.getDeviceName()) || 'Android Device';

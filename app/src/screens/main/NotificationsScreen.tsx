@@ -45,6 +45,7 @@ interface GroupedNotification {
   count: number;
   unreadCount: number;
   notifications: AppNotification[];
+  phoneNumber?: string; // رقم الهاتف الأصلي الكامل للـ SMS
 }
 
 // Get app icon based on notification type
@@ -349,12 +350,12 @@ const NotificationsScreen = () => {
     // بناء جدول ربط بين الأسماء والأرقام من الرسائل التي لديها كلاهما
     const nameToPhoneMap: { [name: string]: string } = {};
     const phoneToNameMap: { [phone: string]: string } = {};
-    
+
     validSmsMessages.forEach(sms => {
       const rawPhone = (sms as any).phoneNumber || (sms as any).sender || '';
       const name = (sms as any).contactName || '';
       const isPhone = /^[\+\d\s\-\(\)]+$/.test(rawPhone.trim());
-      
+
       if (isPhone && name && rawPhone) {
         // تطبيع الرقم
         let normalized = rawPhone.replace(/[\s\-\(\)\+]/g, '').trim();
@@ -364,7 +365,7 @@ const NotificationsScreen = () => {
         if (normalized.startsWith('0') && normalized.length > 10) {
           normalized = normalized.substring(1);
         }
-        
+
         nameToPhoneMap[name] = normalized;
         phoneToNameMap[normalized] = name;
       }
@@ -385,10 +386,13 @@ const NotificationsScreen = () => {
       // التحقق مما إذا كان phoneNumber يحتوي على رقم فعلي أم اسم
       // الرقم الحقيقي يبدأ بـ + أو أرقام فقط
       const isActualPhoneNumber = /^[\+\d\s\-\(\)]+$/.test(phoneNumber.trim());
-      
+
       // تخطي الرسائل التي ليس لديها رقم هاتف حقيقي
       if (!isActualPhoneNumber) {
-        console.log('[SMS Skip] No valid phone number:', phoneNumber || contactName);
+        console.log(
+          '[SMS Skip] No valid phone number:',
+          phoneNumber || contactName,
+        );
         return; // تخطي هذه الرسالة
       }
 
@@ -426,7 +430,11 @@ const NotificationsScreen = () => {
       }
 
       // عرض اسم جهة الاتصال إذا وجد، وإلا الرقم
-      const displayName = contactName || phoneToNameMap[normalizedPhone] || phoneNumber || 'Unknown';
+      const displayName =
+        contactName ||
+        phoneToNameMap[normalizedPhone] ||
+        phoneNumber ||
+        'Unknown';
       const groupKey = `sms_${groupingKey}`;
       const smsId = sms.id || `sms_${sms.timestamp}`;
 
@@ -435,13 +443,14 @@ const NotificationsScreen = () => {
         key: `sms_${smsId}`,
         packageName: 'com.android.mms',
         title: displayName,
-        text: (sms as any).body || (sms as any).message || (sms as any).text || '',
+        text:
+          (sms as any).body || (sms as any).message || (sms as any).text || '',
         appName: 'SMS',
         type: 'sms',
         smsType: (sms as any).type || 'inbox', // inbox أو sent
         timestamp: sms.timestamp || Date.now(),
         read: (sms as any).read || false,
-        phoneNumber: phoneNumber, // إضافة رقم الهاتف للإشعار
+        phoneNumber: phoneNumber, // الرقم الكامل الأصلي من Firebase
       };
 
       if (!groups[groupKey]) {
@@ -455,6 +464,7 @@ const NotificationsScreen = () => {
           count: 1,
           unreadCount: notificationItem.read ? 0 : 1,
           notifications: [notificationItem],
+          phoneNumber: phoneNumber, // حفظ رقم الهاتف الأصلي الكامل
         };
       } else {
         groups[groupKey].count++;
@@ -664,11 +674,18 @@ const NotificationsScreen = () => {
     const unsubscribe = notificationService.onNotificationReceived(
       notification => {
         // تخطي إشعارات SMS بالكامل - يتم معالجتها من SMS listener
-        if (notification.type === 'sms' || notification.packageName?.includes('messaging') || notification.packageName?.includes('mms')) {
-          console.log('[NotificationsScreen] Skipping SMS notification:', notification.title);
+        if (
+          notification.type === 'sms' ||
+          notification.packageName?.includes('messaging') ||
+          notification.packageName?.includes('mms')
+        ) {
+          console.log(
+            '[NotificationsScreen] Skipping SMS notification:',
+            notification.title,
+          );
           return;
         }
-        
+
         console.log(
           '[NotificationsScreen] Received notification:',
           notification.title,
@@ -688,17 +705,16 @@ const NotificationsScreen = () => {
     markGroupAsRead(group.title, group.appName, group.type);
 
     // إذا كان النوع SMS، علّم رسائل SMS كمقروءة أيضاً
-    // استخدام phoneNumber من group.key بدلاً من title
-    if (group.type === 'sms') {
-      const phoneNumber = group.key.replace('sms_', '');
-      markMessagesAsReadBySender(phoneNumber);
+    // استخدام phoneNumber الكامل من group
+    if (group.type === 'sms' && group.phoneNumber) {
+      markMessagesAsReadBySender(group.phoneNumber);
     }
 
     navigation.navigate('Conversation', {
       title: group.title,
       appName: group.appName,
       type: group.type,
-      phoneNumber: group.key.replace('sms_', ''),
+      phoneNumber: group.phoneNumber || group.key.replace('sms_', ''), // استخدام الرقم الأصلي
       notifications: group.notifications,
     });
   };

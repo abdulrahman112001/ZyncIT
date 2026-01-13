@@ -22475,9 +22475,6 @@ ${this.customData.serverResponse}`;
     unsubscribers.forEach((unsub) => unsub());
     unsubscribers = [];
   }
-  function setPollingInterval(interval) {
-    pollingInterval = interval;
-  }
   function clearPollingInterval() {
     if (pollingInterval) {
       clearInterval(pollingInterval);
@@ -22486,6 +22483,9 @@ ${this.customData.serverResponse}`;
   }
   function setSMSData(deviceId, messages) {
     allSMS[deviceId] = messages;
+  }
+  function getSMSData(deviceId) {
+    return allSMS[deviceId];
   }
   function clearAllSMS() {
     allSMS = {};
@@ -23197,6 +23197,103 @@ ${this.customData.serverResponse}`;
   init_helpers();
   init_state();
   init_badges();
+  var smsUnsubscribeFunctions = [];
+  var processedMessageIds = /* @__PURE__ */ new Set();
+  async function startSMSListener() {
+    const user = currentUser;
+    if (!user) {
+      console.warn("\u26A0\uFE0F No current user - cannot start SMS listener");
+      return;
+    }
+    console.log("\u{1F504} Starting real-time SMS listeners for user:", user.uid);
+    stopSMSListener();
+    try {
+      const devicesQuery = query(
+        collection(db, COLLECTIONS.DEVICES),
+        where("userId", "==", user.uid)
+      );
+      const devicesSnapshot = await getDocs(devicesQuery);
+      console.log(`\u{1F4F1} Found ${devicesSnapshot.size} devices for SMS listening`);
+      devicesSnapshot.forEach((deviceDoc) => {
+        const data = deviceDoc.data();
+        if (data.platform !== "chrome-extension" && data.platform !== "chrome" && !data.id?.startsWith("ext_")) {
+          console.log(`\u{1F442} Setting up listener for device: ${data.id}`);
+          listenToDeviceSMS(user.uid, data.id);
+        }
+      });
+    } catch (error) {
+      console.error("\u274C Error starting SMS listeners:", error);
+    }
+  }
+  function listenToDeviceSMS(userId, deviceId) {
+    const q2 = query(
+      collection(db, "users", userId, "devices", deviceId, "notifications"),
+      where("type", "==", "sms"),
+      limit(200)
+    );
+    let isInitialSnapshot = true;
+    const unsubscribe = onSnapshot(
+      q2,
+      (snapshot) => {
+        if (isInitialSnapshot) {
+          console.log(
+            `\u{1F4ED} Initial snapshot from device ${deviceId} - skipping (already loaded)`
+          );
+          isInitialSnapshot = false;
+          return;
+        }
+        console.log(
+          `\u{1F4EC} Real-time update from device ${deviceId}: ${snapshot.docChanges().length} changes`
+        );
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const data = change.doc.data();
+            const messageId = change.doc.id;
+            if (processedMessageIds.has(messageId)) {
+              console.log(`\u23ED\uFE0F Message already processed, skipping: ${messageId}`);
+              return;
+            }
+            const currentSMS = getSMSData(deviceId) || [];
+            const existsInList = currentSMS.some((msg) => msg.id === messageId);
+            if (existsInList) {
+              console.log(`\u23ED\uFE0F Message already in list, skipping: ${messageId}`);
+              processedMessageIds.add(messageId);
+              return;
+            }
+            const message = {
+              id: messageId,
+              docRef: change.doc.ref,
+              deviceId,
+              phoneNumber: data.phoneNumber || data.sender || data.title || "",
+              contactName: data.contactName || data.title || "",
+              body: data.text || data.content || data.body || "",
+              timestamp: data.timestamp || data.receivedAt || Date.now(),
+              read: data.read === true,
+              type: data.type || "sms",
+              ...data
+            };
+            console.log(
+              `\u2728 New SMS detected: ${message.phoneNumber} - ${message.body?.substring(0, 30)}...`
+            );
+            processedMessageIds.add(messageId);
+            const updatedSMS = [...currentSMS, message];
+            updateSMSList(deviceId, updatedSMS);
+          }
+        });
+      },
+      (error) => {
+        console.error(`\u274C SMS listener error for device ${deviceId}:`, error);
+      }
+    );
+    smsUnsubscribeFunctions.push(unsubscribe);
+  }
+  function stopSMSListener() {
+    console.log("\u{1F6D1} Stopping SMS listeners:", smsUnsubscribeFunctions.length);
+    smsUnsubscribeFunctions.forEach((unsub) => unsub());
+    smsUnsubscribeFunctions = [];
+    processedMessageIds.clear();
+    console.log("\u{1F6D1} Cleared processed message IDs");
+  }
   async function loadSMS() {
     console.log("\u{1F50D} loadSMS() called");
     const user = currentUser;
@@ -23254,8 +23351,10 @@ ${this.customData.serverResponse}`;
           const messages = [];
           snapshot.forEach((doc2) => {
             const data = doc2.data();
+            const messageId = doc2.id;
+            processedMessageIds.add(messageId);
             messages.push({
-              id: doc2.id,
+              id: messageId,
               docRef: doc2.ref,
               deviceId,
               phoneNumber: data.phoneNumber || data.sender || data.title || "",
@@ -23289,10 +23388,19 @@ ${this.customData.serverResponse}`;
     Object.values(allSMS).forEach((msgs) => {
       merged = merged.concat(msgs);
     });
-    console.log("\u{1F4EC} Total merged SMS:", merged.length);
-    merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    setAllSMSMessages(merged);
-    renderSMS(merged.slice(0, 100));
+    console.log("\u{1F4EC} Total merged SMS (before dedup):", merged.length);
+    const uniqueMessages = [];
+    const seenIds = /* @__PURE__ */ new Set();
+    for (const msg of merged) {
+      if (!seenIds.has(msg.id)) {
+        seenIds.add(msg.id);
+        uniqueMessages.push(msg);
+      }
+    }
+    console.log("\u{1F4EC} Total unique SMS (after dedup):", uniqueMessages.length);
+    uniqueMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    setAllSMSMessages(uniqueMessages);
+    renderSMS(uniqueMessages.slice(0, 100));
     updateTabBadges();
   }
   function renderSMS(messages) {
@@ -23344,16 +23452,21 @@ ${this.customData.serverResponse}`;
           phoneNumber: rawPhone,
           contactName,
           messages: [],
+          messageIds: /* @__PURE__ */ new Set(),
+          // لتتبع IDs المستخدمة
           lastMessage: msg,
           unreadCount: 0
         };
       }
-      grouped[key].messages.push(msg);
-      if (!msg.read) grouped[key].unreadCount++;
-      if (msg.timestamp > (grouped[key].lastMessage.timestamp || 0)) {
-        grouped[key].lastMessage = msg;
-        if (msg.contactName || msg.title) {
-          grouped[key].contactName = msg.contactName || msg.title;
+      if (!grouped[key].messageIds.has(msg.id)) {
+        grouped[key].messages.push(msg);
+        grouped[key].messageIds.add(msg.id);
+        if (!msg.read) grouped[key].unreadCount++;
+        if (msg.timestamp > (grouped[key].lastMessage.timestamp || 0)) {
+          grouped[key].lastMessage = msg;
+          if (msg.contactName || msg.title) {
+            grouped[key].contactName = msg.contactName || msg.title;
+          }
         }
       }
     });
@@ -23401,11 +23514,20 @@ ${this.customData.serverResponse}`;
   }
   function showConversation(phoneNumber) {
     const normalizedInput = phoneNumber.replace(/[\s\-\(\)\.]/g, "").trim();
-    const conversation = allSMSMessages.filter((msg) => {
+    let conversation = allSMSMessages.filter((msg) => {
       const msgPhone = (msg.phoneNumber || msg.sender || "").replace(/[\s\-\(\)\.]/g, "").trim();
       const contactKey = msg.contactName || msg.title ? "contact_" + (msg.contactName || msg.title).trim() : "";
       return msgPhone === normalizedInput || contactKey === normalizedInput;
     }).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    const uniqueConversation = [];
+    const seenIds = /* @__PURE__ */ new Set();
+    for (const msg of conversation) {
+      if (!seenIds.has(msg.id)) {
+        seenIds.add(msg.id);
+        uniqueConversation.push(msg);
+      }
+    }
+    conversation = uniqueConversation;
     if (conversation.length === 0) return;
     markConversationAsRead(conversation);
     const contactName = conversation[0].contactName || conversation[0].title || phoneNumber;
@@ -23668,14 +23790,6 @@ ${this.customData.serverResponse}`;
       console.error("Delete SMS error:", error);
       showToast("Failed to delete message", "error");
     }
-  }
-  function startPolling() {
-    clearPollingInterval();
-    const interval = setInterval(() => {
-      console.log("\u{1F504} Polling for new SMS...");
-      loadSMS();
-    }, 5e3);
-    setPollingInterval(interval);
   }
   function stopPolling() {
     clearPollingInterval();
@@ -24794,11 +24908,12 @@ ${this.customData.serverResponse}`;
     loadNotifications();
     loadUserSettings();
     subscribeToChat();
-    startPolling();
+    startSMSListener();
   }
   function cleanupSubscriptions() {
     clearUnsubscribers();
     stopPolling();
+    stopSMSListener();
     clearAllSMS();
     clearAllNotifications();
     setDevices([]);
@@ -24808,11 +24923,12 @@ ${this.customData.serverResponse}`;
       console.log("\u{1F4E8} Message from service worker:", message);
       if (message.type === "newNotification") {
         const notification = message.data;
-        console.log("\u{1F4E8} New notification received:", notification.type, notification.title);
-        if (notification.type === "sms") {
-          console.log("\u{1F4E8} Reloading SMS list due to new message");
-          loadSMS();
-        } else {
+        console.log(
+          "\u{1F4E8} New notification received:",
+          notification.type,
+          notification.title
+        );
+        if (notification.type !== "sms") {
           loadNotifications();
         }
       }
