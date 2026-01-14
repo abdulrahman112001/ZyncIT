@@ -13,51 +13,51 @@ import {
   limit,
   onSnapshot,
   writeBatch,
-} from "../config/firebase.js"
+} from "../config/firebase.js";
 
-import { callsList } from "../ui/dom.js"
+import { callsList } from "../ui/dom.js";
 import {
   formatTime,
   formatDuration,
   getInitials,
   getCallIcon,
-} from "../utils/helpers.js"
-import * as state from "../state/index.js"
-import { updateTabBadges } from "./badges.js"
+} from "../utils/helpers.js";
+import * as state from "../state/index.js";
+import { updateTabBadges } from "./badges.js";
 
 /**
  * Load calls from Firebase
  */
 export async function loadCalls() {
-  const user = state.currentUser
-  if (!user) return
-  console.log("Loading calls for user:", user.uid)
+  const user = state.currentUser;
+  if (!user) return;
+  console.log("Loading calls for user:", user.uid);
 
   const q = query(
     collection(db, "calls"),
     where("userId", "==", user.uid),
     orderBy("timestamp", "desc"),
     limit(100)
-  )
+  );
 
   const unsub = onSnapshot(
     q,
     (snapshot) => {
-      console.log("Calls found:", snapshot.size)
-      const calls = []
+      console.log("Calls found:", snapshot.size);
+      const calls = [];
       snapshot.forEach((doc) => {
-        calls.push({ id: doc.id, ...doc.data() })
-      })
-      renderCalls(calls)
+        calls.push({ id: doc.id, ...doc.data() });
+      });
+      renderCalls(calls);
     },
     (error) => {
-      console.error("Calls Error:", error)
+      console.error("Calls Error:", error);
       // Show empty state on error (e.g., index building)
-      renderCalls([])
+      renderCalls([]);
     }
-  )
+  );
 
-  state.addUnsubscriber(unsub)
+  state.addUnsubscriber(unsub);
 }
 
 /**
@@ -69,9 +69,9 @@ export function renderCalls(calls) {
   const normalizedCalls = calls.map((call) => ({
     ...call,
     viewed: call.viewed ?? false,
-  }))
+  }));
 
-  state.setAllCallsData(normalizedCalls)
+  state.setAllCallsData(normalizedCalls);
 
   if (normalizedCalls.length === 0) {
     callsList.innerHTML = `
@@ -82,15 +82,15 @@ export function renderCalls(calls) {
         <p>No calls yet</p>
         <span>Call history from your phone will appear here</span>
       </div>
-    `
-    updateTabBadges()
-    return
+    `;
+    updateTabBadges();
+    return;
   }
 
   // Group calls by phone number
-  const grouped = {}
+  const grouped = {};
   normalizedCalls.forEach((call) => {
-    const key = call.phoneNumber || "Unknown"
+    const key = call.phoneNumber || "Unknown";
     if (!grouped[key]) {
       grouped[key] = {
         phoneNumber: key,
@@ -99,22 +99,22 @@ export function renderCalls(calls) {
         lastCall: call,
         missedCount: 0,
         unviewedMissedCount: 0,
-      }
+      };
     }
-    grouped[key].calls.push(call)
+    grouped[key].calls.push(call);
     if (call.type === "missed") {
-      grouped[key].missedCount++
-      if (!call.viewed) grouped[key].unviewedMissedCount++
+      grouped[key].missedCount++;
+      if (!call.viewed) grouped[key].unviewedMissedCount++;
     }
     if (call.timestamp > (grouped[key].lastCall.timestamp || 0)) {
-      grouped[key].lastCall = call
+      grouped[key].lastCall = call;
     }
-  })
+  });
 
   // Sort by last call timestamp
   const callGroups = Object.values(grouped).sort(
     (a, b) => (b.lastCall.timestamp || 0) - (a.lastCall.timestamp || 0)
-  )
+  );
 
   callsList.innerHTML = callGroups
     .map(
@@ -151,17 +151,17 @@ export function renderCalls(calls) {
     </div>
   `
     )
-    .join("")
+    .join("");
 
   // Add click handlers for call groups
   document.querySelectorAll(".call-group").forEach((el) => {
     el.addEventListener("click", () => {
-      const phoneNumber = el.dataset.phone
-      showCallHistory(phoneNumber)
-    })
-  })
+      const phoneNumber = el.dataset.phone;
+      showCallHistory(phoneNumber);
+    });
+  });
 
-  updateTabBadges()
+  updateTabBadges();
 }
 
 /**
@@ -171,17 +171,17 @@ export function renderCalls(calls) {
 async function showCallHistory(phoneNumber) {
   const calls = state.allCallsData
     .filter((call) => call.phoneNumber === phoneNumber)
-    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-  if (calls.length === 0) return
+  if (calls.length === 0) return;
 
-  const contactName = calls[0].contactName || phoneNumber
-  state.setCurrentCallConversation(phoneNumber)
+  const contactName = calls[0].contactName || phoneNumber;
+  state.setCurrentCallConversation(phoneNumber);
 
   // Mark missed calls for this number as viewed
   const missedToMark = calls.filter(
     (call) => call.type === "missed" && !call.viewed
-  )
+  );
 
   if (missedToMark.length > 0) {
     // Update local state immediately
@@ -189,18 +189,18 @@ async function showCallHistory(phoneNumber) {
       call.phoneNumber === phoneNumber && call.type === "missed"
         ? { ...call, viewed: true }
         : call
-    )
-    state.setAllCallsData(updatedCalls)
-    updateTabBadges()
+    );
+    state.setAllCallsData(updatedCalls);
+    updateTabBadges();
 
     try {
-      const batch = writeBatch(db)
+      const batch = writeBatch(db);
       missedToMark.forEach((call) => {
-        batch.set(doc(db, "calls", call.id), { viewed: true }, { merge: true })
-      })
-      await batch.commit()
+        batch.set(doc(db, "calls", call.id), { viewed: true }, { merge: true });
+      });
+      await batch.commit();
     } catch (error) {
-      console.error("Failed to mark calls as viewed:", error)
+      console.error("Failed to mark calls as viewed:", error);
     }
   }
 
@@ -241,11 +241,11 @@ async function showCallHistory(phoneNumber) {
           .join("")}
       </div>
     </div>
-  `
+  `;
 
   // Add back button handler
   document.getElementById("backToCalls")?.addEventListener("click", () => {
-    state.setCurrentCallConversation(null)
-    renderCalls(state.allCallsData)
-  })
+    state.setCurrentCallConversation(null);
+    renderCalls(state.allCallsData);
+  });
 }
