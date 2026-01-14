@@ -46,25 +46,22 @@ interface GroupedNotification {
   unreadCount: number;
   notifications: AppNotification[];
   phoneNumber?: string; // رقم الهاتف الأصلي الكامل للـ SMS
+  packageName?: string; // Package name for app icon
+  appIcon?: string; // Base64 app icon from device
 }
 
-// Get app icon based on notification type
-const getAppIconName = (type: string): string => {
-  const icons: { [key: string]: string } = {
-    sms: 'chatbubble',
-    whatsapp: 'logo-whatsapp',
-    telegram: 'send',
-  };
-  return icons[type] || 'notifications';
+// Import app icons utility
+import { getAppIconInfo } from '../../utils/appIcons';
+
+// Get app icon based on package name or type
+const getAppIconName = (type: string, packageName?: string): string => {
+  const iconInfo = getAppIconInfo(packageName, type);
+  return iconInfo.iconName;
 };
 
-const getAppIconColor = (type: string): string => {
-  const colors: { [key: string]: string } = {
-    sms: '#4CAF50',
-    whatsapp: '#25D366',
-    telegram: '#0088cc',
-  };
-  return colors[type] || '#6366f1';
+const getAppIconColor = (type: string, packageName?: string): string => {
+  const iconInfo = getAppIconInfo(packageName, type);
+  return iconInfo.color;
 };
 
 const SwipeableItem = ({
@@ -248,9 +245,9 @@ const SwipeableItem = ({
             <View style={styles.topRow}>
               <View style={styles.titleRow}>
                 <Ionicons
-                  name={getAppIconName(item.type)}
+                  name={getAppIconName(item.type, item.packageName)}
                   size={16}
-                  color={getAppIconColor(item.type)}
+                  color={getAppIconColor(item.type, item.packageName)}
                   style={{ marginRight: 6 }}
                 />
                 <Text
@@ -500,6 +497,8 @@ const NotificationsScreen = () => {
             count: 1,
             unreadCount: n.read ? 0 : 1,
             notifications: [n],
+            packageName: n.packageName,
+            appIcon: (n as any).appIcon,
           };
         } else {
           groups[groupKey].count++;
@@ -508,6 +507,10 @@ const NotificationsScreen = () => {
           if (n.timestamp > groups[groupKey].lastTimestamp) {
             groups[groupKey].lastTimestamp = n.timestamp;
             groups[groupKey].lastText = n.text;
+          }
+          // Update packageName if not set
+          if (!groups[groupKey].packageName && n.packageName) {
+            groups[groupKey].packageName = n.packageName;
           }
         }
       });
@@ -639,7 +642,7 @@ const NotificationsScreen = () => {
           );
           snapshot.forEach(doc => {
             const data = doc.data();
-            const notification: AppNotification = {
+            const notification: AppNotification & { appIcon?: string } = {
               id: doc.id,
               key: data.key || `${data.packageName}_${data.timestamp}`,
               packageName: data.packageName || '',
@@ -649,6 +652,7 @@ const NotificationsScreen = () => {
               timestamp: data.timestamp || Date.now(),
               appName: data.appName || '',
               read: data.read ?? false,
+              appIcon: data.appIcon, // أيقونة التطبيق من الجهاز
             };
             addNotification(notification);
           });

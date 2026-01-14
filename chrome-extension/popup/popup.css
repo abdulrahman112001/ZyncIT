@@ -1347,6 +1347,26 @@ body[dir="rtl"] .device-tag {
 /* Notifications */
 .notification-item {
   border-left: 3px solid var(--primary);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.notification-item:hover {
+  background: var(--background);
+}
+
+.notification-item.unread {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.notification-item.unread .list-item-title {
+  font-weight: 600;
+}
+
+.unread-dot {
+  color: var(--primary);
+  font-size: 10px;
+  margin-left: 4px;
 }
 
 .notification-item.notification-sms {

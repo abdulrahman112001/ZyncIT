@@ -7,98 +7,119 @@ import {
   db,
   collection,
   getDocs,
+  doc,
+  updateDoc,
   query,
   where,
   orderBy,
   limit,
   onSnapshot,
-} from "../config/firebase.js"
+} from "../config/firebase.js";
 
-import { notificationsList } from "../ui/dom.js"
-import { formatTime, getNotificationIcon } from "../utils/helpers.js"
-import * as state from "../state/index.js"
-import { updateTabBadges } from "./badges.js"
+import { notificationsList } from "../ui/dom.js";
+import { formatTime, getNotificationIcon } from "../utils/helpers.js";
+import { renderAppIcon } from "../utils/appIcons.js";
+import * as state from "../state/index.js";
+import { updateTabBadges } from "./badges.js";
 
 /**
  * Load notifications from Firebase
  */
 export async function loadNotifications() {
-  const user = state.currentUser
-  if (!user) return
+  const user = state.currentUser;
+  if (!user) return;
 
   // 1. Subscribe to user-level notifications (WhatsApp, Telegram, etc.)
   const userNotificationsQuery = query(
     collection(db, "users", user.uid, "notifications"),
     orderBy("createdAt", "desc"),
     limit(50)
-  )
+  );
 
   const userNotifUnsub = onSnapshot(userNotificationsQuery, (snapshot) => {
-    const notifications = []
+    const notifications = [];
     snapshot.forEach((doc) => {
-      const data = doc.data()
+      const data = doc.data();
       notifications.push({
         id: doc.id,
         deviceId: "user",
         ...data,
         receivedAt:
           data.timestamp || data.createdAt?.toMillis?.() || Date.now(),
-      })
-    })
-    updateNotificationsList("_user_notifications", notifications)
-  })
-  state.addUnsubscriber(userNotifUnsub)
+      });
+    });
+    updateNotificationsList("_user_notifications", notifications);
+  });
+  state.addUnsubscriber(userNotifUnsub);
 
   // 2. Get all user devices and subscribe to device-level notifications
   const devicesQuery = query(
     collection(db, "devices"),
     where("userId", "==", user.uid)
-  )
+  );
 
-  const devicesSnapshot = await getDocs(devicesQuery)
-  const deviceIds = []
+  console.log("🔍 Searching for devices for user:", user.uid);
+
+  const devicesSnapshot = await getDocs(devicesQuery);
+  const devicesList = [];
   devicesSnapshot.forEach((doc) => {
-    deviceIds.push(doc.data().id)
-  })
+    const data = doc.data();
+    console.log("📱 Found device doc:", doc.id, "data:", data);
+    devicesList.push({
+      id: data.id,
+      name: data.nickname || data.name || data.model || data.id,
+    });
+  });
+
+  console.log("📱 Total devices found:", devicesList.length);
 
   // Subscribe to notifications from each device
-  deviceIds.forEach((deviceId) => {
+  devicesList.forEach((device) => {
     const q = query(
-      collection(db, "users", user.uid, "devices", deviceId, "notifications"),
+      collection(db, "users", user.uid, "devices", device.id, "notifications"),
       limit(50)
-    )
+    );
 
-    console.log("📱 Subscribing to notifications for device:", deviceId)
+    console.log(
+      "📱 Subscribing to notifications for device:",
+      device.id,
+      device.name
+    );
 
     const unsub = onSnapshot(
       q,
       (snapshot) => {
         console.log(
           "🔔 Notifications found for device",
-          deviceId,
+          device.id,
           ":",
           snapshot.size
-        )
-        const notifications = []
-        snapshot.forEach((doc) => {
-          const data = doc.data()
-          console.log("📌 Notification:", data.type, data.title, data.text)
-          notifications.push({ id: doc.id, deviceId: deviceId, ...data })
-        })
-        updateNotificationsList(deviceId, notifications)
+        );
+        const notifications = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          console.log("📌 Notification:", data.type, data.title, data.text);
+          notifications.push({
+            id: docSnap.id,
+            deviceId: device.id,
+            deviceName: device.name,
+            ...data,
+          });
+        });
+        updateNotificationsList(device.id, notifications);
       },
       (error) => {
         console.error(
           "❌ Error loading notifications for device",
-          deviceId,
+          device.id,
           ":",
           error
-        )
+        );
       }
-    )
+    );
 
-    state.addUnsubscriber(unsub)
-  })
+    state.addUnsubscriber(unsub);
+  });
 }
 
 /**
@@ -107,31 +128,31 @@ export async function loadNotifications() {
  * @param {Array} newNotifications - Array of notifications
  */
 function updateNotificationsList(deviceId, newNotifications) {
-  state.setNotificationsData(deviceId, newNotifications)
+  state.setNotificationsData(deviceId, newNotifications);
 
   // Merge all notifications from all devices
-  let merged = []
+  let merged = [];
   Object.values(state.allNotifications).forEach((notifs) => {
-    merged = merged.concat(notifs)
-  })
+    merged = merged.concat(notifs);
+  });
 
   // Remove duplicates by id
-  const seen = new Set()
+  const seen = new Set();
   merged = merged.filter((n) => {
-    if (seen.has(n.id)) return false
-    seen.add(n.id)
-    return true
-  })
+    if (seen.has(n.id)) return false;
+    seen.add(n.id);
+    return true;
+  });
 
   // Sort by timestamp/receivedAt descending
   merged.sort((a, b) => {
-    const timeA = a.receivedAt || a.timestamp || 0
-    const timeB = b.receivedAt || b.timestamp || 0
-    return timeB - timeA
-  })
+    const timeA = a.receivedAt || a.timestamp || 0;
+    const timeB = b.receivedAt || b.timestamp || 0;
+    return timeB - timeA;
+  });
 
-  renderNotifications(merged.slice(0, 100))
-  updateTabBadges()
+  renderNotifications(merged.slice(0, 100));
+  updateTabBadges();
 }
 
 /**
@@ -149,9 +170,9 @@ function renderNotifications(notifications) {
         <p>No notifications yet</p>
         <span>Notifications from your phone will appear here</span>
       </div>
-    `
-    updateTabBadges()
-    return
+    `;
+    updateTabBadges();
+    return;
   }
 
   notificationsList.innerHTML = notifications
@@ -159,14 +180,16 @@ function renderNotifications(notifications) {
       (notif) => `
     <div class="list-item notification-item notification-${
       notif.type || "other"
-    }">
+    } ${notif.read ? "" : "unread"}" data-notif-id="${
+        notif.id
+      }" data-device-id="${notif.deviceId}">
       <div class="list-item-icon notification-icon">
-        ${getNotificationIcon(notif.type, notif.appName)}
+        ${renderAppIcon(notif.packageName, notif.appIcon, 40)}
       </div>
       <div class="list-item-content">
         <div class="list-item-title">${
           notif.title || notif.appName || "Notification"
-        }</div>
+        }${notif.read ? "" : ' <span class="unread-dot">●</span>'}</div>
         <div class="list-item-subtitle">${notif.text || ""}</div>
         <div class="notification-app">
           ${notif.appName || "Unknown App"}
@@ -183,7 +206,64 @@ function renderNotifications(notifications) {
     </div>
   `
     )
-    .join("")
+    .join("");
 
-  updateTabBadges()
+  // Add click listeners to mark as read
+  notificationsList.querySelectorAll(".notification-item").forEach((item) => {
+    item.addEventListener("click", async () => {
+      const notifId = item.dataset.notifId;
+      const deviceId = item.dataset.deviceId;
+      if (notifId && deviceId) {
+        await markNotificationAsRead(deviceId, notifId);
+        item.classList.remove("unread");
+        const unreadDot = item.querySelector(".unread-dot");
+        if (unreadDot) unreadDot.remove();
+      }
+    });
+  });
+
+  updateTabBadges();
+}
+
+/**
+ * Mark a notification as read in Firestore
+ * @param {string} deviceId - Device ID
+ * @param {string} notifId - Notification ID
+ */
+async function markNotificationAsRead(deviceId, notifId) {
+  const user = state.currentUser;
+  if (!user) return;
+
+  try {
+    // Try device-level path first
+    if (deviceId && deviceId !== "user" && deviceId !== "_user_notifications") {
+      const notifRef = doc(
+        db,
+        "users",
+        user.uid,
+        "devices",
+        deviceId,
+        "notifications",
+        notifId
+      );
+      await updateDoc(notifRef, { read: true });
+      console.log("✅ Notification marked as read:", notifId);
+    } else {
+      // User-level notifications
+      const notifRef = doc(db, "users", user.uid, "notifications", notifId);
+      await updateDoc(notifRef, { read: true });
+      console.log("✅ User notification marked as read:", notifId);
+    }
+
+    // Update local state using setter
+    Object.keys(state.allNotifications).forEach((key) => {
+      const updated = state.allNotifications[key].map((n) =>
+        n.id === notifId ? { ...n, read: true } : n
+      );
+      state.setNotificationsData(key, updated);
+    });
+    updateTabBadges();
+  } catch (error) {
+    console.error("❌ Error marking notification as read:", error);
+  }
 }

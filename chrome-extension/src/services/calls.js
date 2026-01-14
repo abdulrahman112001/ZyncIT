@@ -33,31 +33,85 @@ export async function loadCalls() {
   if (!user) return;
   console.log("Loading calls for user:", user.uid);
 
-  const q = query(
-    collection(db, "calls"),
-    where("userId", "==", user.uid),
-    orderBy("timestamp", "desc"),
-    limit(100)
+  // First, get user's devices
+  const devicesQuery = query(
+    collection(db, "devices"),
+    where("userId", "==", user.uid)
   );
 
-  const unsub = onSnapshot(
-    q,
-    (snapshot) => {
-      console.log("Calls found:", snapshot.size);
-      const calls = [];
-      snapshot.forEach((doc) => {
-        calls.push({ id: doc.id, ...doc.data() });
-      });
-      renderCalls(calls);
-    },
-    (error) => {
-      console.error("Calls Error:", error);
-      // Show empty state on error (e.g., index building)
-      renderCalls([]);
-    }
-  );
+  const { getDocs } = await import("../config/firebase.js");
+  const devicesSnapshot = await getDocs(devicesQuery);
+  const devicesList = [];
+  devicesSnapshot.forEach((doc) => {
+    const data = doc.data();
+    devicesList.push({
+      id: data.id,
+      name: data.nickname || data.name || data.model || data.id,
+    });
+  });
 
-  state.addUnsubscriber(unsub);
+  console.log("📱 Loading calls from devices:", devicesList.length);
+
+  // Subscribe to calls from each device
+  devicesList.forEach((device) => {
+    const q = query(
+      collection(db, "users", user.uid, "devices", device.id, "calls"),
+      orderBy("timestamp", "desc"),
+      limit(50)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        console.log("📞 Calls found for device", device.id, ":", snapshot.size);
+        const calls = [];
+        snapshot.forEach((docSnap) => {
+          calls.push({
+            id: docSnap.id,
+            deviceId: device.id,
+            deviceName: device.name,
+            docRef: docSnap.ref,
+            ...docSnap.data(),
+          });
+        });
+        updateCallsList(device.id, calls);
+      },
+      (error) => {
+        console.error("Calls Error for device", device.id, ":", error);
+      }
+    );
+
+    state.addUnsubscriber(unsub);
+  });
+}
+
+/**
+ * Update calls list with data from a device
+ * @param {string} deviceId - Device ID
+ * @param {Array} newCalls - Array of calls
+ */
+function updateCallsList(deviceId, newCalls) {
+  // Store calls by device using setter
+  state.setCallsByDevice(deviceId, newCalls);
+
+  // Merge all calls from all devices
+  let merged = [];
+  Object.values(state.allCallsByDevice).forEach((calls) => {
+    merged = merged.concat(calls);
+  });
+
+  // Remove duplicates by id
+  const seen = new Set();
+  merged = merged.filter((c) => {
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
+
+  // Sort by timestamp descending
+  merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  renderCalls(merged.slice(0, 100));
 }
 
 /**
@@ -194,11 +248,27 @@ async function showCallHistory(phoneNumber) {
     updateTabBadges();
 
     try {
-      const batch = writeBatch(db);
-      missedToMark.forEach((call) => {
-        batch.set(doc(db, "calls", call.id), { viewed: true }, { merge: true });
-      });
-      await batch.commit();
+      const user = state.currentUser;
+      if (user) {
+        const batch = writeBatch(db);
+        missedToMark.forEach((call) => {
+          // Use the correct path: users/{userId}/devices/{deviceId}/calls/{callId}
+          if (call.deviceId) {
+            const callRef = doc(
+              db,
+              "users",
+              user.uid,
+              "devices",
+              call.deviceId,
+              "calls",
+              call.id
+            );
+            batch.set(callRef, { viewed: true }, { merge: true });
+          }
+        });
+        await batch.commit();
+        console.log("✅ Marked", missedToMark.length, "calls as viewed");
+      }
     } catch (error) {
       console.error("Failed to mark calls as viewed:", error);
     }

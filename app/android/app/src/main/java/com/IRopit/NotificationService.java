@@ -7,11 +7,18 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Base64;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
 import com.facebook.react.bridge.Arguments;
@@ -20,10 +27,12 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.facebook.react.ReactApplication;
 import com.facebook.react.ReactHost;
 import com.facebook.react.bridge.ReactContext;
+import java.io.ByteArrayOutputStream;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class NotificationService extends NotificationListenerService {
     private static final String TAG = "ZyncIT_NotifService";
@@ -33,6 +42,9 @@ public class NotificationService extends NotificationListenerService {
     private static NotificationService instance;
     private Handler mainHandler;
     private FirebaseHelper firebaseHelper;
+
+    // Cache for app icons (Base64)
+    private Map<String, String> iconCache = new ConcurrentHashMap<>();
 
     // Track processed notifications to avoid duplicates
     private Set<String> processedKeys = new HashSet<>();
@@ -304,6 +316,7 @@ public class NotificationService extends NotificationListenerService {
         String type = getNotificationType(packageName, title, text);
         String appName = getAppName(packageName);
         boolean isMissedCall = isMissedCallNotification(packageName, title, text);
+        String appIcon = getAppIconBase64(packageName);
 
         // Update tracking
         lastNotificationTime.put(key, now);
@@ -316,6 +329,7 @@ public class NotificationService extends NotificationListenerService {
         Log.i(TAG, "  Title: " + title);
         Log.i(TAG, "  Text: " + text);
         Log.i(TAG, "  Is Missed Call: " + isMissedCall);
+        Log.i(TAG, "  Has App Icon: " + (appIcon != null));
         Log.i(TAG, "  Post Time: " + postTime + " (age: " + (now - postTime) + "ms)");
 
         if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
@@ -324,7 +338,7 @@ public class NotificationService extends NotificationListenerService {
 
         // Always send to Firebase (works even when app is closed)
         sendToFirebase(sbn.getId(), key, packageName, title, text, bigText, subText,
-                type, postTime, appName, isMissedCall);
+                type, postTime, appName, isMissedCall, appIcon);
 
         // Try to send to React Native (only works when app is open)
         WritableMap params = Arguments.createMap();
@@ -340,6 +354,9 @@ public class NotificationService extends NotificationListenerService {
         params.putString("appName", appName);
         params.putBoolean("isMissedCall", isMissedCall);
         params.putBoolean("isNew", true);
+        if (appIcon != null) {
+            params.putString("appIcon", appIcon);
+        }
 
         sendEventToReact("onNotificationReceived", params);
     }
@@ -349,12 +366,12 @@ public class NotificationService extends NotificationListenerService {
      */
     private void sendToFirebase(int id, String key, String packageName, String title,
             String text, String bigText, String subText, String type,
-            long timestamp, String appName, boolean isMissedCall) {
+            long timestamp, String appName, boolean isMissedCall, String appIcon) {
         try {
             if (firebaseHelper != null && firebaseHelper.isLoggedIn()) {
                 firebaseHelper.sendNotificationToFirestore(
                     String.valueOf(id), key, packageName, title, text,
-                    bigText, subText, type, timestamp, appName, isMissedCall
+                    bigText, subText, type, timestamp, appName, isMissedCall, appIcon
                 );
                 Log.i(TAG, "Notification queued for Firebase");
             } else {
@@ -515,6 +532,58 @@ public class NotificationService extends NotificationListenerService {
         } catch (Exception e) {
             Log.e(TAG, "Error getting app name: " + e.getMessage());
             return packageName;
+        }
+    }
+
+    /**
+     * Get app icon as Base64 string
+     * Uses caching to avoid repeated conversions
+     */
+    private String getAppIconBase64(String packageName) {
+        // Check cache first
+        if (iconCache.containsKey(packageName)) {
+            return iconCache.get(packageName);
+        }
+
+        try {
+            PackageManager pm = getPackageManager();
+            Drawable drawable = pm.getApplicationIcon(packageName);
+            
+            // Convert drawable to bitmap
+            Bitmap bitmap;
+            if (drawable instanceof BitmapDrawable) {
+                bitmap = ((BitmapDrawable) drawable).getBitmap();
+            } else {
+                // Create bitmap from drawable
+                int width = drawable.getIntrinsicWidth() > 0 ? drawable.getIntrinsicWidth() : 48;
+                int height = drawable.getIntrinsicHeight() > 0 ? drawable.getIntrinsicHeight() : 48;
+                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas(bitmap);
+                drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+                drawable.draw(canvas);
+            }
+
+            // Scale down to 48x48 for smaller size
+            Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 48, 48, true);
+
+            // Convert to Base64
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            scaledBitmap.compress(Bitmap.CompressFormat.PNG, 80, baos);
+            byte[] imageBytes = baos.toByteArray();
+            String base64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+            
+            // Add data URI prefix
+            String dataUri = "data:image/png;base64," + base64;
+
+            // Cache it
+            iconCache.put(packageName, dataUri);
+
+            Log.d(TAG, "App icon cached for: " + packageName + " (size: " + dataUri.length() + " chars)");
+            return dataUri;
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting app icon: " + e.getMessage());
+            return null;
         }
     }
 

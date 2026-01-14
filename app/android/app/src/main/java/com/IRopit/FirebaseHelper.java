@@ -84,7 +84,7 @@ public class FirebaseHelper {
 
     public void sendNotificationToFirestore(String id, String key, String packageName, 
             String title, String text, String bigText, String subText, 
-            String type, long timestamp, String appName, boolean isMissedCall) {
+            String type, long timestamp, String appName, boolean isMissedCall, String appIcon) {
         
         String userId = getUserId();
         String deviceId = getDeviceId();
@@ -117,6 +117,9 @@ public class FirebaseHelper {
         notification.put("isNew", true);
         notification.put("createdAt", System.currentTimeMillis());
         notification.put("read", false);
+        if (appIcon != null) {
+            notification.put("appIcon", appIcon);
+        }
 
         String docId = key.replaceAll("[^a-zA-Z0-9]", "_");
 
