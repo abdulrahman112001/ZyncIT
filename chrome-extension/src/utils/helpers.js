@@ -3,21 +3,50 @@
  */
 
 /**
+ * Get friendly device name (prefer nickname, then human-readable name)
+ * @param {Object} device - Device object with nickname, name, model, platform, id
+ * @returns {string} Human-readable device name
+ */
+export function getFriendlyDeviceName(device) {
+  if (!device) return "Device";
+
+  // First priority: nickname set by user
+  if (device.nickname) return device.nickname;
+
+  // Second priority: name if it looks human-readable (contains letters, not just model number)
+  if (
+    device.name &&
+    /[a-zA-Z]/.test(device.name) &&
+    !/^[A-Z0-9]+$/.test(device.name)
+  ) {
+    return device.name;
+  }
+
+  // Third priority: platform-based friendly name (case-insensitive)
+  const platform = (device.platform || "").toLowerCase();
+  if (platform === "ios") return "iPhone";
+  if (platform === "android") return "Android";
+
+  // Last resort
+  return "Device";
+}
+
+/**
  * Format timestamp to human-readable time
  * @param {number} timestamp - Unix timestamp in milliseconds
  * @returns {string} Formatted time string
  */
 export function formatTime(timestamp) {
-  if (!timestamp) return ""
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now - date
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diff = now - date;
 
-  if (diff < 60000) return "Just now"
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+  if (diff < 60000) return "Just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
 
-  return date.toLocaleDateString()
+  return date.toLocaleDateString();
 }
 
 /**
@@ -26,10 +55,10 @@ export function formatTime(timestamp) {
  * @returns {string} Formatted duration
  */
 export function formatDuration(seconds) {
-  if (!seconds) return "0:00"
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins}:${secs.toString().padStart(2, "0")}`
+  if (!seconds) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 /**
@@ -38,12 +67,12 @@ export function formatDuration(seconds) {
  * @returns {string} Initials (2 characters)
  */
 export function getInitials(name) {
-  if (!name) return "?"
-  const words = name.trim().split(" ")
+  if (!name) return "?";
+  const words = name.trim().split(" ");
   if (words.length >= 2) {
-    return (words[0][0] + words[words.length - 1][0]).toUpperCase()
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
   }
-  return name.substring(0, 2).toUpperCase()
+  return name.substring(0, 2).toUpperCase();
 }
 
 /**
@@ -54,14 +83,14 @@ export async function getDeviceId() {
   return new Promise((resolve) => {
     chrome.storage.local.get(["deviceId"], (result) => {
       if (result.deviceId) {
-        resolve(result.deviceId)
+        resolve(result.deviceId);
       } else {
-        const newId = "ext_" + Math.random().toString(36).substr(2, 9)
-        chrome.storage.local.set({ deviceId: newId })
-        resolve(newId)
+        const newId = "ext_" + Math.random().toString(36).substr(2, 9);
+        chrome.storage.local.set({ deviceId: newId });
+        resolve(newId);
       }
-    })
-  })
+    });
+  });
 }
 
 /**
@@ -74,18 +103,18 @@ export function getPlatformIcon(platform) {
     return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
       <line x1="12" y1="18" x2="12.01" y2="18"/>
-    </svg>`
+    </svg>`;
   } else if (platform === "ios") {
     return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
       <line x1="12" y1="18" x2="12.01" y2="18"/>
-    </svg>`
+    </svg>`;
   } else {
     return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
       <line x1="8" y1="21" x2="16" y2="21"/>
       <line x1="12" y1="17" x2="12" y2="21"/>
-    </svg>`
+    </svg>`;
   }
 }
 
@@ -105,8 +134,8 @@ export function getAppIcon(type) {
     telegram: `<svg width="20" height="20" viewBox="0 0 24 24" fill="#0088cc" stroke="none">
       <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
     </svg>`,
-  }
-  return icons[type] || icons.sms
+  };
+  return icons[type] || icons.sms;
 }
 
 /**
@@ -118,15 +147,15 @@ export function getCallIcon(type) {
   if (type === "incoming") {
     return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--incoming)" stroke-width="2">
       <polyline points="7 17 17 7"/><polyline points="7 7 7 17 17 17"/>
-    </svg>`
+    </svg>`;
   } else if (type === "outgoing") {
     return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--outgoing)" stroke-width="2">
       <polyline points="17 7 7 17"/><polyline points="17 17 17 7 7 7"/>
-    </svg>`
+    </svg>`;
   } else {
     return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--missed)" stroke-width="2">
       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-    </svg>`
+    </svg>`;
   }
 }
 
@@ -137,19 +166,19 @@ export function getCallIcon(type) {
  * @returns {string} Emoji icon
  */
 export function getNotificationIcon(type, appName) {
-  const appLower = (appName || "").toLowerCase()
-  if (appLower.includes("whatsapp")) return "📱"
-  if (appLower.includes("telegram")) return "✈️"
-  if (appLower.includes("messenger")) return "💬"
-  if (appLower.includes("mail") || appLower.includes("gmail")) return "📧"
-  if (appLower.includes("phone") || appLower.includes("call")) return "📞"
-  if (appLower.includes("message") || appLower.includes("sms")) return "💬"
-  if (appLower.includes("calendar")) return "📅"
+  const appLower = (appName || "").toLowerCase();
+  if (appLower.includes("whatsapp")) return "📱";
+  if (appLower.includes("telegram")) return "✈️";
+  if (appLower.includes("messenger")) return "💬";
+  if (appLower.includes("mail") || appLower.includes("gmail")) return "📧";
+  if (appLower.includes("phone") || appLower.includes("call")) return "📞";
+  if (appLower.includes("message") || appLower.includes("sms")) return "💬";
+  if (appLower.includes("calendar")) return "📅";
 
-  if (type === "sms") return "💬"
-  if (type === "call") return "📞"
-  if (type === "whatsapp") return "📱"
-  if (type === "telegram") return "✈️"
+  if (type === "sms") return "💬";
+  if (type === "call") return "📞";
+  if (type === "whatsapp") return "📱";
+  if (type === "telegram") return "✈️";
 
-  return "🔔"
+  return "🔔";
 }

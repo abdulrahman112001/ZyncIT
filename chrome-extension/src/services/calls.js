@@ -21,6 +21,7 @@ import {
   formatDuration,
   getInitials,
   getCallIcon,
+  getFriendlyDeviceName,
 } from "../utils/helpers.js";
 import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
@@ -46,7 +47,7 @@ export async function loadCalls() {
     const data = doc.data();
     devicesList.push({
       id: data.id,
-      name: data.nickname || data.name || data.model || data.id,
+      name: getFriendlyDeviceName(data),
     });
   });
 

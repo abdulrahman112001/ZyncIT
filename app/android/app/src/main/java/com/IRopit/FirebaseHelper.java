@@ -17,6 +17,7 @@ public class FirebaseHelper {
     private static final String PREFS_NAME = "ZyncITPrefs";
     private static final String KEY_USER_ID = "userId";
     private static final String KEY_DEVICE_ID = "deviceId";
+    private static final String KEY_DEVICE_NAME = "deviceName";
     private static final String KEY_IS_LOGGED_IN = "isLoggedIn";
 
     private static FirebaseHelper instance;
@@ -55,6 +56,24 @@ public class FirebaseHelper {
                 .putBoolean(KEY_IS_LOGGED_IN, true)
                 .apply();
         Log.i(TAG, "User credentials saved: userId=" + userId + ", deviceId=" + deviceId);
+    }
+    
+    public void saveDeviceName(String deviceName) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+                .putString(KEY_DEVICE_NAME, deviceName)
+                .apply();
+        Log.i(TAG, "Device name saved: " + deviceName);
+    }
+    
+    public String getDeviceName() {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String savedName = prefs.getString(KEY_DEVICE_NAME, null);
+        if (savedName != null && !savedName.isEmpty()) {
+            return savedName;
+        }
+        // Fallback to "Android" if no name saved
+        return "Android";
     }
 
     public void clearUserCredentials() {

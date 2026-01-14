@@ -15,21 +15,26 @@ import {
   query,
   where,
   onSnapshot,
-} from "../config/firebase.js"
+} from "../config/firebase.js";
 
-import { devicesList, smsDevice } from "../ui/dom.js"
-import { showToast, showLoadingOverlay, hideLoading } from "../ui/toasts.js"
-import { formatTime, getDeviceId, getPlatformIcon } from "../utils/helpers.js"
-import * as state from "../state/index.js"
+import { devicesList, smsDevice } from "../ui/dom.js";
+import { showToast, showLoadingOverlay, hideLoading } from "../ui/toasts.js";
+import {
+  formatTime,
+  getDeviceId,
+  getPlatformIcon,
+  getFriendlyDeviceName,
+} from "../utils/helpers.js";
+import * as state from "../state/index.js";
 
 /**
  * Register this extension as a device
  */
 export async function registerDevice() {
-  const user = state.currentUser
-  if (!user) return
+  const user = state.currentUser;
+  if (!user) return;
 
-  const deviceId = await getDeviceId()
+  const deviceId = await getDeviceId();
 
   await setDoc(
     doc(db, "devices", deviceId),
@@ -44,41 +49,41 @@ export async function registerDevice() {
       isOnline: true,
     },
     { merge: true }
-  )
+  );
 }
 
 /**
  * Load user's devices
  */
 export async function loadDevices() {
-  const user = state.currentUser
-  if (!user) return
+  const user = state.currentUser;
+  if (!user) return;
 
-  const q = query(collection(db, "devices"), where("userId", "==", user.uid))
+  const q = query(collection(db, "devices"), where("userId", "==", user.uid));
 
   const unsub = onSnapshot(q, (snapshot) => {
-    console.log("Devices found:", snapshot.size)
-    const newDevices = []
+    console.log("Devices found:", snapshot.size);
+    const newDevices = [];
     snapshot.forEach((doc) => {
       newDevices.push({
         ...doc.data(),
         docId: doc.id,
-      })
-    })
+      });
+    });
 
-    state.setDevices(newDevices)
-    renderDevices()
-    updateDeviceSelects()
-  })
+    state.setDevices(newDevices);
+    renderDevices();
+    updateDeviceSelects();
+  });
 
-  state.addUnsubscriber(unsub)
+  state.addUnsubscriber(unsub);
 }
 
 /**
  * Render devices list
  */
 export function renderDevices() {
-  const devices = state.devices
+  const devices = state.devices;
 
   if (devices.length === 0) {
     devicesList.innerHTML = `
@@ -89,8 +94,8 @@ export function renderDevices() {
         <p>No devices connected</p>
         <span>Install ZyncIT on your phone to get started</span>
       </div>
-    `
-    return
+    `;
+    return;
   }
 
   devicesList.innerHTML = devices
@@ -112,9 +117,7 @@ export function renderDevices() {
       </div>
       <div class="list-item-content">
         <div class="list-item-title device-name-display">
-          <span class="device-nickname">${
-            device.nickname || device.name || device.model || "Unknown Device"
-          }</span>
+          <span class="device-nickname">${getFriendlyDeviceName(device)}</span>
           <button class="edit-name-btn" data-device-doc-id="${
             device.docId
           }" title="Edit name">
@@ -145,40 +148,40 @@ export function renderDevices() {
     </div>
   `
     )
-    .join("")
+    .join("");
 
   // Add delete handlers
   document.querySelectorAll(".delete-device-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      e.stopPropagation()
-      const deviceId = btn.dataset.deviceId
-      const docId = btn.dataset.deviceDocId
+      e.stopPropagation();
+      const deviceId = btn.dataset.deviceId;
+      const docId = btn.dataset.deviceDocId;
       if (
         confirm(`Delete device "${deviceId}"? This will remove all its data.`)
       ) {
-        deleteDevice(docId, deviceId)
+        deleteDevice(docId, deviceId);
       }
-    })
-  })
+    });
+  });
 
   // Add edit name handlers
   document.querySelectorAll(".edit-name-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      e.stopPropagation()
-      const docId = btn.dataset.deviceDocId
-      const device = state.devices.find((d) => d.docId === docId)
+      e.stopPropagation();
+      const docId = btn.dataset.deviceDocId;
+      const device = state.devices.find((d) => d.docId === docId);
       if (device) {
-        showEditDeviceNameModal(device)
+        showEditDeviceNameModal(device);
       }
-    })
-  })
+    });
+  });
 }
 
 /**
  * Update device select dropdowns
  */
 export function updateDeviceSelects() {
-  const devices = state.devices
+  const devices = state.devices;
 
   // For SMS, only show mobile devices
   const mobileDevices = devices.filter(
@@ -188,50 +191,49 @@ export function updateDeviceSelects() {
       d.platform === "android" ||
       d.platform === "ios" ||
       d.platform === "Android"
-  )
+  );
 
   const smsOptions = mobileDevices
     .map((d) => {
-      const deviceName = d.nickname || d.name || d.model || d.id
-      return `<option value="${d.id}">${deviceName}</option>`
+      const deviceName = getFriendlyDeviceName(d);
+      return `<option value="${d.id}">${deviceName}</option>`;
     })
-    .join("")
+    .join("");
 
   if (smsDevice) {
     smsDevice.innerHTML =
-      '<option value="">Select device...</option>' + smsOptions
+      '<option value="">Select device...</option>' + smsOptions;
   }
 
   // Update chat device tabs
-  updateChatDeviceTabs()
+  updateChatDeviceTabs();
 
-  console.log(`Updated device selects: ${mobileDevices.length} SMS devices`)
+  console.log(`Updated device selects: ${mobileDevices.length} SMS devices`);
 }
 
 /**
  * Update chat device tabs
  */
 export function updateChatDeviceTabs() {
-  const devices = state.devices
-  const chatDeviceTabs = document.getElementById("chatDeviceTabs")
-  if (!chatDeviceTabs) return
+  const devices = state.devices;
+  const chatDeviceTabs = document.getElementById("chatDeviceTabs");
+  if (!chatDeviceTabs) return;
 
   // Show all devices except chrome extensions
-  const otherDevices = devices.filter((d) => d.type !== "chrome-extension")
+  const otherDevices = devices.filter((d) => d.type !== "chrome-extension");
 
   const deviceTabsHTML = otherDevices
     .map((d) => {
-      const deviceName =
-        d.nickname || d.name || d.model || d.id?.substring(0, 8)
-      const platformIcon = getPlatformIcon(d.platform)
+      const deviceName = getFriendlyDeviceName(d);
+      const platformIcon = getPlatformIcon(d.platform);
       return `
         <button class="device-tab" data-device="${d.id}">
           ${platformIcon}
           <span>${deviceName}</span>
         </button>
-      `
+      `;
     })
-    .join("")
+    .join("");
 
   chatDeviceTabs.innerHTML = `
     <button class="device-tab active" data-device="all">
@@ -244,23 +246,23 @@ export function updateChatDeviceTabs() {
       <span>All</span>
     </button>
     ${deviceTabsHTML}
-  `
+  `;
 
   // Add click handlers to tabs
   chatDeviceTabs.querySelectorAll(".device-tab").forEach((tab) => {
     tab.addEventListener("click", async () => {
       chatDeviceTabs
         .querySelectorAll(".device-tab")
-        .forEach((t) => t.classList.remove("active"))
-      tab.classList.add("active")
+        .forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
       // Re-render messages to update device name visibility
       // Dynamic import to avoid circular dependency
-      const chatModule = await import("./chat.js")
+      const chatModule = await import("./chat.js");
       if (state.cachedChatMessages.length > 0) {
-        chatModule.renderChatMessages(state.cachedChatMessages)
+        chatModule.renderChatMessages(state.cachedChatMessages);
       }
-    })
-  })
+    });
+  });
 }
 
 /**
@@ -269,37 +271,37 @@ export function updateChatDeviceTabs() {
  * @param {string} deviceId - Device ID
  */
 export async function deleteDevice(docId, deviceId) {
-  const user = state.currentUser
-  if (!user || !docId) return
+  const user = state.currentUser;
+  if (!user || !docId) return;
 
-  showLoadingOverlay()
+  showLoadingOverlay();
   try {
     // Delete device document
-    await deleteDoc(doc(db, "devices", docId))
+    await deleteDoc(doc(db, "devices", docId));
 
     // Also delete notifications subcollection for this device
-    const notifPath = `users/${user.uid}/devices/${deviceId}/notifications`
-    const notifQuery = query(collection(db, notifPath))
-    const notifSnapshot = await getDocs(notifQuery)
+    const notifPath = `users/${user.uid}/devices/${deviceId}/notifications`;
+    const notifQuery = query(collection(db, notifPath));
+    const notifSnapshot = await getDocs(notifQuery);
 
-    const batch = writeBatch(db)
+    const batch = writeBatch(db);
     notifSnapshot.forEach((notifDoc) => {
-      batch.delete(notifDoc.ref)
-    })
+      batch.delete(notifDoc.ref);
+    });
 
     if (notifSnapshot.size > 0) {
-      await batch.commit()
+      await batch.commit();
     }
 
-    showToast(`Device "${deviceId}" deleted`, "success")
-    state.removeDevice(docId)
-    renderDevices()
-    updateDeviceSelects()
+    showToast(`Device "${deviceId}" deleted`, "success");
+    state.removeDevice(docId);
+    renderDevices();
+    updateDeviceSelects();
   } catch (error) {
-    console.error("Delete device error:", error)
-    showToast("Failed to delete device", "error")
+    console.error("Delete device error:", error);
+    showToast("Failed to delete device", "error");
   }
-  hideLoading()
+  hideLoading();
 }
 
 /**
@@ -307,11 +309,11 @@ export async function deleteDevice(docId, deviceId) {
  * @param {Object} device - Device object
  */
 export function showEditDeviceNameModal(device) {
-  const currentName = device.nickname || device.name || device.model || ""
+  const currentName = getFriendlyDeviceName(device);
 
-  const modal = document.createElement("div")
-  modal.className = "modal-overlay"
-  modal.id = "editDeviceModal"
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay";
+  modal.id = "editDeviceModal";
   modal.innerHTML = `
     <div class="modal-content">
       <div class="modal-header">
@@ -343,48 +345,48 @@ export function showEditDeviceNameModal(device) {
         <button class="btn btn-primary" id="saveDeviceName">Save</button>
       </div>
     </div>
-  `
+  `;
 
-  document.body.appendChild(modal)
+  document.body.appendChild(modal);
 
   // Focus input
-  document.getElementById("deviceNickname").focus()
-  document.getElementById("deviceNickname").select()
+  document.getElementById("deviceNickname").focus();
+  document.getElementById("deviceNickname").select();
 
   // Close handlers
   document
     .getElementById("closeEditModal")
-    .addEventListener("click", () => modal.remove())
+    .addEventListener("click", () => modal.remove());
   document
     .getElementById("cancelEditDevice")
-    .addEventListener("click", () => modal.remove())
+    .addEventListener("click", () => modal.remove());
   modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.remove()
-  })
+    if (e.target === modal) modal.remove();
+  });
 
   // Save handler
   document
     .getElementById("saveDeviceName")
     .addEventListener("click", async () => {
-      const newName = document.getElementById("deviceNickname").value.trim()
+      const newName = document.getElementById("deviceNickname").value.trim();
       if (newName) {
-        await updateDeviceName(device.docId, newName)
-        modal.remove()
+        await updateDeviceName(device.docId, newName);
+        modal.remove();
       }
-    })
+    });
 
   // Enter key to save
   document
     .getElementById("deviceNickname")
     .addEventListener("keypress", async (e) => {
       if (e.key === "Enter") {
-        const newName = document.getElementById("deviceNickname").value.trim()
+        const newName = document.getElementById("deviceNickname").value.trim();
         if (newName) {
-          await updateDeviceName(device.docId, newName)
-          modal.remove()
+          await updateDeviceName(device.docId, newName);
+          modal.remove();
         }
       }
-    })
+    });
 }
 
 /**
@@ -393,69 +395,69 @@ export function showEditDeviceNameModal(device) {
  * @param {string} newName - New device name
  */
 export async function updateDeviceName(docId, newName) {
-  const user = state.currentUser
-  if (!user || !docId) return
+  const user = state.currentUser;
+  if (!user || !docId) return;
 
-  showLoadingOverlay()
+  showLoadingOverlay();
   try {
     // Update device document
     await updateDoc(doc(db, "devices", docId), {
       nickname: newName,
       name: newName,
-    })
+    });
 
     // Get the device ID
-    const deviceDoc = await getDoc(doc(db, "devices", docId))
-    const deviceId = deviceDoc.data()?.id
+    const deviceDoc = await getDoc(doc(db, "devices", docId));
+    const deviceId = deviceDoc.data()?.id;
 
     if (deviceId) {
       // Update all messages from this device
       const messagesQuery = query(
         collection(db, "users", user.uid, "messages"),
         where("deviceId", "==", deviceId)
-      )
-      const messagesSnapshot = await getDocs(messagesQuery)
-      const messageBatch = writeBatch(db)
+      );
+      const messagesSnapshot = await getDocs(messagesQuery);
+      const messageBatch = writeBatch(db);
       messagesSnapshot.forEach((doc) => {
-        messageBatch.update(doc.ref, { deviceName: newName })
-      })
-      await messageBatch.commit()
+        messageBatch.update(doc.ref, { deviceName: newName });
+      });
+      await messageBatch.commit();
 
       // Update all calls from this device
       const callsQuery = query(
         collection(db, "calls"),
         where("userId", "==", user.uid),
         where("deviceId", "==", deviceId)
-      )
-      const callsSnapshot = await getDocs(callsQuery)
-      const callBatch = writeBatch(db)
+      );
+      const callsSnapshot = await getDocs(callsQuery);
+      const callBatch = writeBatch(db);
       callsSnapshot.forEach((doc) => {
-        callBatch.update(doc.ref, { deviceName: newName })
-      })
-      await callBatch.commit()
+        callBatch.update(doc.ref, { deviceName: newName });
+      });
+      await callBatch.commit();
 
       // Update all notifications from this device
       const notificationsQuery = query(
         collection(db, "users", user.uid, "notifications"),
         where("deviceId", "==", deviceId)
-      )
-      const notificationsSnapshot = await getDocs(notificationsQuery)
-      const notificationBatch = writeBatch(db)
+      );
+      const notificationsSnapshot = await getDocs(notificationsQuery);
+      const notificationBatch = writeBatch(db);
       notificationsSnapshot.forEach((doc) => {
-        notificationBatch.update(doc.ref, { deviceName: newName })
-      })
-      await notificationBatch.commit()
+        notificationBatch.update(doc.ref, { deviceName: newName });
+      });
+      await notificationBatch.commit();
     }
 
     // Update local state
-    state.updateDevice(docId, { nickname: newName, name: newName })
+    state.updateDevice(docId, { nickname: newName, name: newName });
 
-    renderDevices()
-    updateDeviceSelects()
-    showToast("Device name updated in all records", "success")
+    renderDevices();
+    updateDeviceSelects();
+    showToast("Device name updated in all records", "success");
   } catch (error) {
-    console.error("Update device name error:", error)
-    showToast("Failed to update device name", "error")
+    console.error("Update device name error:", error);
+    showToast("Failed to update device name", "error");
   }
-  hideLoading()
+  hideLoading();
 }

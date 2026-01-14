@@ -92,9 +92,9 @@ public class BackgroundSmsService extends Service {
 
         String userId = auth.getCurrentUser().getUid();
         String deviceId = firebaseHelper.getDeviceId();
-        String deviceName = android.os.Build.MODEL;
+        String deviceName = firebaseHelper.getDeviceName(); // Get friendly name instead of model
 
-        Log.d(TAG, "userId: " + userId + ", deviceId: " + deviceId);
+        Log.d(TAG, "userId: " + userId + ", deviceId: " + deviceId + ", deviceName: " + deviceName);
 
         if (deviceId == null || deviceId.isEmpty()) {
             Log.w(TAG, "❌ No device ID found in SharedPreferences, cannot save SMS");

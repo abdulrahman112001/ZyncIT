@@ -22666,6 +22666,17 @@ ${this.customData.serverResponse}`;
   });
 
   // src/utils/helpers.js
+  function getFriendlyDeviceName(device) {
+    if (!device) return "Device";
+    if (device.nickname) return device.nickname;
+    if (device.name && /[a-zA-Z]/.test(device.name) && !/^[A-Z0-9]+$/.test(device.name)) {
+      return device.name;
+    }
+    const platform = (device.platform || "").toLowerCase();
+    if (platform === "ios") return "iPhone";
+    if (platform === "android") return "Android";
+    return "Device";
+  }
   function formatTime(timestamp) {
     if (!timestamp) return "";
     const date = new Date(timestamp);
@@ -23239,8 +23250,10 @@ ${this.customData.serverResponse}`;
       devicesSnapshot.forEach((deviceDoc) => {
         const data = deviceDoc.data();
         if (data.platform !== "chrome-extension" && data.platform !== "chrome" && !data.id?.startsWith("ext_")) {
-          const deviceName = data.nickname || data.name || data.model || data.id;
-          console.log(`\u{1F442} Setting up listener for device: ${data.id} (${deviceName})`);
+          const deviceName = getFriendlyDeviceName(data);
+          console.log(
+            `\u{1F442} Setting up listener for device: ${data.id} (${deviceName})`
+          );
           listenToDeviceSMS(user.uid, data.id, deviceName);
         }
       });
@@ -23351,7 +23364,7 @@ ${this.customData.serverResponse}`;
         if (data.platform !== "chrome-extension" && data.platform !== "chrome" && !data.id?.startsWith("ext_")) {
           devicesList2.push({
             id: data.id,
-            name: data.nickname || data.name || data.model || data.id
+            name: getFriendlyDeviceName(data)
           });
         }
       });
@@ -23367,7 +23380,14 @@ ${this.customData.serverResponse}`;
       for (const device of devicesList2) {
         console.log(`\u{1F50D} Querying SMS for device: ${device.id}`);
         const q2 = query(
-          collection(db, "users", user.uid, "devices", device.id, "notifications"),
+          collection(
+            db,
+            "users",
+            user.uid,
+            "devices",
+            device.id,
+            "notifications"
+          ),
           where("type", "==", "sms"),
           limit(200)
         );
@@ -24150,7 +24170,7 @@ ${this.customData.serverResponse}`;
       </div>
       <div class="list-item-content">
         <div class="list-item-title device-name-display">
-          <span class="device-nickname">${device.nickname || device.name || device.model || "Unknown Device"}</span>
+          <span class="device-nickname">${getFriendlyDeviceName(device)}</span>
           <button class="edit-name-btn" data-device-doc-id="${device.docId}" title="Edit name">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -24202,7 +24222,7 @@ ${this.customData.serverResponse}`;
       (d) => d.type === "mobile" || d.type === "phone" || d.platform === "android" || d.platform === "ios" || d.platform === "Android"
     );
     const smsOptions = mobileDevices.map((d) => {
-      const deviceName = d.nickname || d.name || d.model || d.id;
+      const deviceName = getFriendlyDeviceName(d);
       return `<option value="${d.id}">${deviceName}</option>`;
     }).join("");
     if (smsDevice) {
@@ -24217,7 +24237,7 @@ ${this.customData.serverResponse}`;
     if (!chatDeviceTabs) return;
     const otherDevices = devices2.filter((d) => d.type !== "chrome-extension");
     const deviceTabsHTML = otherDevices.map((d) => {
-      const deviceName = d.nickname || d.name || d.model || d.id?.substring(0, 8);
+      const deviceName = getFriendlyDeviceName(d);
       const platformIcon = getPlatformIcon(d.platform);
       return `
         <button class="device-tab" data-device="${d.id}">
@@ -24276,7 +24296,7 @@ ${this.customData.serverResponse}`;
     hideLoading();
   }
   function showEditDeviceNameModal(device) {
-    const currentName = device.nickname || device.name || device.model || "";
+    const currentName = getFriendlyDeviceName(device);
     const modal = document.createElement("div");
     modal.className = "modal-overlay";
     modal.id = "editDeviceModal";
@@ -24413,7 +24433,7 @@ ${this.customData.serverResponse}`;
       const data = doc2.data();
       devicesList2.push({
         id: data.id,
-        name: data.nickname || data.name || data.model || data.id
+        name: getFriendlyDeviceName(data)
       });
     });
     console.log("\u{1F4F1} Loading calls from devices:", devicesList2.length);
@@ -24553,7 +24573,15 @@ ${this.customData.serverResponse}`;
           const batch = writeBatch(db);
           missedToMark.forEach((call) => {
             if (call.deviceId) {
-              const callRef = doc(db, "users", user.uid, "devices", call.deviceId, "calls", call.id);
+              const callRef = doc(
+                db,
+                "users",
+                user.uid,
+                "devices",
+                call.deviceId,
+                "calls",
+                call.id
+              );
               batch.set(callRef, { viewed: true }, { merge: true });
             }
           });
@@ -24783,9 +24811,18 @@ ${this.customData.serverResponse}`;
     devicesSnapshot.forEach((doc2) => {
       const data = doc2.data();
       console.log("\u{1F4F1} Found device doc:", doc2.id, "data:", data);
+      let friendlyName = data.nickname;
+      if (!friendlyName) {
+        if (data.name && /[a-zA-Z]/.test(data.name) && !/^[A-Z0-9]+$/.test(data.name)) {
+          friendlyName = data.name;
+        } else {
+          const platform = (data.platform || "").toLowerCase();
+          friendlyName = platform === "ios" ? "iPhone" : platform === "android" ? "Android" : "Device";
+        }
+      }
       devicesList2.push({
         id: data.id,
-        name: data.nickname || data.name || data.model || data.id
+        name: friendlyName
       });
     });
     console.log("\u{1F4F1} Total devices found:", devicesList2.length);
@@ -24794,7 +24831,11 @@ ${this.customData.serverResponse}`;
         collection(db, "users", user.uid, "devices", device.id, "notifications"),
         limit(50)
       );
-      console.log("\u{1F4F1} Subscribing to notifications for device:", device.id, device.name);
+      console.log(
+        "\u{1F4F1} Subscribing to notifications for device:",
+        device.id,
+        device.name
+      );
       const unsub = onSnapshot(
         q2,
         (snapshot) => {
@@ -24901,9 +24942,28 @@ ${this.customData.serverResponse}`;
   async function markNotificationAsRead(deviceId, notifId) {
     const user = currentUser;
     if (!user) return;
+    if (!notifId || /^\d+$/.test(notifId)) {
+      console.log("\u26A0\uFE0F Skipping invalid notification ID:", notifId);
+      Object.keys(allNotifications).forEach((key) => {
+        const updated = allNotifications[key].map(
+          (n) => n.id === notifId ? { ...n, read: true } : n
+        );
+        setNotificationsData(key, updated);
+      });
+      updateTabBadges();
+      return;
+    }
     try {
       if (deviceId && deviceId !== "user" && deviceId !== "_user_notifications") {
-        const notifRef = doc(db, "users", user.uid, "devices", deviceId, "notifications", notifId);
+        const notifRef = doc(
+          db,
+          "users",
+          user.uid,
+          "devices",
+          deviceId,
+          "notifications",
+          notifId
+        );
         await updateDoc(notifRef, { read: true });
         console.log("\u2705 Notification marked as read:", notifId);
       } else {
@@ -24920,6 +24980,13 @@ ${this.customData.serverResponse}`;
       updateTabBadges();
     } catch (error) {
       console.error("\u274C Error marking notification as read:", error);
+      Object.keys(allNotifications).forEach((key) => {
+        const updated = allNotifications[key].map(
+          (n) => n.id === notifId ? { ...n, read: true } : n
+        );
+        setNotificationsData(key, updated);
+      });
+      updateTabBadges();
     }
   }
 

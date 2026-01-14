@@ -28,6 +28,7 @@ import {
   getInitials,
   getAppIcon,
   getDeviceId,
+  getFriendlyDeviceName,
 } from "../utils/helpers.js";
 import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
@@ -70,7 +71,7 @@ export async function startSMSListener() {
         data.platform !== "chrome" &&
         !data.id?.startsWith("ext_")
       ) {
-        const deviceName = data.nickname || data.name || data.model || data.id;
+        const deviceName = getFriendlyDeviceName(data);
         console.log(
           `👂 Setting up listener for device: ${data.id} (${deviceName})`
         );
@@ -226,7 +227,7 @@ export async function loadSMS() {
       ) {
         devicesList.push({
           id: data.id,
-          name: data.nickname || data.name || data.model || data.id,
+          name: getFriendlyDeviceName(data),
         });
       }
     });

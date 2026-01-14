@@ -65,9 +65,30 @@ export async function loadNotifications() {
   devicesSnapshot.forEach((doc) => {
     const data = doc.data();
     console.log("📱 Found device doc:", doc.id, "data:", data);
+    // Prefer nickname, then name (if it looks human-readable), then a friendly "Device" label
+    let friendlyName = data.nickname;
+    if (!friendlyName) {
+      // Check if name looks like a device name (contains letters, not just model number)
+      if (
+        data.name &&
+        /[a-zA-Z]/.test(data.name) &&
+        !/^[A-Z0-9]+$/.test(data.name)
+      ) {
+        friendlyName = data.name;
+      } else {
+        // Fallback to "Device" or platform (case-insensitive check)
+        const platform = (data.platform || "").toLowerCase();
+        friendlyName =
+          platform === "ios"
+            ? "iPhone"
+            : platform === "android"
+            ? "Android"
+            : "Device";
+      }
+    }
     devicesList.push({
       id: data.id,
-      name: data.nickname || data.name || data.model || data.id,
+      name: friendlyName,
     });
   });
 
@@ -228,11 +249,25 @@ function renderNotifications(notifications) {
 /**
  * Mark a notification as read in Firestore
  * @param {string} deviceId - Device ID
- * @param {string} notifId - Notification ID
+ * @param {string} notifId - Notification ID (Firestore document ID)
  */
 async function markNotificationAsRead(deviceId, notifId) {
   const user = state.currentUser;
   if (!user) return;
+
+  // Skip if notifId looks like a simple number (not a valid Firestore doc ID)
+  if (!notifId || /^\d+$/.test(notifId)) {
+    console.log("⚠️ Skipping invalid notification ID:", notifId);
+    // Just update local state
+    Object.keys(state.allNotifications).forEach((key) => {
+      const updated = state.allNotifications[key].map((n) =>
+        n.id === notifId ? { ...n, read: true } : n
+      );
+      state.setNotificationsData(key, updated);
+    });
+    updateTabBadges();
+    return;
+  }
 
   try {
     // Try device-level path first
@@ -265,5 +300,13 @@ async function markNotificationAsRead(deviceId, notifId) {
     updateTabBadges();
   } catch (error) {
     console.error("❌ Error marking notification as read:", error);
+    // Still update local state even if Firestore fails
+    Object.keys(state.allNotifications).forEach((key) => {
+      const updated = state.allNotifications[key].map((n) =>
+        n.id === notifId ? { ...n, read: true } : n
+      );
+      state.setNotificationsData(key, updated);
+    });
+    updateTabBadges();
   }
 }

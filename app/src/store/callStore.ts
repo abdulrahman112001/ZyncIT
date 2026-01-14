@@ -74,12 +74,15 @@ export const useCallStore = create<CallState>((set, get) => ({
           syncedAt: Date.now(),
         };
 
-        const docId =
-          `${currentDevice.id}_${call.timestamp}_${phoneNumber}`.replace(
-            /[\/\.]/g,
-            '_',
-          );
+        const docId = `${call.timestamp}_${phoneNumber}`.replace(
+          /[\/\.]/g,
+          '_',
+        );
         await firestore()
+          .collection(COLLECTIONS.USERS)
+          .doc(userId)
+          .collection(COLLECTIONS.DEVICES)
+          .doc(currentDevice.id)
           .collection(COLLECTIONS.CALLS)
           .doc(docId)
           .set(callData, { merge: true });
@@ -118,12 +121,14 @@ export const useCallStore = create<CallState>((set, get) => ({
           syncedAt: Date.now(),
         };
 
-        const docId =
-          `${currentDevice.id}_${call.timestamp}_${phoneNumber}`.replace(
-            /[\/\.]/g,
-            '_',
-          );
-        const docRef = firestore().collection(COLLECTIONS.CALLS).doc(docId);
+        const docId = `${call.timestamp}_${phoneNumber}`.replace(/[\/.]/g, '_');
+        const docRef = firestore()
+          .collection(COLLECTIONS.USERS)
+          .doc(userId)
+          .collection(COLLECTIONS.DEVICES)
+          .doc(currentDevice.id)
+          .collection(COLLECTIONS.CALLS)
+          .doc(docId);
         batch.set(docRef, callData, { merge: true });
       }
 
@@ -134,9 +139,10 @@ export const useCallStore = create<CallState>((set, get) => ({
     }
   },
 
-  loadCalls: () => {
+  loadCalls: async () => {
     const { user } = useAuthStore.getState();
-    if (!user) return;
+    const { currentDevice } = useDeviceStore.getState();
+    if (!user || !currentDevice) return;
 
     // Unsubscribe from previous listener
     const { unsubscribe: prevUnsubscribe } = get();
@@ -147,8 +153,11 @@ export const useCallStore = create<CallState>((set, get) => ({
     set({ isLoading: true });
 
     const unsubscribe = firestore()
+      .collection(COLLECTIONS.USERS)
+      .doc(user.uid)
+      .collection(COLLECTIONS.DEVICES)
+      .doc(currentDevice.id)
       .collection(COLLECTIONS.CALLS)
-      .where('userId', '==', user.uid)
       .orderBy('timestamp', 'desc')
       .limit(CALL_PAGE_SIZE)
       .onSnapshot(
@@ -211,8 +220,14 @@ export const useCallStore = create<CallState>((set, get) => ({
           syncedAt: Date.now(),
         };
 
-        const docId = `${currentDevice.id}_${callData.timestamp}_${callData.phoneNumber}`;
-        const docRef = firestore().collection(COLLECTIONS.CALLS).doc(docId);
+        const docId = `${callData.timestamp}_${callData.phoneNumber}`;
+        const docRef = firestore()
+          .collection(COLLECTIONS.USERS)
+          .doc(user.uid)
+          .collection(COLLECTIONS.DEVICES)
+          .doc(currentDevice.id)
+          .collection(COLLECTIONS.CALLS)
+          .doc(docId);
         batch.set(docRef, callData, { merge: true });
       }
 
@@ -225,13 +240,17 @@ export const useCallStore = create<CallState>((set, get) => ({
 
   clearAllCalls: async () => {
     const { user } = useAuthStore.getState();
-    if (!user) return;
+    const { currentDevice } = useDeviceStore.getState();
+    if (!user || !currentDevice) return;
 
     try {
-      // Get all calls for this user
+      // Get all calls for this device
       const snapshot = await firestore()
+        .collection(COLLECTIONS.USERS)
+        .doc(user.uid)
+        .collection(COLLECTIONS.DEVICES)
+        .doc(currentDevice.id)
         .collection(COLLECTIONS.CALLS)
-        .where('userId', '==', user.uid)
         .get();
 
       // Delete in batches
@@ -251,14 +270,18 @@ export const useCallStore = create<CallState>((set, get) => ({
 
   deleteCallsByPhoneNumbers: async (phoneNumbers: string[]) => {
     const { user } = useAuthStore.getState();
+    const { currentDevice } = useDeviceStore.getState();
     const { calls } = get();
-    if (!user || phoneNumbers.length === 0) return;
+    if (!user || !currentDevice || phoneNumbers.length === 0) return;
 
     try {
       // Get calls for these phone numbers
       const snapshot = await firestore()
+        .collection(COLLECTIONS.USERS)
+        .doc(user.uid)
+        .collection(COLLECTIONS.DEVICES)
+        .doc(currentDevice.id)
         .collection(COLLECTIONS.CALLS)
-        .where('userId', '==', user.uid)
         .get();
 
       // Filter docs that match the phone numbers

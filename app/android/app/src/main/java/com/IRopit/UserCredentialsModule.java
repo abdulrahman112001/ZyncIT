@@ -72,5 +72,25 @@ public class UserCredentialsModule extends ReactContextBaseJavaModule {
             promise.reject("ERROR", e.getMessage());
         }
     }
+    
+    @ReactMethod
+    public void saveDeviceName(String deviceName, Promise promise) {
+        try {
+            firebaseHelper.saveDeviceName(deviceName);
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("ERROR", e.getMessage());
+        }
+    }
+    
+    @ReactMethod
+    public void getDeviceName(Promise promise) {
+        try {
+            String deviceName = firebaseHelper.getDeviceName();
+            promise.resolve(deviceName);
+        } catch (Exception e) {
+            promise.reject("ERROR", e.getMessage());
+        }
+    }
 }
 

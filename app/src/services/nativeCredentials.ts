@@ -112,6 +112,45 @@ export const NativeCredentialsService = {
       return null;
     }
   },
+
+  /**
+   * Save device friendly name to native storage
+   * This is used when sending notifications to Firebase
+   */
+  saveDeviceName: async (deviceName: string): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+
+    if (!UserCredentialsModule) {
+      console.warn('[NativeCredentials] UserCredentialsModule not available');
+      return false;
+    }
+
+    try {
+      await UserCredentialsModule.saveDeviceName(deviceName);
+      console.log('[NativeCredentials] Device name saved:', deviceName);
+      return true;
+    } catch (error) {
+      console.error('[NativeCredentials] Error saving device name:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Get stored device friendly name
+   */
+  getDeviceName: async (): Promise<string | null> => {
+    if (Platform.OS !== 'android' || !UserCredentialsModule) {
+      return null;
+    }
+
+    try {
+      return await UserCredentialsModule.getDeviceName();
+    } catch (error) {
+      return null;
+    }
+  },
 };
 
 export default NativeCredentialsService;

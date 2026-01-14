@@ -40,21 +40,16 @@ chrome.storage.local.get(
   (result) => {
     if (result.lastNotificationTimestamp) {
       lastNotificationTimestamp = result.lastNotificationTimestamp
-      console.log(
-        "ZyncIT: Loaded lastNotificationTimestamp:",
-        new Date(lastNotificationTimestamp).toLocaleString()
-      )
+   
     }
     if (result.seenNotifications) {
       seenNotifications = new Set(result.seenNotifications)
-      console.log("ZyncIT: Loaded seenNotifications:", seenNotifications.size)
     }
   }
 )
 
 // Listen for auth state changes
 onAuthStateChanged(auth, async (user) => {
-  console.log("ZyncIT: Auth state changed:", user ? user.uid : "no user")
   if (user) {
     currentUser = user
     await loadDeviceId()
@@ -73,7 +68,6 @@ async function loadDeviceId() {
   return new Promise((resolve) => {
     chrome.storage.local.get(["deviceId"], (result) => {
       currentDeviceId = result.deviceId
-      console.log("ZyncIT: Loaded deviceId:", currentDeviceId)
       resolve(currentDeviceId)
     })
   })
@@ -82,17 +76,18 @@ async function loadDeviceId() {
 // Start listening for new notifications from ALL user devices
 async function startListening() {
   if (!currentUser) {
-    console.log("ZyncIT: Cannot start listening - no user")
     return
   }
 
-  console.log("ZyncIT: Starting to listen for notifications from all devices")
 
   // Stop previous listeners
   unsubscribeNotifications.forEach((unsub) => unsub())
   unsubscribeNotifications = []
 
-  // Get all user devices
+  // 1. Listen to user-level notifications (WhatsApp, Telegram, etc.)
+  listenToUserNotifications()
+
+  // 2. Get all user devices
   const devicesQuery = query(
     collection(db, "devices"),
     where("userId", "==", currentUser.uid)
@@ -100,7 +95,6 @@ async function startListening() {
 
   try {
     const devicesSnapshot = await getDocs(devicesQuery)
-    console.log("ZyncIT: Found", devicesSnapshot.size, "devices")
 
     devicesSnapshot.forEach((doc) => {
       const device = doc.data()
@@ -114,9 +108,21 @@ async function startListening() {
           "ZyncIT: Listening to device:",
           device.id,
           "| platform:",
-          device.platform
+          device.platform,
+          "| name:",
+          device.nickname || device.name || device.model
         )
-        listenToDevice(device.id)
+        // Prefer nickname, then name if human-readable
+        let friendlyName = device.nickname;
+        if (!friendlyName) {
+          if (device.name && /[a-zA-Z]/.test(device.name) && !/^[A-Z0-9]+$/.test(device.name)) {
+            friendlyName = device.name;
+          } else {
+            const platform = (device.platform || '').toLowerCase();
+            friendlyName = platform === 'ios' ? 'iPhone' : (platform === 'android' ? 'Android' : 'Device');
+          }
+        }
+        listenToDevice(device.id, friendlyName)
       } else {
         console.log("ZyncIT: Skipping extension device:", device.id)
       }
@@ -126,8 +132,94 @@ async function startListening() {
   }
 }
 
+// Listen to user-level notifications (WhatsApp, Telegram, etc.)
+function listenToUserNotifications() {
+  if (!currentUser) return
+
+  console.log("ZyncIT: Listening to user-level notifications at: users/" + currentUser.uid + "/notifications")
+
+  const userNotificationsQuery = query(
+    collection(db, "users", currentUser.uid, "notifications"),
+    limit(50)
+  )
+
+  const unsub = onSnapshot(
+    userNotificationsQuery,
+    (snapshot) => {
+      console.log(
+        "ZyncIT: User notifications snapshot - changes:",
+        snapshot.docChanges().length,
+        "- total:",
+        snapshot.size
+      )
+
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const notification = change.doc.data()
+          const docId = change.doc.id
+          const notificationTime =
+            notification.timestamp || notification.createdAt?.toMillis?.() || Date.now()
+
+          console.log(
+            "ZyncIT: New user notification:",
+            notification.type || notification.appName,
+            notification.title,
+            "time:",
+            new Date(notificationTime).toLocaleString(),
+            "docId:",
+            docId
+          )
+
+          // Skip if already seen
+          if (seenNotifications.has(docId)) {
+            console.log("ZyncIT: User notification already seen, skipping:", docId)
+            return
+          }
+
+          // Add to seen list
+          seenNotifications.add(docId)
+
+          // Save to storage (keep last 100)
+          const seenArray = Array.from(seenNotifications).slice(-100)
+          chrome.storage.local.set({
+            seenNotifications: seenArray,
+            lastNotificationTimestamp: Date.now(),
+          })
+
+          // Only show if notification is recent (last 10 minutes)
+          const tenMinutesAgo = Date.now() - 10 * 60 * 1000
+          if (notificationTime > tenMinutesAgo) {
+            showNotification(notification)
+            console.log("ZyncIT: ✅ User notification shown:", notification.title)
+          } else {
+            console.log(
+              "ZyncIT: ⏭️ User notification too old, not showing:",
+              notification.title
+            )
+          }
+
+          // Send update to popup
+          chrome.runtime
+            .sendMessage({
+              type: "newNotification",
+              data: notification,
+            })
+            .catch(() => {
+              // Popup may not be open, ignore error
+            })
+        }
+      })
+    },
+    (error) => {
+      console.error("ZyncIT: User notifications listener error:", error)
+    }
+  )
+
+  unsubscribeNotifications.push(unsub)
+}
+
 // Listen to notifications from a specific device
-function listenToDevice(deviceId) {
+function listenToDevice(deviceId, deviceName) {
   console.log(
     "ZyncIT: Path: users/" +
       currentUser.uid +
@@ -195,7 +287,12 @@ function listenToDevice(deviceId) {
           // عرض الإشعار فقط إذا كان جديداً (آخر 10 دقائق)
           const tenMinutesAgo = Date.now() - 10 * 60 * 1000
           if (notificationTime > tenMinutesAgo) {
-            showNotification(notification)
+            // إضافة اسم الجهاز للإشعار
+            const notificationWithDevice = {
+              ...notification,
+              deviceName: deviceName || notification.deviceName
+            }
+            showNotification(notificationWithDevice)
             console.log("ZyncIT: ✅ Notification shown:", notification.title)
           } else {
             console.log(
@@ -227,11 +324,16 @@ function listenToDevice(deviceId) {
   )
 
   unsubscribeNotifications.push(unsub)
+  
+  // Also listen for calls from this device
+  listenForCallsFromDevice(deviceId, deviceName)
 }
 
-// Also listen for calls (separate collection)
-function listenForCalls() {
-  if (!currentUser || !currentDeviceId) return
+// Listen for calls from a specific device
+function listenForCallsFromDevice(deviceId, deviceName) {
+  if (!currentUser) return
+
+  console.log("ZyncIT: Listening for calls from device:", deviceId)
 
   const callsQuery = query(
     collection(
@@ -239,55 +341,143 @@ function listenForCalls() {
       "users",
       currentUser.uid,
       "devices",
-      currentDeviceId,
+      deviceId,
       "calls"
     ),
-    orderBy("timestamp", "desc"),
-    limit(5)
+    limit(10)
   )
 
-  onSnapshot(callsQuery, (snapshot) => {
+  const unsub = onSnapshot(callsQuery, (snapshot) => {
     snapshot.docChanges().forEach((change) => {
       if (change.type === "added") {
         const call = change.doc.data()
-        if (call.timestamp > lastNotificationTimestamp) {
-          showCallNotification(call)
+        const docId = change.doc.id
+        const callTime = call.timestamp || Date.now()
+        
+        // Skip if already seen
+        const callKey = `call_${docId}`
+        if (seenNotifications.has(callKey)) {
+          return
+        }
+        
+        // Only show recent calls (last 5 minutes)
+        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
+        if (callTime > fiveMinutesAgo) {
+          seenNotifications.add(callKey)
+          
+          // Add device name
+          const callWithDevice = {
+            ...call,
+            deviceName: deviceName || call.deviceName
+          }
+          showCallNotification(callWithDevice)
+          console.log("ZyncIT: ✅ Call notification shown:", call.type, call.phoneNumber)
         }
       }
     })
+  }, (error) => {
+    console.error("ZyncIT: Call listener error for device", deviceId, ":", error)
   })
+
+  unsubscribeNotifications.push(unsub)
 }
 
 // Show Chrome notification
 function showNotification(data) {
-  const title = data.title || "New Notification"
-  const message = data.content || data.text || ""
-  const iconUrl = "assets/icon128.png"
+  const appName = data.appName || data.packageName || "App"
+  const title = data.title || data.contactName || "New Notification"
+  const message = data.content || data.text || data.body || ""
+  const iconUrl = chrome.runtime.getURL("assets/icon128.png")
+  const notificationType = data.type || "notification"
+  
+  // Create unique notification ID to avoid duplicates
+  const notificationId = `zyncit_${data.id || Date.now()}`
 
-  console.log("ZyncIT: Showing notification:", title, message)
+  console.log("ZyncIT: Showing notification:", title, message, "type:", notificationType)
 
-  chrome.notifications.create({
+  // Build notification options based on type
+  let notificationOptions = {
     type: "basic",
     iconUrl: iconUrl,
     title: title,
     message: message,
     priority: 2,
+    requireInteraction: false,
+    silent: false,
+  }
+  
+  // Customize based on notification type
+  if (notificationType === "sms") {
+    notificationOptions.title = `📱 SMS: ${title}`
+    notificationOptions.contextMessage = "New SMS message"
+  } else if (notificationType === "whatsapp" || data.packageName === "com.whatsapp") {
+    notificationOptions.title = `💬 WhatsApp: ${title}`
+    notificationOptions.contextMessage = "WhatsApp message"
+  } else if (data.packageName === "com.instagram.android") {
+    notificationOptions.title = `📸 Instagram: ${title}`
+  } else if (data.packageName === "com.snapchat.android") {
+    notificationOptions.title = `👻 Snapchat: ${title}`
+  } else if (data.packageName === "com.facebook.orca") {
+    notificationOptions.title = `💬 Messenger: ${title}`
+  } else if (data.packageName === "org.telegram.messenger") {
+    notificationOptions.title = `✈️ Telegram: ${title}`
+  }
+  
+  // Add device info if available
+  if (data.deviceName) {
+    notificationOptions.contextMessage = `From: ${data.deviceName}`
+  }
+
+  chrome.notifications.create(notificationId, notificationOptions, (createdId) => {
+    if (chrome.runtime.lastError) {
+      console.error("ZyncIT: Error creating notification:", chrome.runtime.lastError)
+    } else {
+      console.log("ZyncIT: Notification created:", createdId)
+    }
   })
 }
 
 function showCallNotification(call) {
-  const title =
-    call.type === "missed"
-      ? "Missed call from " + (call.contactName || call.phoneNumber)
-      : "Call from " + (call.contactName || call.phoneNumber)
-  const message = "Duration: " + formatDuration(call.duration || 0)
+  const contactInfo = call.contactName || call.phoneNumber || "Unknown"
+  const callType = call.type || "incoming"
+  const deviceInfo = call.deviceName ? ` • ${call.deviceName}` : ""
+  
+  let title = ""
+  let icon = ""
+  
+  switch(callType) {
+    case "missed":
+      title = `📵 Missed call from ${contactInfo}`
+      break
+    case "incoming":
+      title = `📞 Incoming call from ${contactInfo}`
+      break
+    case "outgoing":
+      title = `📲 Outgoing call to ${contactInfo}`
+      break
+    case "rejected":
+      title = `❌ Rejected call from ${contactInfo}`
+      break
+    default:
+      title = `📞 Call: ${contactInfo}`
+  }
+  
+  const message = `Duration: ${formatDuration(call.duration || 0)}${deviceInfo}`
+  const notificationId = `zyncit_call_${call.id || Date.now()}`
 
-  chrome.notifications.create({
+  chrome.notifications.create(notificationId, {
     type: "basic",
-    iconUrl: "assets/icon128.png",
+    iconUrl: chrome.runtime.getURL("assets/icon128.png"),
     title: title,
     message: message,
     priority: 2,
+    requireInteraction: callType === "missed", // Keep missed calls until user clicks
+  }, (createdId) => {
+    if (chrome.runtime.lastError) {
+      console.error("ZyncIT: Error creating call notification:", chrome.runtime.lastError)
+    } else {
+      console.log("ZyncIT: Call notification created:", createdId)
+    }
   })
 }
 
@@ -297,9 +487,34 @@ function formatDuration(seconds) {
   return mins + ":" + secs.toString().padStart(2, "0")
 }
 
-// Handle notification clicks
-chrome.notifications.onClicked.addListener((notificationId) => {
-  chrome.action.openPopup()
+// Handle notification clicks - open extension or create new window
+chrome.notifications.onClicked.addListener(async (notificationId) => {
+  try {
+    // Try to open the popup (only works if there's an active browser window)
+    await chrome.action.openPopup()
+  } catch (error) {
+    console.log("ZyncIT: Could not open popup, trying to create/focus window")
+    try {
+      // Find existing Chrome windows
+      const windows = await chrome.windows.getAll({ windowTypes: ["normal"] })
+      if (windows.length > 0) {
+        // Focus the first window
+        await chrome.windows.update(windows[0].id, { focused: true })
+      } else {
+        // Create a new window
+        await chrome.windows.create({ 
+          url: "chrome://extensions",
+          type: "normal",
+          focused: true
+        })
+      }
+    } catch (e) {
+      console.error("ZyncIT: Error handling notification click:", e)
+    }
+  }
+  
+  // Clear the notification
+  chrome.notifications.clear(notificationId)
 })
 
 // Keep service worker alive

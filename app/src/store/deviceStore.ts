@@ -198,8 +198,14 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       // Save credentials to native for background Firebase access
       try {
         await NativeCredentialsService.saveCredentials(user.uid, deviceId);
+
+        // Also save the friendly device name for background notifications
+        const friendlyName = savedNickname || deviceName || 'Android';
+        await NativeCredentialsService.saveDeviceName(friendlyName);
+
         console.log(
-          '[DeviceStore] Native credentials saved for background operation',
+          '[DeviceStore] Native credentials saved for background operation, deviceName:',
+          friendlyName,
         );
       } catch (credError) {
         console.warn(
