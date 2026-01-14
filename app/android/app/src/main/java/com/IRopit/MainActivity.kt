@@ -1,4 +1,4 @@
-package com.zyncit
+﻿package com.IRopit
 
 import android.content.IntentFilter
 import android.os.Bundle
@@ -44,7 +44,7 @@ class MainActivity : ReactActivity() {
    * Returns the name of the main component registered from JavaScript. This is used to schedule
    * rendering of the component.
    */
-  override fun getMainComponentName(): String = "ZyncIT"
+  override fun getMainComponentName(): String = "IRopit"
 
   /**
    * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]
@@ -53,3 +53,4 @@ class MainActivity : ReactActivity() {
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
 }
+

@@ -194,7 +194,7 @@ const MenuScreen = ({ navigation }: any) => {
 
           <View style={styles.profileInfo}>
             <Text style={[styles.profileName, { color: colors.text }]}>
-              {user?.displayName || 'ZyncIT User'}
+              {user?.displayName || 'IRopit User'}
             </Text>
             <Text
               style={[styles.profileEmail, { color: colors.textSecondary }]}
@@ -286,7 +286,7 @@ const MenuScreen = ({ navigation }: any) => {
         ))}
 
         <Text style={[styles.version, { color: colors.textSecondary }]}>
-          ZyncIT v1.0.0
+          IRopit v1.0.0
         </Text>
       </ScrollView>
     </SafeAreaView>

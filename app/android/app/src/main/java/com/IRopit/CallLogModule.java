@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import android.Manifest;
 import android.content.ContentResolver;
@@ -158,3 +158,4 @@ public class CallLogModule extends ReactContextBaseJavaModule {
         // Required for NativeEventEmitter
     }
 }
+

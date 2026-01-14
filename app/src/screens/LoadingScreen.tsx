@@ -11,7 +11,7 @@ const LoadingScreen = () => {
         <View style={[styles.logoBox, { backgroundColor: colors.primary }]}>
           <Text style={styles.logoText}>Z</Text>
         </View>
-        <Text style={[styles.appName, { color: colors.text }]}>ZyncIT</Text>
+        <Text style={[styles.appName, { color: colors.text }]}>IRopit</Text>
       </View>
       <ActivityIndicator
         size="large"

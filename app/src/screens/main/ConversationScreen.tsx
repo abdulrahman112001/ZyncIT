@@ -437,7 +437,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
           title: title,
           text: smsText.trim(),
           appName: appName,
-          packageName: 'com.zyncit.sent',
+          packageName: 'com.IRopit.sent',
           type: 'sms',
           timestamp: Date.now(),
           read: true,

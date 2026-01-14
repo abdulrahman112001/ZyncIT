@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -73,3 +73,4 @@ public class UserCredentialsModule extends ReactContextBaseJavaModule {
         }
     }
 }
+

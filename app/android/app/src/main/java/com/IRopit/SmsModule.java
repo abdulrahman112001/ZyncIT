@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import android.content.ContentResolver;
 import android.content.Intent;

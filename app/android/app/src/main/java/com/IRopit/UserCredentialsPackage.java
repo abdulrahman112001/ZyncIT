@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;
@@ -22,3 +22,4 @@ public class UserCredentialsPackage implements ReactPackage {
         return Collections.emptyList();
     }
 }
+

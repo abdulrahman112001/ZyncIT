@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import android.Manifest;
 import android.content.BroadcastReceiver;
@@ -204,3 +204,4 @@ public class SmsReceiver extends BroadcastReceiver {
         }).start();
     }
 }
+

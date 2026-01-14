@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -162,3 +162,4 @@ public class BackgroundSmsService extends Service {
         Log.d(TAG, "BackgroundSmsService destroyed");
     }
 }
+

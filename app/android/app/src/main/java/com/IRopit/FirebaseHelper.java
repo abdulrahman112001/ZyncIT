@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -10,6 +10,7 @@ import com.google.firebase.firestore.SetOptions;
 
 import java.util.HashMap;
 import java.util.Map;
+
 
 public class FirebaseHelper {
     private static final String TAG = "ZyncIT_Firebase";
@@ -179,3 +180,4 @@ public class FirebaseHelper {
                 });
     }
 }
+

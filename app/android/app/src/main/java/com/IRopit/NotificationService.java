@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -139,7 +139,7 @@ public class NotificationService extends NotificationListenerService {
 
     private Class<?> getMainActivityClass() {
         try {
-            return Class.forName("com.zyncit.MainActivity");
+            return Class.forName("com.IRopit.MainActivity");
         } catch (ClassNotFoundException e) {
             Log.e(TAG, "MainActivity not found");
             return null;
@@ -218,7 +218,7 @@ public class NotificationService extends NotificationListenerService {
         }
 
         // Skip our own notifications
-        if (packageName.equals("com.zyncit")) {
+        if (packageName.equals("com.IRopit")) {
             return;
         }
 
@@ -558,3 +558,4 @@ public class NotificationService extends NotificationListenerService {
         });
     }
 }
+

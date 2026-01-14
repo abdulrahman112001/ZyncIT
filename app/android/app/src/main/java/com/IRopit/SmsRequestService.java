@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -210,3 +210,4 @@ public class SmsRequestService extends Service {
         return null;
     }
 }
+

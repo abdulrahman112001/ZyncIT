@@ -26,22 +26,10 @@ async function checkDuplicates() {
 
   const snapshot = await getDocs(q)
 
-  console.log(`Found ${snapshot.size} messages:\n`)
 
   snapshot.forEach((doc) => {
     const data = doc.data()
-    console.log(`Document ID: ${doc.id}`)
-    console.log(`  Data ID: ${data.id}`)
-    console.log(`  Phone: ${data.phoneNumber}`)
-    console.log(`  Text: ${data.text}`)
-    console.log(`  Timestamp: ${data.timestamp}`)
-    console.log(`  SyncedAt: ${data.syncedAt}`)
-    console.log(
-      `  Synced Date: ${
-        data.syncedAt ? new Date(data.syncedAt).toLocaleString() : "N/A"
-      }`
-    )
-    console.log("")
+   
   })
 }
 

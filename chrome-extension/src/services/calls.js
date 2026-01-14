@@ -52,6 +52,8 @@ export async function loadCalls() {
     },
     (error) => {
       console.error("Calls Error:", error)
+      // Show empty state on error (e.g., index building)
+      renderCalls([])
     }
   )
 

@@ -1,4 +1,4 @@
-package com.zyncit;
+package com.IRopit;
 
 import android.content.ComponentName;
 import android.content.Intent;
@@ -134,3 +134,4 @@ public class NotificationModule extends ReactContextBaseJavaModule {
         }
     }
 }
+

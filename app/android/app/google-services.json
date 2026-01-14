@@ -1,41 +1,33 @@
 {
   "project_info": {
-    "project_number": "772958487002",
-    "project_id": "zyncit-f1ced",
-    "storage_bucket": "zyncit-f1ced.firebasestorage.app"
+    "project_number": "723637478368",
+    "project_id": "iropit-64ea0",
+    "storage_bucket": "iropit-64ea0.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:772958487002:android:7ec8e7be089ea3baec40e3",
+        "mobilesdk_app_id": "1:723637478368:android:b4a6245dcef2b3a538c185",
         "android_client_info": {
-          "package_name": "com.zyncit"
+          "package_name": "com.IRopit"
         }
       },
       "oauth_client": [
         {
-          "client_id": "772958487002-jjopvu1h5ilij3rd4p4hdcfjp8m9jslr.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.zyncit",
-            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
-          }
-        },
-        {
-          "client_id": "772958487002-cs178nsvp3qh9bdl7qk7jmsvleesjcm7.apps.googleusercontent.com",
+          "client_id": "723637478368-dq4ad954ot30p4bes5iuk5ba8bud1ecl.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCMqENmothJXy6XrP7214d0c6ILsOdqtcs"
+          "current_key": "AIzaSyDX8YhUHDn8VJu1j7BkEwGzUZN2yxSlnMw"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "772958487002-cs178nsvp3qh9bdl7qk7jmsvleesjcm7.apps.googleusercontent.com",
+              "client_id": "723637478368-dq4ad954ot30p4bes5iuk5ba8bud1ecl.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

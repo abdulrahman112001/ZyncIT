@@ -72,7 +72,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             <View style={[styles.logoBox, { backgroundColor: colors.primary }]}>
               <Icon name="sync" size={50} color="#FFFFFF" />
             </View>
-            <Text style={[styles.appName, { color: colors.text }]}>ZyncIT</Text>
+            <Text style={[styles.appName, { color: colors.text }]}>IRopit</Text>
             <Text style={[styles.tagline, { color: colors.textSecondary }]}>
               Sync your devices seamlessly
             </Text>

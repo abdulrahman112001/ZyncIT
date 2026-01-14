@@ -62,7 +62,7 @@
       <!-- NotificationListenerService -->
       <service
         android:name=".NotificationService"
-        android:label="ZyncIT Notifications"
+        android:label="IRopit Notifications"
         android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
         android:foregroundServiceType="dataSync"
         android:exported="false">

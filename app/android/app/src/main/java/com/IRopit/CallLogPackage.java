@@ -1,18 +1,19 @@
-package com.zyncit;
+package com.IRopit;
 
 import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class NotificationPackage implements ReactPackage {
+public class CallLogPackage implements ReactPackage {
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         List<NativeModule> modules = new ArrayList<>();
-        modules.add(new NotificationModule(reactContext));
+        modules.add(new CallLogModule(reactContext));
         return modules;
     }
 
@@ -21,3 +22,4 @@ public class NotificationPackage implements ReactPackage {
         return Collections.emptyList();
     }
 }
+

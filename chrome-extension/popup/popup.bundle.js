@@ -22422,12 +22422,13 @@ ${this.customData.serverResponse}`;
   var init_firebase_config = __esm({
     "firebase-config.js"() {
       firebaseConfig = {
-        apiKey: "AIzaSyCMqENmothJXy6XrP7214d0c6ILsOdqtcs",
-        authDomain: "zyncit-f1ced.firebaseapp.com",
-        projectId: "zyncit-f1ced",
-        storageBucket: "zyncit-f1ced.firebasestorage.app",
-        messagingSenderId: "772958487002",
-        appId: "1:772958487002:web:c2dcb8043d3bfed2ec40e3"
+        apiKey: "AIzaSyA_Me3_sF5j0iXj2WYEshTw6QoTOim_Ppg",
+        authDomain: "iropit-64ea0.firebaseapp.com",
+        projectId: "iropit-64ea0",
+        storageBucket: "iropit-64ea0.firebasestorage.app",
+        messagingSenderId: "723637478368",
+        appId: "1:723637478368:web:277907c0fe3aa0db38c185",
+        measurementId: "G-CFH48HR9R2"
       };
       firebase_config_default = firebaseConfig;
     }
@@ -24392,6 +24393,7 @@ ${this.customData.serverResponse}`;
       },
       (error) => {
         console.error("Calls Error:", error);
+        renderCalls([]);
       }
     );
     addUnsubscriber(unsub);
