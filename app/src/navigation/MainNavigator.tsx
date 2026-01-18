@@ -70,51 +70,49 @@ const MainNavigator = () => {
   );
 
   return (
-    <>
+    <View style={{ flex: 1, direction: isRTL ? 'rtl' : 'ltr' }}>
       <ServiceStatusBanner />
-      <View style={{ flex: 1, direction: isRTL ? 'rtl' : 'ltr' }}>
-        <Tab.Navigator
-          key={language} // Force re-mount when language changes
-          screenOptions={{
-            tabBarActiveTintColor: colors.primary,
-            tabBarInactiveTintColor: colors.textSecondary,
-            tabBarStyle: {
-              backgroundColor: colors.surface,
-              borderTopColor: colors.border,
-              borderTopWidth: 0.5,
-              paddingTop: 8,
-              paddingBottom: 25,
-              height: 85,
-              flexDirection: isRTL ? 'row-reverse' : 'row',
-            },
-            tabBarLabelStyle: {
-              fontSize: 10,
-              fontWeight: '500',
-              marginTop: 2,
-            },
-            headerShown: false,
-          }}
-        >
-          {orderedTabs.map(tab => (
-            <Tab.Screen
-              key={tab.name}
-              name={tab.name}
-              component={tab.component}
-              options={{
-                title: isRTL ? tab.titleAr : tab.titleEn,
-                tabBarIcon: ({ color, focused }) => (
-                  <Icon
-                    name={focused ? tab.icon : `${tab.icon}-outline`}
-                    size={24}
-                    color={color}
-                  />
-                ),
-              }}
-            />
-          ))}
-        </Tab.Navigator>
-      </View>
-    </>
+      <Tab.Navigator
+        key={language} // Force re-mount when language changes
+        screenOptions={{
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textSecondary,
+          tabBarStyle: {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+            borderTopWidth: 0.5,
+            paddingTop: 8,
+            paddingBottom: 25,
+            height: 85,
+            flexDirection: isRTL ? 'row-reverse' : 'row',
+          },
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: '500',
+            marginTop: 2,
+          },
+          headerShown: false,
+        }}
+      >
+        {orderedTabs.map(tab => (
+          <Tab.Screen
+            key={tab.name}
+            name={tab.name}
+            component={tab.component}
+            options={{
+              title: isRTL ? tab.titleAr : tab.titleEn,
+              tabBarIcon: ({ color, focused }) => (
+                <Icon
+                  name={focused ? tab.icon : `${tab.icon}-outline`}
+                  size={24}
+                  color={color}
+                />
+              ),
+            }}
+          />
+        ))}
+      </Tab.Navigator>
+    </View>
   );
 };
 

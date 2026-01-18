@@ -13,7 +13,7 @@ import { initializeFirebase } from './services/firebase';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LIGHT_COLORS, DARK_COLORS } from './constants/theme';
 import { useNativeEvents } from './hooks/useNativeEvents';
-import ServiceStatusBanner from './components/ServiceStatusBanner';
+// ServiceStatusBanner is now only in MainNavigator
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -70,7 +70,6 @@ const AppContent = () => {
         backgroundColor={darkMode ? DARK_COLORS.surface : LIGHT_COLORS.primary}
       />
       <NavigationContainer theme={navigationTheme}>
-        <ServiceStatusBanner />
         <RootNavigator />
       </NavigationContainer>
     </>

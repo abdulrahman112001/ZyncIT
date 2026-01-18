@@ -36,7 +36,7 @@ public class BackgroundSmsService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     "sync_channel",
-                    "ZyncIT Sync",
+                    "IRopit Sync",
                     NotificationManager.IMPORTANCE_LOW
             );
             NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -144,7 +144,7 @@ public class BackgroundSmsService extends Service {
 
     private NotificationCompat.Builder createNotification() {
         return new NotificationCompat.Builder(this, "sync_channel")
-                .setContentTitle("ZyncIT")
+                .setContentTitle("IRopit")
                 .setContentText("Syncing messages...")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setOngoing(true);

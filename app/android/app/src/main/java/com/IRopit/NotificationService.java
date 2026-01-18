@@ -49,9 +49,15 @@ public class NotificationService extends NotificationListenerService {
     // Track processed notifications to avoid duplicates
     private Set<String> processedKeys = new HashSet<>();
     private Map<String, Long> lastNotificationTime = new HashMap<>();
+    
+    // Track notification content to avoid duplicate content (for apps like Gmail)
+    private Map<String, String> lastNotificationContent = new ConcurrentHashMap<>();
 
     // Minimum time between same-key notifications (ms)
     private static final long DUPLICATE_THRESHOLD_MS = 2000;
+    
+    // Longer threshold for apps that repeatedly send unread notifications (Gmail, etc.)
+    private static final long CONTENT_DUPLICATE_THRESHOLD_MS = 300000; // 5 minutes
 
     // Track service start time to ignore old notifications
     private long serviceStartTime;
@@ -110,7 +116,7 @@ public class NotificationService extends NotificationListenerService {
             );
 
             Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("ZyncIT")
+                .setContentTitle("IRopit")
                 .setContentText("Syncing notifications...")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentIntent(pendingIntent)
@@ -136,10 +142,10 @@ public class NotificationService extends NotificationListenerService {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "ZyncIT Sync Service",
+                "IRopit Sync Service",
                 NotificationManager.IMPORTANCE_LOW
             );
-            channel.setDescription("Keeps ZyncIT running to sync your notifications");
+            channel.setDescription("Keeps IRopit running to sync your notifications");
             channel.setShowBadge(false);
             
             NotificationManager manager = getSystemService(NotificationManager.class);
@@ -243,6 +249,15 @@ public class NotificationService extends NotificationListenerService {
             return;
         }
 
+        // For Google apps and repetitive notification apps, apply stricter time filter
+        // Only allow notifications from the last 10 seconds to ensure they're truly new
+        if (isRepetitiveNotificationApp(packageName)) {
+            if (now - postTime > 10000) {
+                Log.d(TAG, "Skipping old notification from repetitive app " + packageName + " (older than 10s)");
+                return;
+            }
+        }
+
         // Skip if notification is older than 30 seconds
         if (now - postTime > 30000) {
             if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
@@ -311,6 +326,22 @@ public class NotificationService extends NotificationListenerService {
             }
             Log.d(TAG, "Skipping summary notification: " + text);
             return;
+        }
+
+        // For apps that repeatedly notify about unread messages (Gmail, Google, etc.)
+        // Check if we've already processed the same content recently
+        if (isRepetitiveNotificationApp(packageName)) {
+            String contentKey = packageName + "_" + title + "_" + text;
+            String lastContentTime = lastNotificationContent.get(contentKey);
+            if (lastContentTime != null) {
+                long lastTime2 = Long.parseLong(lastContentTime);
+                if ((now - lastTime2) < CONTENT_DUPLICATE_THRESHOLD_MS) {
+                    Log.d(TAG, "Skipping duplicate content from " + packageName + ": " + title);
+                    return;
+                }
+            }
+            // Store this content with timestamp
+            lastNotificationContent.put(contentKey, String.valueOf(now));
         }
 
         String type = getNotificationType(packageName, title, text);
@@ -409,6 +440,21 @@ public class NotificationService extends NotificationListenerService {
                lower.matches(".*\\d+\\s*رسالة.*");
     }
 
+    /**
+     * Check if this app tends to repeatedly send the same notification
+     * (like Gmail showing unread count, or Google notifications)
+     */
+    private boolean isRepetitiveNotificationApp(String packageName) {
+        if (packageName == null) return false;
+        
+        return packageName.equals("com.google.android.gm") ||           // Gmail
+               packageName.equals("com.google.android.apps.inbox") ||    // Inbox
+               packageName.equals("com.google.android.apps.messaging") || // Google Messages
+               packageName.contains("com.google") ||                     // Any Google app
+               packageName.equals("com.microsoft.office.outlook") ||     // Outlook
+               packageName.equals("com.yahoo.mobile.client.android.mail"); // Yahoo Mail
+    }
+
     @Override
     public void onNotificationRemoved(StatusBarNotification sbn) {
         if (sbn == null) return;
@@ -453,25 +499,37 @@ public class NotificationService extends NotificationListenerService {
     }
 
     private boolean isMissedCallNotification(String packageName, String title, String text) {
-        if (!isPhonePackage(packageName)) return false;
-
         String combined = (title + " " + text).toLowerCase();
 
-        // English patterns
-        if (combined.contains("missed call") || combined.contains("missed calls")) {
-            return true;
+        // Check for WhatsApp missed calls
+        if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
+            if (combined.contains("missed") && (combined.contains("call") || combined.contains("voice"))) {
+                return true;
+            }
+            // Arabic patterns for WhatsApp
+            if (combined.contains("فائت") || combined.contains("لم يرد")) {
+                return true;
+            }
         }
 
-        // Arabic patterns
-        if (combined.contains("مكالمة فائتة") || combined.contains("مكالمات فائتة")) {
-            return true;
-        }
+        // Check for phone app missed calls
+        if (isPhonePackage(packageName)) {
+            // English patterns
+            if (combined.contains("missed call") || combined.contains("missed calls")) {
+                return true;
+            }
 
-        // Other language patterns
-        if (combined.contains("appel manqué") ||  // French
-            combined.contains("llamada perdida") || // Spanish
-            combined.contains("verpasster anruf")) { // German
-            return true;
+            // Arabic patterns
+            if (combined.contains("مكالمة فائتة") || combined.contains("مكالمات فائتة")) {
+                return true;
+            }
+
+            // Other language patterns
+            if (combined.contains("appel manqué") ||  // French
+                combined.contains("llamada perdida") || // Spanish
+                combined.contains("verpasster anruf")) { // German
+                return true;
+            }
         }
 
         return false;
@@ -493,6 +551,10 @@ public class NotificationService extends NotificationListenerService {
 
         if (packageName.equals("com.whatsapp") ||
             packageName.equals("com.whatsapp.w4b")) {
+            // Check if it's a WhatsApp call
+            if (isMissedCallNotification(packageName, title, text)) {
+                return "whatsapp_call";
+            }
             return "whatsapp";
         }
 

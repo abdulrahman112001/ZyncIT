@@ -272,8 +272,7 @@ const CallsScreen = () => {
     clearAllCalls,
     deleteCallsByPhoneNumbers,
   } = useCallStore();
-  const { requestPermissions, startCallListener, loadCallLog } =
-    useNativeEvents();
+  const { requestPermissions } = useNativeEvents();
   const { isRTL, isDarkMode } = useTheme();
 
   // Dynamic colors based on theme
@@ -287,58 +286,33 @@ const CallsScreen = () => {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
 
-  // Load calls from device
+  // Load calls from device - DEPRECATED: Calls now come from NotificationListener
+  // This function is kept for backwards compatibility but won't work without READ_CALL_LOG permission
   const loadFromDevice = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        console.log('[CallsScreen] Loading calls from device...');
-        const deviceCalls = await loadCallLog();
-        console.log(
-          '[CallsScreen] Got calls from device:',
-          deviceCalls?.length || 0,
-        );
-
-        if (deviceCalls && deviceCalls.length > 0) {
-          // Add each call to the store
-          deviceCalls.forEach((call: any) => {
-            const formattedCall: CallLog = {
-              id: String(call.id || Date.now()),
-              userId: '',
-              deviceId: 'android',
-              phoneNumber: call.phoneNumber || call.number || '',
-              contactName: call.contactName || call.name,
-              type: call.type || 'incoming',
-              duration: Number(call.duration) || 0,
-              timestamp: Number(call.timestamp || call.date) || Date.now(),
-              syncedAt: Date.now(),
-            };
-            addCall(formattedCall);
-          });
-          console.log('[CallsScreen] Calls added to store');
-
-          // Sync to Firebase
-          await syncCalls(deviceCalls);
-        }
-      } catch (error) {
-        console.error('[CallsScreen] Error loading calls:', error);
-      }
-    }
-  }, [loadCallLog, addCall, syncCalls]);
+    // Call log access removed for Google Play compliance
+    // Calls are now captured via NotificationListenerService
+    console.log(
+      '[CallsScreen] loadFromDevice skipped - using NotificationListener',
+    );
+    // Just load from Firebase
+    loadCalls();
+  }, [loadCalls]);
 
   // Start listening for new calls when screen mounts
+  // Note: Calls are now captured via NotificationListenerService, not directly from call log
   const initializeCallListener = useCallback(async () => {
+    // Request contacts permission only (for displaying contact names)
     if (Platform.OS === 'android') {
-      const hasPermissions = await requestPermissions();
-      if (hasPermissions) {
-        await startCallListener();
-        console.log('[CallsScreen] Call listener started');
-        // Don't auto-sync from device - only listen for new calls
-        // This prevents deleted calls from coming back
-      }
+      await requestPermissions();
+      // startCallListener is optional now since we use NotificationListener
+      // await startCallListener();
+      console.log(
+        '[CallsScreen] Initialized - calls come from NotificationListener',
+      );
     }
     // Load existing calls from Firebase
     loadCalls();
-  }, [requestPermissions, startCallListener, loadCalls]);
+  }, [requestPermissions, loadCalls]);
 
   useEffect(() => {
     initializeCallListener();

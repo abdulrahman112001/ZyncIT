@@ -30,26 +30,20 @@ class SmsService {
     }
   }
 
+  // Permissions removed for Google Play compliance
+  // SMS is now captured via NotificationListenerService
   async requestPermissions(): Promise<boolean> {
     if (Platform.OS !== 'android') return false;
 
     try {
+      // Only request contacts - SMS permissions removed for Google Play
       const granted = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.READ_SMS,
-        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-        PermissionsAndroid.PERMISSIONS.SEND_SMS,
         PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
-        PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
-        PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
       ]);
 
       return (
-        granted['android.permission.READ_SMS'] ===
-          PermissionsAndroid.RESULTS.GRANTED &&
-        granted['android.permission.RECEIVE_SMS'] ===
-          PermissionsAndroid.RESULTS.GRANTED &&
-        granted['android.permission.SEND_SMS'] ===
-          PermissionsAndroid.RESULTS.GRANTED
+        granted['android.permission.READ_CONTACTS'] ===
+        PermissionsAndroid.RESULTS.GRANTED
       );
     } catch (err) {
       console.error('Permission error:', err);
@@ -103,4 +97,3 @@ class SmsService {
 const smsService = new SmsService();
 export default smsService;
 export type { SmsMessage, ReceivedSms };
-

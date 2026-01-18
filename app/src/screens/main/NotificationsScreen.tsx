@@ -27,6 +27,7 @@ import notificationService, {
 } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
 import { useSMSStore } from '../../store/smsStore';
+import { useCallStore } from '../../store/callStore';
 import { useAuthStore } from '../../store/authStore';
 import { useDeviceStore } from '../../store/deviceStore';
 import firestore from '@react-native-firebase/firestore';
@@ -301,6 +302,7 @@ const NotificationsScreen = () => {
     loadMessages: loadSmsMessages,
     deleteMessagesBySender,
   } = useSMSStore();
+  const { addCallAndSync } = useCallStore();
   const { user } = useAuthStore();
   const { currentDevice } = useDeviceStore();
   const [isLoading, setIsLoading] = useState(false);
@@ -480,9 +482,14 @@ const NotificationsScreen = () => {
       smsGroupKeys: Object.keys(groups).filter(k => k.startsWith('sms_')),
     });
 
-    // ثانياً: تجميع الإشعارات العادية (Filter out calls)
+    // ثانياً: تجميع الإشعارات العادية (Filter out calls - they go to CallsScreen)
     validNotifications
-      .filter(n => n.type !== 'call' && n.type !== 'missed_call')
+      .filter(
+        n =>
+          n.type !== 'call' &&
+          n.type !== 'missed_call' &&
+          n.type !== 'whatsapp_call',
+      )
       .forEach(n => {
         const groupKey = `${n.title}_${n.appName}_${n.type}`;
 
@@ -571,7 +578,13 @@ const NotificationsScreen = () => {
   const saveToFirebase = useCallback(
     async (notification: AppNotification) => {
       if (!user) return;
-      const uniqueId = `${notification.key}_${notification.timestamp}`;
+      // Sanitize the key to remove invalid Firestore document ID characters
+      // Replace / | \ = newlines and other special chars with underscores
+      const sanitizedKey = notification.key
+        .replace(/[/|\\=\n\r\t]/g, '_')
+        .replace(/[^a-zA-Z0-9_.-]/g, '_')
+        .substring(0, 200); // Firestore doc IDs have max length
+      const uniqueId = `${sanitizedKey}_${notification.timestamp}`;
       try {
         await firestore()
           .collection('users')
@@ -690,6 +703,39 @@ const NotificationsScreen = () => {
           return;
         }
 
+        // تحويل إشعارات المكالمات إلى سجل المكالمات
+        if (
+          notification.type === 'missed_call' ||
+          notification.type === 'call' ||
+          notification.type === 'whatsapp_call'
+        ) {
+          console.log(
+            '[NotificationsScreen] Converting call notification to call log:',
+            notification.title,
+          );
+
+          // تحويل الإشعار إلى سجل مكالمة
+          const callLog = {
+            id: notification.id || `call_${notification.timestamp}`,
+            userId: user?.uid || '',
+            deviceId: currentDevice?.id || 'android',
+            phoneNumber: '', // سيتم استخراجه من النص
+            contactName: notification.title || '',
+            type: 'missed' as const,
+            duration: 0,
+            timestamp: notification.timestamp || Date.now(),
+            syncedAt: Date.now(),
+            source:
+              notification.type === 'whatsapp_call' ? 'whatsapp' : 'phone',
+          };
+
+          // حفظ في callStore
+          if (user?.uid) {
+            addCallAndSync(callLog, user.uid);
+          }
+          return; // لا تضيفها للإشعارات
+        }
+
         console.log(
           '[NotificationsScreen] Received notification:',
           notification.title,
@@ -702,7 +748,14 @@ const NotificationsScreen = () => {
       console.log('[NotificationsScreen] Cleaning up listener');
       unsubscribe();
     };
-  }, [hasPermission, addNotification, saveToFirebase]);
+  }, [
+    hasPermission,
+    addNotification,
+    saveToFirebase,
+    addCallAndSync,
+    user,
+    currentDevice,
+  ]);
 
   const handlePress = (group: GroupedNotification) => {
     // تعليم الإشعارات العادية كمقروءة

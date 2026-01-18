@@ -27,6 +27,53 @@ import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
 
 /**
+ * Mark all missed calls as viewed when entering calls tab
+ */
+export async function markAllCallsAsViewed() {
+  const user = state.currentUser;
+  if (!user) return;
+
+  const missedToMark = state.allCallsData.filter(
+    (call) => call.type === "missed" && !call.viewed,
+  );
+
+  if (missedToMark.length === 0) return;
+
+  console.log("📞 Marking", missedToMark.length, "calls as viewed");
+
+  // Update local state immediately
+  const updatedCalls = state.allCallsData.map((call) =>
+    call.type === "missed" && !call.viewed ? { ...call, viewed: true } : call,
+  );
+  state.setAllCallsData(updatedCalls);
+
+  // Re-render calls list to update UI
+  renderCalls(updatedCalls);
+
+  try {
+    const batch = writeBatch(db);
+    missedToMark.forEach((call) => {
+      if (call.deviceId) {
+        const callRef = doc(
+          db,
+          "users",
+          user.uid,
+          "devices",
+          call.deviceId,
+          "calls",
+          call.id,
+        );
+        batch.set(callRef, { viewed: true }, { merge: true });
+      }
+    });
+    await batch.commit();
+    console.log("✅ Marked all calls as viewed in Firebase");
+  } catch (error) {
+    console.error("Failed to mark calls as viewed:", error);
+  }
+}
+
+/**
  * Load calls from Firebase
  */
 export async function loadCalls() {
@@ -37,7 +84,7 @@ export async function loadCalls() {
   // First, get user's devices
   const devicesQuery = query(
     collection(db, "devices"),
-    where("userId", "==", user.uid)
+    where("userId", "==", user.uid),
   );
 
   const { getDocs } = await import("../config/firebase.js");
@@ -58,7 +105,7 @@ export async function loadCalls() {
     const q = query(
       collection(db, "users", user.uid, "devices", device.id, "calls"),
       orderBy("timestamp", "desc"),
-      limit(50)
+      limit(50),
     );
 
     const unsub = onSnapshot(
@@ -79,7 +126,7 @@ export async function loadCalls() {
       },
       (error) => {
         console.error("Calls Error for device", device.id, ":", error);
-      }
+      },
     );
 
     state.addUnsubscriber(unsub);
@@ -168,15 +215,15 @@ export function renderCalls(calls) {
 
   // Sort by last call timestamp
   const callGroups = Object.values(grouped).sort(
-    (a, b) => (b.lastCall.timestamp || 0) - (a.lastCall.timestamp || 0)
+    (a, b) => (b.lastCall.timestamp || 0) - (a.lastCall.timestamp || 0),
   );
 
   callsList.innerHTML = callGroups
     .map(
       (group) => `
     <div class="list-item call-group call-${group.lastCall.type}" data-phone="${
-        group.phoneNumber
-      }">
+      group.phoneNumber
+    }">
       <div class="list-item-avatar">
         ${getInitials(group.contactName || group.phoneNumber)}
       </div>
@@ -185,8 +232,8 @@ export function renderCalls(calls) {
           group.contactName || group.phoneNumber
         }</div>
         <div class="list-item-subtitle">${group.calls.length} calls • ${
-        group.lastCall.type
-      }</div>
+          group.lastCall.type
+        }</div>
         ${
           group.lastCall.deviceName
             ? `<div class="device-tag">${group.lastCall.deviceName}</div>`
@@ -195,7 +242,7 @@ export function renderCalls(calls) {
       </div>
       <div class="list-item-meta">
         <span class="list-item-time">${formatTime(
-          group.lastCall.timestamp
+          group.lastCall.timestamp,
         )}</span>
         ${
           group.unviewedMissedCount > 0
@@ -204,7 +251,7 @@ export function renderCalls(calls) {
         }
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 
@@ -235,7 +282,7 @@ async function showCallHistory(phoneNumber) {
 
   // Mark missed calls for this number as viewed
   const missedToMark = calls.filter(
-    (call) => call.type === "missed" && !call.viewed
+    (call) => call.type === "missed" && !call.viewed,
   );
 
   if (missedToMark.length > 0) {
@@ -243,7 +290,7 @@ async function showCallHistory(phoneNumber) {
     const updatedCalls = state.allCallsData.map((call) =>
       call.phoneNumber === phoneNumber && call.type === "missed"
         ? { ...call, viewed: true }
-        : call
+        : call,
     );
     state.setAllCallsData(updatedCalls);
     updateTabBadges();
@@ -262,7 +309,7 @@ async function showCallHistory(phoneNumber) {
               "devices",
               call.deviceId,
               "calls",
-              call.id
+              call.id,
             );
             batch.set(callRef, { viewed: true }, { merge: true });
           }
@@ -307,7 +354,7 @@ async function showCallHistory(phoneNumber) {
             </div>
             <div class="call-time">${formatTime(call.timestamp)}</div>
           </div>
-        `
+        `,
           )
           .join("")}
       </div>

@@ -58,19 +58,14 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
     }
   }, [user, currentDevice, listenForSMSRequests]);
 
-  // طلب الأذونات المطلوبة
+  // طلب الأذونات المطلوبة (فقط جهات الاتصال - الباقي يأتي من NotificationListener)
   const requestPermissions = useCallback(async () => {
     if (Platform.OS !== 'android') return false;
 
     try {
-      const permissions = [
-        PermissionsAndroid.PERMISSIONS.READ_SMS,
-        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-        PermissionsAndroid.PERMISSIONS.SEND_SMS,
-        PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
-        PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
-        PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
-      ];
+      // Only request contacts permission - SMS and Call permissions removed for Google Play compliance
+      // All messages and calls are now captured via NotificationListenerService
+      const permissions = [PermissionsAndroid.PERMISSIONS.READ_CONTACTS];
 
       const results = await PermissionsAndroid.requestMultiple(permissions);
 
@@ -78,14 +73,7 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
         result => result === PermissionsAndroid.RESULTS.GRANTED,
       );
 
-      if (!allGranted) {
-        Alert.alert(
-          'Permissions Required',
-          'ZyncIT needs SMS and Call permissions to sync your messages and calls.',
-          [{ text: 'OK' }],
-        );
-      }
-
+      // Don't show alert - contacts is optional
       return allGranted;
     } catch (error) {
       console.error('Error requesting permissions:', error);

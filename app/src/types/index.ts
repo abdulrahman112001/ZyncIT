@@ -45,6 +45,7 @@ export interface CallLog {
   duration: number;
   timestamp: number;
   syncedAt: number;
+  source?: 'phone' | 'whatsapp' | 'telegram'; // مصدر المكالمة
 }
 
 export interface ChatMessage {

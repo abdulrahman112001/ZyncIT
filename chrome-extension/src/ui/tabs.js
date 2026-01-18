@@ -2,7 +2,8 @@
  * Tab Management Module
  */
 
-import { tabs, tabContents } from "./dom.js"
+import { tabs, tabContents } from "./dom.js";
+import { markAllCallsAsViewed } from "../services/calls.js";
 
 /**
  * Initialize tab switching functionality
@@ -10,16 +11,21 @@ import { tabs, tabContents } from "./dom.js"
 export function initTabs() {
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
-      const tabName = tab.dataset.tab
+      const tabName = tab.dataset.tab;
 
-      tabs.forEach((t) => t.classList.remove("active"))
-      tab.classList.add("active")
+      tabs.forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
 
       tabContents.forEach((content) => {
-        content.classList.remove("active")
-      })
+        content.classList.remove("active");
+      });
 
-      document.getElementById(`${tabName}Tab`)?.classList.add("active")
-    })
-  })
+      document.getElementById(`${tabName}Tab`)?.classList.add("active");
+
+      // Mark all calls as viewed when entering calls tab
+      if (tabName === "calls") {
+        markAllCallsAsViewed();
+      }
+    });
+  });
 }

@@ -23066,6 +23066,263 @@ ${this.customData.serverResponse}`;
 
   // src/ui/tabs.js
   init_dom();
+
+  // src/services/calls.js
+  init_firebase();
+  init_dom();
+  init_helpers();
+  init_state();
+  init_badges();
+  async function markAllCallsAsViewed() {
+    const user = currentUser;
+    if (!user) return;
+    const missedToMark = allCallsData.filter(
+      (call) => call.type === "missed" && !call.viewed
+    );
+    if (missedToMark.length === 0) return;
+    console.log("\u{1F4DE} Marking", missedToMark.length, "calls as viewed");
+    const updatedCalls = allCallsData.map(
+      (call) => call.type === "missed" && !call.viewed ? { ...call, viewed: true } : call
+    );
+    setAllCallsData(updatedCalls);
+    renderCalls(updatedCalls);
+    try {
+      const batch = writeBatch(db);
+      missedToMark.forEach((call) => {
+        if (call.deviceId) {
+          const callRef = doc(
+            db,
+            "users",
+            user.uid,
+            "devices",
+            call.deviceId,
+            "calls",
+            call.id
+          );
+          batch.set(callRef, { viewed: true }, { merge: true });
+        }
+      });
+      await batch.commit();
+      console.log("\u2705 Marked all calls as viewed in Firebase");
+    } catch (error) {
+      console.error("Failed to mark calls as viewed:", error);
+    }
+  }
+  async function loadCalls() {
+    const user = currentUser;
+    if (!user) return;
+    console.log("Loading calls for user:", user.uid);
+    const devicesQuery = query(
+      collection(db, "devices"),
+      where("userId", "==", user.uid)
+    );
+    const { getDocs: getDocs2 } = await Promise.resolve().then(() => (init_firebase(), firebase_exports));
+    const devicesSnapshot = await getDocs2(devicesQuery);
+    const devicesList2 = [];
+    devicesSnapshot.forEach((doc2) => {
+      const data = doc2.data();
+      devicesList2.push({
+        id: data.id,
+        name: getFriendlyDeviceName(data)
+      });
+    });
+    console.log("\u{1F4F1} Loading calls from devices:", devicesList2.length);
+    devicesList2.forEach((device) => {
+      const q2 = query(
+        collection(db, "users", user.uid, "devices", device.id, "calls"),
+        orderBy("timestamp", "desc"),
+        limit(50)
+      );
+      const unsub = onSnapshot(
+        q2,
+        (snapshot) => {
+          console.log("\u{1F4DE} Calls found for device", device.id, ":", snapshot.size);
+          const calls = [];
+          snapshot.forEach((docSnap) => {
+            calls.push({
+              id: docSnap.id,
+              deviceId: device.id,
+              deviceName: device.name,
+              docRef: docSnap.ref,
+              ...docSnap.data()
+            });
+          });
+          updateCallsList(device.id, calls);
+        },
+        (error) => {
+          console.error("Calls Error for device", device.id, ":", error);
+        }
+      );
+      addUnsubscriber(unsub);
+    });
+  }
+  function updateCallsList(deviceId, newCalls) {
+    setCallsByDevice(deviceId, newCalls);
+    let merged = [];
+    Object.values(allCallsByDevice).forEach((calls) => {
+      merged = merged.concat(calls);
+    });
+    const seen = /* @__PURE__ */ new Set();
+    merged = merged.filter((c) => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+    merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    renderCalls(merged.slice(0, 100));
+  }
+  function renderCalls(calls) {
+    const normalizedCalls = calls.map((call) => ({
+      ...call,
+      viewed: call.viewed ?? false
+    }));
+    setAllCallsData(normalizedCalls);
+    if (normalizedCalls.length === 0) {
+      callsList.innerHTML = `
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+        </svg>
+        <p>No calls yet</p>
+        <span>Call history from your phone will appear here</span>
+      </div>
+    `;
+      updateTabBadges();
+      return;
+    }
+    const grouped = {};
+    normalizedCalls.forEach((call) => {
+      const key = call.phoneNumber || "Unknown";
+      if (!grouped[key]) {
+        grouped[key] = {
+          phoneNumber: key,
+          contactName: call.contactName || "",
+          calls: [],
+          lastCall: call,
+          missedCount: 0,
+          unviewedMissedCount: 0
+        };
+      }
+      grouped[key].calls.push(call);
+      if (call.type === "missed") {
+        grouped[key].missedCount++;
+        if (!call.viewed) grouped[key].unviewedMissedCount++;
+      }
+      if (call.timestamp > (grouped[key].lastCall.timestamp || 0)) {
+        grouped[key].lastCall = call;
+      }
+    });
+    const callGroups = Object.values(grouped).sort(
+      (a, b) => (b.lastCall.timestamp || 0) - (a.lastCall.timestamp || 0)
+    );
+    callsList.innerHTML = callGroups.map(
+      (group) => `
+    <div class="list-item call-group call-${group.lastCall.type}" data-phone="${group.phoneNumber}">
+      <div class="list-item-avatar">
+        ${getInitials(group.contactName || group.phoneNumber)}
+      </div>
+      <div class="list-item-content">
+        <div class="list-item-title">${group.contactName || group.phoneNumber}</div>
+        <div class="list-item-subtitle">${group.calls.length} calls \u2022 ${group.lastCall.type}</div>
+        ${group.lastCall.deviceName ? `<div class="device-tag">${group.lastCall.deviceName}</div>` : ""}
+      </div>
+      <div class="list-item-meta">
+        <span class="list-item-time">${formatTime(
+        group.lastCall.timestamp
+      )}</span>
+        ${group.unviewedMissedCount > 0 ? `<div class="list-item-badge missed">${group.unviewedMissedCount}</div>` : ""}
+      </div>
+    </div>
+  `
+    ).join("");
+    document.querySelectorAll(".call-group").forEach((el) => {
+      el.addEventListener("click", () => {
+        const phoneNumber = el.dataset.phone;
+        showCallHistory(phoneNumber);
+      });
+    });
+    updateTabBadges();
+  }
+  async function showCallHistory(phoneNumber) {
+    const calls = allCallsData.filter((call) => call.phoneNumber === phoneNumber).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    if (calls.length === 0) return;
+    const contactName = calls[0].contactName || phoneNumber;
+    setCurrentCallConversation(phoneNumber);
+    const missedToMark = calls.filter(
+      (call) => call.type === "missed" && !call.viewed
+    );
+    if (missedToMark.length > 0) {
+      const updatedCalls = allCallsData.map(
+        (call) => call.phoneNumber === phoneNumber && call.type === "missed" ? { ...call, viewed: true } : call
+      );
+      setAllCallsData(updatedCalls);
+      updateTabBadges();
+      try {
+        const user = currentUser;
+        if (user) {
+          const batch = writeBatch(db);
+          missedToMark.forEach((call) => {
+            if (call.deviceId) {
+              const callRef = doc(
+                db,
+                "users",
+                user.uid,
+                "devices",
+                call.deviceId,
+                "calls",
+                call.id
+              );
+              batch.set(callRef, { viewed: true }, { merge: true });
+            }
+          });
+          await batch.commit();
+          console.log("\u2705 Marked", missedToMark.length, "calls as viewed");
+        }
+      } catch (error) {
+        console.error("Failed to mark calls as viewed:", error);
+      }
+    }
+    callsList.innerHTML = `
+    <div class="conversation-view">
+      <div class="conversation-header">
+        <button class="back-btn" id="backToCalls">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <div class="conversation-avatar">
+          ${getInitials(contactName)}
+        </div>
+        <div class="conversation-info">
+          <div class="conversation-name">${contactName}</div>
+          <div class="conversation-phone">${phoneNumber !== contactName ? phoneNumber : ""}</div>
+        </div>
+      </div>
+      <div class="conversation-messages call-history">
+        ${calls.map(
+      (call) => `
+          <div class="call-history-item call-${call.type}">
+            <div class="call-icon">
+              ${getCallIcon(call.type)}
+            </div>
+            <div class="call-info">
+              <div class="call-type">${call.type}</div>
+              <div class="call-duration">${formatDuration(call.duration)}</div>
+            </div>
+            <div class="call-time">${formatTime(call.timestamp)}</div>
+          </div>
+        `
+    ).join("")}
+      </div>
+    </div>
+  `;
+    document.getElementById("backToCalls")?.addEventListener("click", () => {
+      setCurrentCallConversation(null);
+      renderCalls(allCallsData);
+    });
+  }
+
+  // src/ui/tabs.js
   function initTabs() {
     tabs.forEach((tab) => {
       tab.addEventListener("click", () => {
@@ -23076,6 +23333,9 @@ ${this.customData.serverResponse}`;
           content.classList.remove("active");
         });
         document.getElementById(`${tabName}Tab`)?.classList.add("active");
+        if (tabName === "calls") {
+          markAllCallsAsViewed();
+        }
       });
     });
   }
@@ -24410,226 +24670,6 @@ ${this.customData.serverResponse}`;
       showToast("Failed to update device name", "error");
     }
     hideLoading();
-  }
-
-  // src/services/calls.js
-  init_firebase();
-  init_dom();
-  init_helpers();
-  init_state();
-  init_badges();
-  async function loadCalls() {
-    const user = currentUser;
-    if (!user) return;
-    console.log("Loading calls for user:", user.uid);
-    const devicesQuery = query(
-      collection(db, "devices"),
-      where("userId", "==", user.uid)
-    );
-    const { getDocs: getDocs2 } = await Promise.resolve().then(() => (init_firebase(), firebase_exports));
-    const devicesSnapshot = await getDocs2(devicesQuery);
-    const devicesList2 = [];
-    devicesSnapshot.forEach((doc2) => {
-      const data = doc2.data();
-      devicesList2.push({
-        id: data.id,
-        name: getFriendlyDeviceName(data)
-      });
-    });
-    console.log("\u{1F4F1} Loading calls from devices:", devicesList2.length);
-    devicesList2.forEach((device) => {
-      const q2 = query(
-        collection(db, "users", user.uid, "devices", device.id, "calls"),
-        orderBy("timestamp", "desc"),
-        limit(50)
-      );
-      const unsub = onSnapshot(
-        q2,
-        (snapshot) => {
-          console.log("\u{1F4DE} Calls found for device", device.id, ":", snapshot.size);
-          const calls = [];
-          snapshot.forEach((docSnap) => {
-            calls.push({
-              id: docSnap.id,
-              deviceId: device.id,
-              deviceName: device.name,
-              docRef: docSnap.ref,
-              ...docSnap.data()
-            });
-          });
-          updateCallsList(device.id, calls);
-        },
-        (error) => {
-          console.error("Calls Error for device", device.id, ":", error);
-        }
-      );
-      addUnsubscriber(unsub);
-    });
-  }
-  function updateCallsList(deviceId, newCalls) {
-    setCallsByDevice(deviceId, newCalls);
-    let merged = [];
-    Object.values(allCallsByDevice).forEach((calls) => {
-      merged = merged.concat(calls);
-    });
-    const seen = /* @__PURE__ */ new Set();
-    merged = merged.filter((c) => {
-      if (seen.has(c.id)) return false;
-      seen.add(c.id);
-      return true;
-    });
-    merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    renderCalls(merged.slice(0, 100));
-  }
-  function renderCalls(calls) {
-    const normalizedCalls = calls.map((call) => ({
-      ...call,
-      viewed: call.viewed ?? false
-    }));
-    setAllCallsData(normalizedCalls);
-    if (normalizedCalls.length === 0) {
-      callsList.innerHTML = `
-      <div class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
-        </svg>
-        <p>No calls yet</p>
-        <span>Call history from your phone will appear here</span>
-      </div>
-    `;
-      updateTabBadges();
-      return;
-    }
-    const grouped = {};
-    normalizedCalls.forEach((call) => {
-      const key = call.phoneNumber || "Unknown";
-      if (!grouped[key]) {
-        grouped[key] = {
-          phoneNumber: key,
-          contactName: call.contactName || "",
-          calls: [],
-          lastCall: call,
-          missedCount: 0,
-          unviewedMissedCount: 0
-        };
-      }
-      grouped[key].calls.push(call);
-      if (call.type === "missed") {
-        grouped[key].missedCount++;
-        if (!call.viewed) grouped[key].unviewedMissedCount++;
-      }
-      if (call.timestamp > (grouped[key].lastCall.timestamp || 0)) {
-        grouped[key].lastCall = call;
-      }
-    });
-    const callGroups = Object.values(grouped).sort(
-      (a, b) => (b.lastCall.timestamp || 0) - (a.lastCall.timestamp || 0)
-    );
-    callsList.innerHTML = callGroups.map(
-      (group) => `
-    <div class="list-item call-group call-${group.lastCall.type}" data-phone="${group.phoneNumber}">
-      <div class="list-item-avatar">
-        ${getInitials(group.contactName || group.phoneNumber)}
-      </div>
-      <div class="list-item-content">
-        <div class="list-item-title">${group.contactName || group.phoneNumber}</div>
-        <div class="list-item-subtitle">${group.calls.length} calls \u2022 ${group.lastCall.type}</div>
-        ${group.lastCall.deviceName ? `<div class="device-tag">${group.lastCall.deviceName}</div>` : ""}
-      </div>
-      <div class="list-item-meta">
-        <span class="list-item-time">${formatTime(
-        group.lastCall.timestamp
-      )}</span>
-        ${group.unviewedMissedCount > 0 ? `<div class="list-item-badge missed">${group.unviewedMissedCount}</div>` : ""}
-      </div>
-    </div>
-  `
-    ).join("");
-    document.querySelectorAll(".call-group").forEach((el) => {
-      el.addEventListener("click", () => {
-        const phoneNumber = el.dataset.phone;
-        showCallHistory(phoneNumber);
-      });
-    });
-    updateTabBadges();
-  }
-  async function showCallHistory(phoneNumber) {
-    const calls = allCallsData.filter((call) => call.phoneNumber === phoneNumber).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    if (calls.length === 0) return;
-    const contactName = calls[0].contactName || phoneNumber;
-    setCurrentCallConversation(phoneNumber);
-    const missedToMark = calls.filter(
-      (call) => call.type === "missed" && !call.viewed
-    );
-    if (missedToMark.length > 0) {
-      const updatedCalls = allCallsData.map(
-        (call) => call.phoneNumber === phoneNumber && call.type === "missed" ? { ...call, viewed: true } : call
-      );
-      setAllCallsData(updatedCalls);
-      updateTabBadges();
-      try {
-        const user = currentUser;
-        if (user) {
-          const batch = writeBatch(db);
-          missedToMark.forEach((call) => {
-            if (call.deviceId) {
-              const callRef = doc(
-                db,
-                "users",
-                user.uid,
-                "devices",
-                call.deviceId,
-                "calls",
-                call.id
-              );
-              batch.set(callRef, { viewed: true }, { merge: true });
-            }
-          });
-          await batch.commit();
-          console.log("\u2705 Marked", missedToMark.length, "calls as viewed");
-        }
-      } catch (error) {
-        console.error("Failed to mark calls as viewed:", error);
-      }
-    }
-    callsList.innerHTML = `
-    <div class="conversation-view">
-      <div class="conversation-header">
-        <button class="back-btn" id="backToCalls">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <div class="conversation-avatar">
-          ${getInitials(contactName)}
-        </div>
-        <div class="conversation-info">
-          <div class="conversation-name">${contactName}</div>
-          <div class="conversation-phone">${phoneNumber !== contactName ? phoneNumber : ""}</div>
-        </div>
-      </div>
-      <div class="conversation-messages call-history">
-        ${calls.map(
-      (call) => `
-          <div class="call-history-item call-${call.type}">
-            <div class="call-icon">
-              ${getCallIcon(call.type)}
-            </div>
-            <div class="call-info">
-              <div class="call-type">${call.type}</div>
-              <div class="call-duration">${formatDuration(call.duration)}</div>
-            </div>
-            <div class="call-time">${formatTime(call.timestamp)}</div>
-          </div>
-        `
-    ).join("")}
-      </div>
-    </div>
-  `;
-    document.getElementById("backToCalls")?.addEventListener("click", () => {
-      setCurrentCallConversation(null);
-      renderCalls(allCallsData);
-    });
   }
 
   // src/services/notifications.js

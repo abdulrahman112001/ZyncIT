@@ -184,7 +184,7 @@ public class SmsRequestService extends Service {
         );
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("ZyncIT")
+            .setContentTitle("IRopit")
             .setContentText("Syncing SMS in background")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)

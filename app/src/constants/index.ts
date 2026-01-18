@@ -34,14 +34,9 @@ export const COLLECTIONS = {
   SMS_REQUESTS: 'sms_requests',
 } as const;
 
-// Permissions
+// Permissions - Only non-restricted permissions for Google Play compliance
+// SMS and Call Log permissions removed - now using NotificationListenerService
 export const PERMISSIONS_REQUIRED = {
-  android: [
-    'android.permission.READ_SMS',
-    'android.permission.SEND_SMS',
-    'android.permission.RECEIVE_SMS',
-    'android.permission.READ_CALL_LOG',
-    'android.permission.READ_CONTACTS',
-  ],
+  android: ['android.permission.READ_CONTACTS'],
   ios: [],
 } as const;

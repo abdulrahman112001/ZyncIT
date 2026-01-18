@@ -25,7 +25,12 @@ export const useNotificationStore = create<NotificationState>()(
 
       addNotification: (notification: AppNotification) => {
         set(state => {
-          const uniqueId = `${notification.key}_${notification.timestamp}`;
+          // Sanitize the key to remove invalid characters
+          const sanitizedKey = notification.key
+            .replace(/[/|\\=\n\r\t]/g, '_')
+            .replace(/[^a-zA-Z0-9_.-]/g, '_')
+            .substring(0, 200);
+          const uniqueId = `${sanitizedKey}_${notification.timestamp}`;
 
           console.log(
             '[NotificationStore] Adding notification with uniqueId:',
