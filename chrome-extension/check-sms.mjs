@@ -2,6 +2,7 @@
 import {
   getFirestore,
   collection,
+  collectionGroup,
   query,
   where,
   orderBy,
@@ -11,19 +12,17 @@ import {
 import firebaseConfig from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
-});
-
 const db = getFirestore(app);
 
 async function check() {
   const q = query(
     collection(
       db,
-      "users/4OsnkeWHkAedXL7cD0OLCuKDZky1/devices/android_7249382ed438e159/notifications"
+      "users/4OsnkeWHkAedXL7cD0OLCuKDZky1/devices/android_7249382ed438e159/notifications",
     ),
     where("type", "==", "sms"),
     orderBy("timestamp", "desc"),
-    limit(5)
+    limit(5),
   );
 
   const snap = await getDocs(q);

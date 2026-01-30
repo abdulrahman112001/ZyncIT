@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iRopit Icon Generator</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 40px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            margin-bottom: 30px;
+        }
+        .icon-preview {
+            display: flex;
+            gap: 30px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        .icon-item {
+            text-align: center;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .info {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 iRopit Icon Generator</h1>
+        
+        <div class="info">
+            <strong>التعليمات:</strong><br>
+            1. الأيقونات تم توليدها تلقائياً بتصميم حديث<br>
+            2. اضغط على "Download" لتحميل كل حجم<br>
+            3. احفظ الأيقونات في مجلد assets بنفس الأسماء
+        </div>
+
+        <div class="icon-preview">
+            <div class="icon-item">
+                <canvas id="icon16" width="16" height="16"></canvas>
+                <div><strong>16x16</strong></div>
+                <button onclick="downloadIcon('icon16', 'icon16.png')">Download</button>
+            </div>
+            <div class="icon-item">
+                <canvas id="icon48" width="48" height="48"></canvas>
+                <div><strong>48x48</strong></div>
+                <button onclick="downloadIcon('icon48', 'icon48.png')">Download</button>
+            </div>
+            <div class="icon-item">
+                <canvas id="icon128" width="128" height="128"></canvas>
+                <div><strong>128x128</strong></div>
+                <button onclick="downloadIcon('icon128', 'icon128.png')">Download</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Modern gradient icon design
+        function drawIcon(canvas) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            const scale = size / 128; // Scale based on 128x128 design
+
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+
+            // Create gradient background
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#3b82f6');
+            gradient.addColorStop(1, '#1d4ed8');
+            
+            // Draw rounded rectangle background
+            const radius = size * 0.2;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.roundRect(0, 0, size, size, radius);
+            ctx.fill();
+
+            // Draw "i" letter in modern style
+            ctx.fillStyle = 'white';
+            
+            // Letter "i" - dot
+            const dotSize = size * 0.15;
+            const dotX = size * 0.5;
+            const dotY = size * 0.28;
+            ctx.beginPath();
+            ctx.arc(dotX, dotY, dotSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Letter "i" - stem
+            const stemWidth = size * 0.18;
+            const stemHeight = size * 0.42;
+            const stemX = dotX - stemWidth / 2;
+            const stemY = size * 0.42;
+            ctx.fillRect(stemX, stemY, stemWidth, stemHeight);
+
+            // Add sync/refresh icon overlay (small arrows)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = size * 0.05;
+            ctx.lineCap = 'round';
+
+            // Top-right arrow
+            const arrowSize = size * 0.15;
+            const arrowX = size * 0.75;
+            const arrowY = size * 0.25;
+            
+            ctx.beginPath();
+            ctx.arc(arrowX, arrowY, arrowSize * 0.6, -Math.PI * 0.5, Math.PI * 0.3);
+            ctx.stroke();
+            
+            // Arrow head
+            ctx.beginPath();
+            ctx.moveTo(arrowX + arrowSize * 0.5, arrowY - arrowSize * 0.2);
+            ctx.lineTo(arrowX + arrowSize * 0.6, arrowY);
+            ctx.lineTo(arrowX + arrowSize * 0.4, arrowY + arrowSize * 0.2);
+            ctx.stroke();
+
+            // Bottom-left arrow
+            const arrow2X = size * 0.25;
+            const arrow2Y = size * 0.75;
+            
+            ctx.beginPath();
+            ctx.arc(arrow2X, arrow2Y, arrowSize * 0.6, Math.PI * 0.5, -Math.PI * 0.3);
+            ctx.stroke();
+            
+            // Arrow head
+            ctx.beginPath();
+            ctx.moveTo(arrow2X - arrowSize * 0.5, arrow2Y + arrowSize * 0.2);
+            ctx.lineTo(arrow2X - arrowSize * 0.6, arrow2Y);
+            ctx.lineTo(arrow2X - arrowSize * 0.4, arrow2Y - arrowSize * 0.2);
+            ctx.stroke();
+        }
+
+        // Generate all icon sizes
+        function generateIcons() {
+            ['icon16', 'icon48', 'icon128'].forEach(id => {
+                const canvas = document.getElementById(id);
+                drawIcon(canvas);
+            });
+        }
+
+        // Download icon
+        function downloadIcon(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Generate icons on load
+        window.onload = generateIcons;
+    </script>
+</body>
+</html>

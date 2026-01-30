@@ -17,24 +17,17 @@ export const NativeCredentialsService = {
     deviceId: string,
   ): Promise<boolean> => {
     if (Platform.OS !== 'android') {
-      console.log('[NativeCredentials] Not Android, skipping');
       return false;
     }
 
     if (!UserCredentialsModule) {
-      console.warn('[NativeCredentials] UserCredentialsModule not available');
       return false;
     }
 
     try {
       await UserCredentialsModule.saveCredentials(userId, deviceId);
-      console.log('[NativeCredentials] Credentials saved:', {
-        userId,
-        deviceId,
-      });
       return true;
     } catch (error) {
-      console.error('[NativeCredentials] Error saving credentials:', error);
       return false;
     }
   },
@@ -49,16 +42,13 @@ export const NativeCredentialsService = {
     }
 
     if (!UserCredentialsModule) {
-      console.warn('[NativeCredentials] UserCredentialsModule not available');
       return false;
     }
 
     try {
       await UserCredentialsModule.clearCredentials();
-      console.log('[NativeCredentials] Credentials cleared');
       return true;
     } catch (error) {
-      console.error('[NativeCredentials] Error clearing credentials:', error);
       return false;
     }
   },
@@ -78,7 +68,6 @@ export const NativeCredentialsService = {
     try {
       return await UserCredentialsModule.isLoggedIn();
     } catch (error) {
-      console.error('[NativeCredentials] Error checking login status:', error);
       return false;
     }
   },
@@ -123,16 +112,13 @@ export const NativeCredentialsService = {
     }
 
     if (!UserCredentialsModule) {
-      console.warn('[NativeCredentials] UserCredentialsModule not available');
       return false;
     }
 
     try {
       await UserCredentialsModule.saveDeviceName(deviceName);
-      console.log('[NativeCredentials] Device name saved:', deviceName);
       return true;
     } catch (error) {
-      console.error('[NativeCredentials] Error saving device name:', error);
       return false;
     }
   },

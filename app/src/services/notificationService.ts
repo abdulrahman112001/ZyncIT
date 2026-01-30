@@ -38,7 +38,6 @@ class NotificationServiceClass {
     try {
       return await NotificationModule.isPermissionGranted();
     } catch (error) {
-      console.error('Error checking permission:', error);
       return false;
     }
   }
@@ -49,9 +48,7 @@ class NotificationServiceClass {
     }
     try {
       await NotificationModule.openSettings();
-    } catch (error) {
-      console.error('Error opening settings:', error);
-    }
+    } catch (error) {}
   }
 
   async isServiceConnected(): Promise<boolean> {
@@ -61,7 +58,6 @@ class NotificationServiceClass {
     try {
       return await NotificationModule.isServiceConnected();
     } catch (error) {
-      console.error('Error checking service:', error);
       return false;
     }
   }
@@ -73,7 +69,7 @@ class NotificationServiceClass {
         PermissionsAndroid.PERMISSIONS.SEND_SMS,
         {
           title: 'SMS Permission',
-          message: 'ZyncIT needs permission to send SMS messages.',
+          message: 'iRopit needs permission to send SMS messages.',
           buttonNeutral: 'Ask Me Later',
           buttonNegative: 'Cancel',
           buttonPositive: 'OK',
@@ -81,7 +77,6 @@ class NotificationServiceClass {
       );
       return granted === PermissionsAndroid.RESULTS.GRANTED;
     } catch (error) {
-      console.error('Error requesting SMS permission:', error);
       return false;
     }
   }
@@ -93,7 +88,45 @@ class NotificationServiceClass {
     try {
       return await NotificationModule.sendSMS(phoneNumber, message);
     } catch (error) {
-      console.error('Error sending SMS:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Open MIUI/Chinese ROM AutoStart settings
+   * Required for NotificationListenerService to work on these devices
+   */
+  async openAutoStartSettings(): Promise<void> {
+    if (Platform.OS !== 'android' || !NotificationModule) {
+      return;
+    }
+    try {
+      await NotificationModule.openAutoStartSettings();
+    } catch (error) {}
+  }
+
+  /**
+   * Open battery optimization settings
+   */
+  async openBatterySettings(): Promise<void> {
+    if (Platform.OS !== 'android' || !NotificationModule) {
+      return;
+    }
+    try {
+      await NotificationModule.openBatterySettings();
+    } catch (error) {}
+  }
+
+  /**
+   * Check if device is MIUI or Chinese ROM that blocks background services
+   */
+  async isMiuiDevice(): Promise<boolean> {
+    if (Platform.OS !== 'android' || !NotificationModule) {
+      return false;
+    }
+    try {
+      return await NotificationModule.isMiuiDevice();
+    } catch (error) {
       return false;
     }
   }

@@ -1,5 +1,5 @@
 /**
- * ZyncIT Error Handling System
+ * iRopit Error Handling System
  * Professional error handling with custom error classes and utilities
  */
 
@@ -254,12 +254,6 @@ export function parseSmsError(error: any): AppError {
  */
 export function logError(error: AppError | Error, context?: string): void {
   if (__DEV__) {
-    console.error(`[${context || 'Error'}]`, {
-      name: error.name,
-      message: error.message,
-      ...(error instanceof AppError && { code: error.code }),
-      stack: error.stack,
-    });
   }
 
   // TODO: In production, send to crash reporting service (e.g., Crashlytics)

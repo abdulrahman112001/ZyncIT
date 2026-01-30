@@ -308,7 +308,7 @@ const NotificationsScreen = () => {
   const requestPermission = useCallback(async () => {
     Alert.alert(
       'Enable Notification Access',
-      'ZyncIT needs notification access to sync your messages.',
+      'iRopit needs notification access to sync your messages.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -484,8 +484,8 @@ const NotificationsScreen = () => {
           </Text>
           <Text style={[styles.emptySubtitle, { color: secondaryTextColor }]}>
             {isRTL
-              ? 'ZyncIT ظٹط­طھط§ط¬ ط¥ط°ظ† ظ„ظ‚ط±ط§ط،ط© ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ„ظ…ط²ط§ظ…ظ†ط© ط§ظ„ط±ط³ط§ط¦ظ„'
-              : 'ZyncIT needs permission to read notifications for syncing messages.'}
+              ? 'iRopit ظٹط­طھط§ط¬ ط¥ط°ظ† ظ„ظ‚ط±ط§ط،ط© ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ„ظ…ط²ط§ظ…ظ†ط© ط§ظ„ط±ط³ط§ط¦ظ„'
+              : 'iRopit needs permission to read notifications for syncing messages.'}
           </Text>
           <TouchableOpacity
             style={styles.enableButton}

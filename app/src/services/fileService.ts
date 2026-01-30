@@ -149,8 +149,7 @@ export const deleteFile = async (fileUrl: string): Promise<void> => {
     const reference = storage().refFromURL(fileUrl);
     await reference.delete();
   } catch (error) {
-    console.error('Error deleting file:', error);
-  }
+    }
 };
 
 /**

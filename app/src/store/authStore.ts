@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
@@ -49,47 +49,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialize: () => {
     const unsubscribe = auth().onAuthStateChanged(async firebaseUser => {
       if (firebaseUser) {
-        try {
-          // Create or update user document using set with merge
-          const userData: User = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            createdAt: Date.now(),
-            lastLoginAt: Date.now(),
-          };
+        const userData: User = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+          createdAt: Date.now(),
+          lastLoginAt: Date.now(),
+        };
 
-          // Use set with merge to create or update
-          await firestore()
+        // Set authenticated immediately, don't wait for Firestore
+        set({
+          user: userData,
+          firebaseUser,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+
+        try {
+          firestore()
             .collection(COLLECTIONS.USERS)
             .doc(firebaseUser.uid)
-            .set(userData, { merge: true });
-
-          set({
-            user: userData,
-            firebaseUser,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-          });
+            .set(userData, { merge: true })
+            .catch(() => {});
         } catch (error: any) {
-          console.error('[AuthStore] Error in onAuthStateChanged:', error);
-          // Even if Firestore fails, we should still authenticate the user
-          set({
-            user: {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-              createdAt: Date.now(),
-              lastLoginAt: Date.now(),
-            } as User,
-            firebaseUser,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-          });
+          // Ignore Firestore errors - user is already authenticated
         }
       } else {
         set({
@@ -166,11 +151,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Get the users ID token
       const signInResult = await GoogleSignin.signIn();
-      console.log(
-        '[AuthStore] Google signIn result:',
-        JSON.stringify(signInResult, null, 2),
-      );
-
       // Check if sign in was successful (v16.x returns { type: 'success', data: {...} })
       if (!signInResult || signInResult.type === 'cancelled') {
         throw new Error('Google Sign-In was cancelled');
@@ -197,24 +177,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // If still no idToken, try getTokens()
       if (!idToken) {
-        console.log(
-          '[AuthStore] No idToken in signInResult, trying getTokens()...',
-        );
         try {
           const tokens = await GoogleSignin.getTokens();
-          console.log(
-            '[AuthStore] getTokens result:',
-            JSON.stringify(tokens, null, 2),
-          );
           idToken = tokens.idToken;
           // If no idToken but have accessToken, use it
           if (!idToken && tokens.accessToken) {
-            console.log('[AuthStore] Using accessToken instead of idToken');
             accessToken = tokens.accessToken;
           }
-        } catch (tokenError) {
-          console.log('[AuthStore] getTokens failed:', tokenError);
-        }
+        } catch (tokenError) {}
       }
 
       // We can use either idToken or accessToken with Firebase
@@ -222,7 +192,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('No ID token or access token received from Google');
       }
 
-  
       // Create a Google credential with the token
       // GoogleAuthProvider.credential(idToken, accessToken) - either can be null
       const googleCredential = auth.GoogleAuthProvider.credential(
@@ -253,14 +222,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Note: isLoading will be set to false by onAuthStateChanged listener
       // But add a fallback in case it doesn't fire
-      console.log(
-        '[AuthStore] Google Sign-In successful, waiting for auth state change...',
-      );
     } catch (error: any) {
       // Handle specific Google Sign-In errors
       const errorMessage =
         error?.message || error?.code || 'Google Sign-In failed';
-      console.error('[AuthStore] Google Sign-In error:', error);
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -272,10 +237,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Clear native credentials for background operation
       try {
         await NativeCredentialsService.clearCredentials();
-        console.log('[AuthStore] Native credentials cleared');
-      } catch (e) {
-        console.warn('[AuthStore] Failed to clear native credentials:', e);
-      }
+      } catch (e) {}
 
       // Sign out from Google if signed in with Google
       try {
@@ -296,8 +258,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       useChatStore.getState().cleanup();
       useCallStore.getState().cleanup();
       useNotificationStore.getState().cleanup();
-
-      console.log('[AuthStore] All stores cleaned up');
 
       await auth().signOut();
     } catch (error: any) {

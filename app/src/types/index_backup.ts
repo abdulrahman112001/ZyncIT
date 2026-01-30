@@ -1,4 +1,4 @@
-﻿// ZyncIT Shared Types
+﻿// iRopit Shared Types
 
 export interface User {
   uid: string;
@@ -126,4 +126,3 @@ export type ChatStackParamList = {
   ChatList: undefined;
   ChatConversation: { conversationId: string; deviceId?: string };
 };
-

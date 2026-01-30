@@ -1,5 +1,5 @@
 /**
- * ZyncIT Performance Utilities
+ * iRopit Performance Utilities
  * Optimizations for better app performance
  */
 
@@ -102,7 +102,6 @@ export class BatchProcessor<T> {
     try {
       await this.processor(itemsToProcess);
     } catch (error) {
-      console.error('Batch processing error:', error);
       // Re-add failed items
       this.items = [...itemsToProcess, ...this.items];
     }
@@ -266,7 +265,6 @@ export class PerformanceTimer {
   end(): number {
     const duration = performance.now() - this.startTime;
     if (__DEV__) {
-      console.log(`⏱️ [${this.label}] ${duration.toFixed(2)}ms`);
     }
     return duration;
   }

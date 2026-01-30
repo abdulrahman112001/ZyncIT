@@ -1,5 +1,5 @@
 /**
- * ZyncIT Logger
+ * iRopit Logger
  * Centralized logging with levels and formatting
  */
 
@@ -18,7 +18,7 @@ class Logger {
   private minLevel: number;
   private prefix: string;
 
-  constructor(prefix: string = 'ZyncIT') {
+  constructor(prefix: string = 'iRopit') {
     this.prefix = prefix;
     const configLevel = (Config.LOG_LEVEL as LogLevel) || 'debug';
     this.minLevel = LOG_LEVELS[configLevel] ?? 0;
@@ -40,37 +40,21 @@ class Logger {
 
   debug(message: string, context?: string, ...args: any[]): void {
     if (this.shouldLog('debug')) {
-      console.log(
-        `🔍 ${this.formatMessage('debug', message, context)}`,
-        ...args,
-      );
     }
   }
 
   info(message: string, context?: string, ...args: any[]): void {
     if (this.shouldLog('info')) {
-      console.log(
-        `ℹ️ ${this.formatMessage('info', message, context)}`,
-        ...args,
-      );
     }
   }
 
   warn(message: string, context?: string, ...args: any[]): void {
     if (this.shouldLog('warn')) {
-      console.warn(
-        `⚠️ ${this.formatMessage('warn', message, context)}`,
-        ...args,
-      );
     }
   }
 
   error(message: string, context?: string, error?: any): void {
     if (this.shouldLog('error')) {
-      console.error(
-        `❌ ${this.formatMessage('error', message, context)}`,
-        error || '',
-      );
     }
   }
 

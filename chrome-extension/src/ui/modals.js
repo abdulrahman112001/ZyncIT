@@ -13,68 +13,237 @@ import {
   smsPhone,
   smsMessage,
   charCount,
-} from "./dom.js"
+} from "./dom.js";
 
-import { db, collection, addDoc } from "../config/firebase.js"
-import { showToast, showLoadingOverlay, hideLoading } from "./toasts.js"
-import { getDeviceId } from "../utils/helpers.js"
-import * as state from "../state/index.js"
-import { renderSMS } from "../services/sms.js"
+import { db, collection, addDoc } from "../config/firebase.js";
+import { showToast, showLoadingOverlay, hideLoading } from "./toasts.js";
+import { getDeviceId } from "../utils/helpers.js";
+import * as state from "../state/index.js";
+import { renderSMS } from "../services/sms.js";
+import { loadContactsForDevice, searchContacts } from "../services/contacts.js";
+
+// Store loaded contacts
+let deviceContacts = [];
+let isContactsLoading = false;
 
 /**
  * Initialize SMS modal event listeners
  */
 export function initSmsModal() {
+  const contactsGroup = document.getElementById("contactsGroup");
+  const contactsDropdown = document.getElementById("contactsDropdown");
+  const contactsSearch = document.getElementById("contactsSearch");
+  const contactsList = document.getElementById("contactsList");
+  const phoneHint = document.getElementById("phoneHint");
+
   newSmsBtn?.addEventListener("click", () => {
-    smsModal.classList.remove("hidden")
-  })
+    smsModal.classList.remove("hidden");
+    // Reset contacts group visibility based on device selection
+    if (smsDevice.value) {
+      contactsGroup.style.display = "block";
+      phoneHint.style.display = "block";
+    }
+  });
 
   closeSmsModal?.addEventListener("click", () => {
-    smsModal.classList.add("hidden")
-  })
+    smsModal.classList.add("hidden");
+    contactsDropdown?.classList.add("hidden");
+    resetContactsUI();
+  });
 
   cancelSmsBtn?.addEventListener("click", () => {
-    smsModal.classList.add("hidden")
-  })
+    smsModal.classList.add("hidden");
+    contactsDropdown?.classList.add("hidden");
+    resetContactsUI();
+  });
 
   smsMessage?.addEventListener("input", () => {
-    charCount.textContent = smsMessage.value.length
-  })
+    charCount.textContent = smsMessage.value.length;
+  });
 
-  sendSmsBtn?.addEventListener("click", sendNewSms)
+  sendSmsBtn?.addEventListener("click", sendNewSms);
+
+  // When device changes, load its contacts and show contacts group
+  smsDevice?.addEventListener("change", async () => {
+    const deviceId = smsDevice.value;
+
+    if (deviceId) {
+      // Show contacts group
+      contactsGroup.style.display = "block";
+      phoneHint.style.display = "block";
+
+      // Clear previous data
+      contactsSearch.value = "";
+      deviceContacts = [];
+      renderContacts([]);
+
+      // Load contacts
+      isContactsLoading = true;
+      contactsSearch.placeholder = "⏳ Loading contacts...";
+
+      deviceContacts = await loadContactsForDevice(deviceId);
+
+      isContactsLoading = false;
+
+      if (deviceContacts.length > 0) {
+        contactsSearch.placeholder = `Search ${deviceContacts.length} contacts...`;
+        renderContacts(deviceContacts);
+      } else {
+        contactsSearch.placeholder = "No contacts - sync from mobile app";
+      }
+
+      console.log(
+        `[Modal] Loaded ${deviceContacts.length} contacts for device`,
+      );
+    } else {
+      // Hide contacts group
+      contactsGroup.style.display = "none";
+      phoneHint.style.display = "none";
+      deviceContacts = [];
+    }
+  });
+
+  // Search contacts - show dropdown on focus/input
+  contactsSearch?.addEventListener("focus", () => {
+    if (deviceContacts.length > 0 && !isContactsLoading) {
+      contactsDropdown?.classList.remove("hidden");
+    }
+  });
+
+  contactsSearch?.addEventListener("input", () => {
+    const term = contactsSearch.value;
+    const filtered = searchContacts(deviceContacts, term);
+    renderContacts(filtered);
+
+    if (filtered.length > 0) {
+      contactsDropdown?.classList.remove("hidden");
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener("click", (e) => {
+    if (
+      !e.target.closest(".contacts-select-wrapper") &&
+      !e.target.closest("#contactsSearch")
+    ) {
+      contactsDropdown?.classList.add("hidden");
+    }
+  });
+}
+
+/**
+ * Reset contacts UI
+ */
+function resetContactsUI() {
+  const contactsGroup = document.getElementById("contactsGroup");
+  const contactsSearch = document.getElementById("contactsSearch");
+  const phoneHint = document.getElementById("phoneHint");
+
+  if (contactsGroup) contactsGroup.style.display = "none";
+  if (contactsSearch) {
+    contactsSearch.value = "";
+    contactsSearch.placeholder = "Search contacts by name or number...";
+  }
+  if (phoneHint) phoneHint.style.display = "none";
+  deviceContacts = [];
+}
+
+/**
+ * Render contacts list
+ */
+function renderContacts(contacts) {
+  const contactsList = document.getElementById("contactsList");
+  if (!contactsList) return;
+
+  if (contacts.length === 0) {
+    contactsList.innerHTML = '<div class="no-contacts">No contacts found</div>';
+    return;
+  }
+
+  contactsList.innerHTML = contacts
+    .map(
+      (contact) => `
+    <div class="contact-item" data-phone="${contact.phoneNumber}" data-name="${contact.name}">
+      <div class="contact-avatar">${getInitials(contact.name)}</div>
+      <div class="contact-info">
+        <div class="contact-name">${escapeHtml(contact.name)}</div>
+        <div class="contact-phone">${escapeHtml(contact.phoneNumber)}</div>
+      </div>
+    </div>
+  `,
+    )
+    .join("");
+
+  // Add click handlers
+  contactsList.querySelectorAll(".contact-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      const phone = item.dataset.phone;
+      const name = item.dataset.name;
+      smsPhone.value = phone;
+
+      // Update search field with selected contact
+      const contactsSearch = document.getElementById("contactsSearch");
+      if (contactsSearch) {
+        contactsSearch.value = `${name} (${phone})`;
+      }
+
+      document.getElementById("contactsDropdown")?.classList.add("hidden");
+    });
+  });
+}
+
+/**
+ * Get initials from name
+ */
+function getInitials(name) {
+  if (!name) return "?";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 /**
  * Send new SMS from modal
  */
 async function sendNewSms() {
-  const user = state.currentUser
-  const deviceId = smsDevice.value
-  const phone = smsPhone.value.trim()
-  const message = smsMessage.value.trim()
+  const user = state.currentUser;
+  const deviceId = smsDevice.value;
+  const phone = smsPhone.value.trim();
+  const message = smsMessage.value.trim();
 
   if (!deviceId) {
-    showToast("Please select a device", "error")
-    return
+    showToast("Please select a device", "error");
+    return;
   }
 
   if (!phone) {
-    showToast("Please enter a phone number", "error")
-    return
+    showToast("Please enter a phone number", "error");
+    return;
   }
 
   if (!message) {
-    showToast("Please enter a message", "error")
-    return
+    showToast("Please enter a message", "error");
+    return;
   }
 
-  showLoadingOverlay()
+  showLoadingOverlay();
 
   try {
-    const timestamp = Date.now()
-    const selectedDevice = state.devices.find((d) => d.id === deviceId)
+    const timestamp = Date.now();
+    const selectedDevice = state.devices.find((d) => d.id === deviceId);
     const deviceName =
-      selectedDevice?.nickname || selectedDevice?.name || "Android"
+      selectedDevice?.nickname || selectedDevice?.name || "Android";
 
     // Create SMS request for the mobile device to process
     const docRef = await addDoc(collection(db, "sms_requests"), {
@@ -85,7 +254,7 @@ async function sendNewSms() {
       message: message,
       status: "pending",
       timestamp: timestamp,
-    })
+    });
 
     // Add to local SMS list
     const newSmsMessage = {
@@ -97,42 +266,42 @@ async function sendNewSms() {
       timestamp: timestamp,
       read: true,
       deviceName: deviceName,
-    }
+    };
 
-    const updatedMessages = [...state.allSMSMessages, newSmsMessage]
-    state.setAllSMSMessages(updatedMessages)
-    renderSMS(updatedMessages)
+    const updatedMessages = [...state.allSMSMessages, newSmsMessage];
+    state.setAllSMSMessages(updatedMessages);
+    renderSMS(updatedMessages);
 
-    showToast("SMS request sent to device", "success")
-    smsModal.classList.add("hidden")
-    smsPhone.value = ""
-    smsMessage.value = ""
-    charCount.textContent = "0"
+    showToast("SMS request sent to device", "success");
+    smsModal.classList.add("hidden");
+    smsPhone.value = "";
+    smsMessage.value = "";
+    charCount.textContent = "0";
   } catch (error) {
-    showToast("Failed to send SMS request", "error")
+    showToast("Failed to send SMS request", "error");
   }
 
-  hideLoading()
+  hideLoading();
 }
 
 /**
  * Initialize profile footer toggle
  */
 export function initProfileFooter() {
-  const toggleProfileBtn = document.getElementById("toggleProfileBtn")
-  const profileFooter = document.getElementById("profileFooter")
+  const toggleProfileBtn = document.getElementById("toggleProfileBtn");
+  const profileFooter = document.getElementById("profileFooter");
 
   if (toggleProfileBtn && profileFooter) {
     toggleProfileBtn.addEventListener("click", () => {
-      profileFooter.classList.toggle("collapsed")
-      const isCollapsed = profileFooter.classList.contains("collapsed")
-      localStorage.setItem("profileCollapsed", isCollapsed)
-    })
+      profileFooter.classList.toggle("collapsed");
+      const isCollapsed = profileFooter.classList.contains("collapsed");
+      localStorage.setItem("profileCollapsed", isCollapsed);
+    });
 
     // Restore state on load
-    const isCollapsed = localStorage.getItem("profileCollapsed") === "true"
+    const isCollapsed = localStorage.getItem("profileCollapsed") === "true";
     if (isCollapsed) {
-      profileFooter.classList.add("collapsed")
+      profileFooter.classList.add("collapsed");
     }
   }
 }

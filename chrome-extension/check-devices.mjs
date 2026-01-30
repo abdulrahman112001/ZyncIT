@@ -13,10 +13,13 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function check() {
-  const q = query(
-    collection(db, "devices"),
-    where("userId", "==", "4OsnkeWHkAedXL7cD0OLCuKDZky1")
-  );
+  // This is the userId from SharedPreferences
+  const userId = "kSF35jtZDmbxQBsvq8lRbqzBnb23";
+
+  console.log("Checking devices for userId:", userId);
+  console.log("");
+
+  const q = query(collection(db, "devices"), where("userId", "==", userId));
   const snap = await getDocs(q);
   console.log("Total devices:", snap.size);
   snap.forEach((d) => {
@@ -29,7 +32,7 @@ async function check() {
       "|",
       data.id,
       "| Last active:",
-      new Date(data.lastActive || 0).toLocaleString()
+      new Date(data.lastActive || 0).toLocaleString(),
     );
   });
   process.exit(0);

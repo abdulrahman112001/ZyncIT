@@ -86,10 +86,8 @@ export const useCallStore = create<CallState>((set, get) => ({
           .collection(COLLECTIONS.CALLS)
           .doc(docId)
           .set(callData, { merge: true });
-        console.log('✅ Call saved to Firebase immediately:', phoneNumber);
-      } catch (error) {
-        console.error('❌ Error saving call to Firebase:', error);
-      }
+        } catch (error) {
+        }
     }
   },
 
@@ -133,10 +131,8 @@ export const useCallStore = create<CallState>((set, get) => ({
       }
 
       await batch.commit();
-      console.log(`✅ Synced ${calls.length} calls to Firebase`);
-    } catch (error: any) {
-      console.error('❌ Error syncing calls to Firebase:', error);
-    }
+      } catch (error: any) {
+      }
   },
 
   loadCalls: async () => {
@@ -262,10 +258,8 @@ export const useCallStore = create<CallState>((set, get) => ({
 
       // Clear local state
       set({ calls: [] });
-      console.log('✅ All calls deleted');
-    } catch (error) {
-      console.error('❌ Error deleting calls:', error);
-    }
+      } catch (error) {
+      }
   },
 
   deleteCallsByPhoneNumbers: async (phoneNumbers: string[]) => {
@@ -306,10 +300,8 @@ export const useCallStore = create<CallState>((set, get) => ({
         call => !phoneNumbers.includes(call.phoneNumber),
       );
       set({ calls: updatedCalls });
-      console.log(`✅ Deleted calls for ${phoneNumbers.length} phone numbers`);
-    } catch (error) {
-      console.error('❌ Error deleting selected calls:', error);
-    }
+      } catch (error) {
+      }
   },
 
   cleanup: () => {

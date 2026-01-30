@@ -19,11 +19,7 @@ const validateConfig = () => {
   const missing = requiredKeys.filter(key => !Config[key]);
 
   if (missing.length > 0 && __DEV__) {
-    console.warn(
-      `⚠️ Missing Firebase config keys: ${missing.join(', ')}\n` +
-        'Please ensure .env file is properly configured.',
-    );
-  }
+    }
 };
 
 // Firebase config - values from .env only (no hardcoded fallbacks)
@@ -41,8 +37,7 @@ export const initializeFirebase = () => {
 
   if (!firebase.apps.length) {
     // Firebase is auto-initialized with google-services.json
-    console.log('✅ Firebase initialized');
-  }
+    }
 };
 
 export { auth, firestore, messaging };

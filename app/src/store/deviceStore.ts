@@ -1,5 +1,6 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import firestore from '@react-native-firebase/firestore';
+import messaging from '@react-native-firebase/messaging';
 import { Platform, NativeModules, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceInfo from 'react-native-device-info';
@@ -9,7 +10,7 @@ import { NativeCredentialsService } from '../services/nativeCredentials';
 
 const { UserCredentialsModule } = NativeModules;
 
-const DEVICE_ID_KEY = '@ZyncIT:deviceId';
+const DEVICE_ID_KEY = '@iRopit:deviceId';
 
 interface Device {
   id: string;
@@ -22,6 +23,7 @@ interface Device {
   createdAt?: number;
   lastSeen?: number;
   isOnline?: boolean;
+  fcmToken?: string;
 }
 
 interface DeviceState {
@@ -33,7 +35,9 @@ interface DeviceState {
   loadDevices: () => void;
   deleteDevice: (deviceId: string) => Promise<void>;
   updateOnlineStatus: (isOnline: boolean) => Promise<void>;
+  updateFcmToken: (token: string) => Promise<void>;
   startOnlineStatusTracking: () => void;
+  startFcmTokenListener: () => () => void;
   cleanup: () => void;
 }
 
@@ -44,7 +48,6 @@ const generateDeviceId = async (): Promise<string> => {
     const uniqueId = await DeviceInfo.getUniqueId();
     return `${Platform.OS}_${uniqueId}`;
   } catch (e) {
-    console.warn('[DeviceStore] Could not get unique ID, using fallback');
     const timestamp = Date.now().toString(36);
     const randomPart = Math.random().toString(36).substring(2, 10);
     return `${Platform.OS}_${timestamp}_${randomPart}`;
@@ -54,64 +57,33 @@ const generateDeviceId = async (): Promise<string> => {
 // Get or create persistent device ID
 const getOrCreateDeviceId = async (): Promise<string> => {
   try {
-    // FIRST: Try to get from native SharedPreferences (ZyncITPrefs)
+    // FIRST: Try to get from native SharedPreferences (iRopitPrefs)
     // This is critical for consistency with BackgroundSmsService
-    console.log(
-      '[DeviceStore] getOrCreateDeviceId - UserCredentialsModule available:',
-      !!UserCredentialsModule,
-    );
-    console.log(
-      '[DeviceStore] getOrCreateDeviceId - getDeviceId method available:',
-      !!UserCredentialsModule?.getDeviceId,
-    );
-
     if (UserCredentialsModule?.getDeviceId) {
       try {
         const nativeId = await UserCredentialsModule.getDeviceId();
-        console.log(
-          '[DeviceStore] Native SharedPreferences deviceId:',
-          nativeId,
-        );
         if (nativeId) {
-          console.log(
-            '[DeviceStore] Got device ID from native SharedPreferences:',
-            nativeId,
-          );
           // Sync to AsyncStorage for backup
           await AsyncStorage.setItem(DEVICE_ID_KEY, nativeId);
           return nativeId;
         } else {
-          console.log('[DeviceStore] Native deviceId is null/empty');
         }
-      } catch (e) {
-        console.log('[DeviceStore] Could not get native device ID:', e);
-      }
+      } catch (e) {}
     }
 
     // Second: Check AsyncStorage for existing ID
     const storedId = await AsyncStorage.getItem(DEVICE_ID_KEY);
     if (storedId) {
-      console.log(
-        '[DeviceStore] Found existing device ID in AsyncStorage:',
-        storedId,
-      );
       return storedId;
     }
 
-    console.log(
-      '[DeviceStore] No existing device ID found, generating new one',
-    );
-
     // Generate new ID and store it
     const newId = await generateDeviceId();
-    console.log('[DeviceStore] Generated new device ID:', newId);
     await AsyncStorage.setItem(DEVICE_ID_KEY, newId);
     return newId;
   } catch (e) {
-    console.error('[DeviceStore] Error in getOrCreateDeviceId:', e);
     // Fallback if AsyncStorage fails
     const fallbackId = await generateDeviceId();
-    console.log('[DeviceStore] Using fallback device ID:', fallbackId);
     return fallbackId;
   }
 };
@@ -125,7 +97,6 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   registerDevice: async () => {
     const { user } = useAuthStore.getState();
     if (!user) {
-      console.log('[DeviceStore] No user, skipping device registration');
       return;
     }
 
@@ -138,10 +109,6 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       // Check if already registered in state
       const { currentDevice } = get();
       if (currentDevice && currentDevice.id === deviceId) {
-        console.log(
-          '[DeviceStore] Device already registered:',
-          currentDevice.id,
-        );
         set({ isLoading: false });
         return;
       }
@@ -150,6 +117,25 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       const deviceName = (await DeviceInfo.getDeviceName()) || 'Android Device';
       const deviceModel = (await DeviceInfo.getModel()) || 'Unknown';
       const systemName = (await DeviceInfo.getSystemName()) || Platform.OS;
+
+      // Get FCM token for push notifications
+      let fcmToken: string | null = null;
+      try {
+        const authStatus = await messaging().requestPermission();
+        const enabled =
+          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+        if (enabled) {
+          fcmToken = await messaging().getToken();
+          console.log(
+            '[DeviceStore] FCM Token obtained:',
+            fcmToken?.substring(0, 20) + '...',
+          );
+        }
+      } catch (fcmError) {
+        console.log('[DeviceStore] Could not get FCM token:', fcmError);
+      }
 
       // Check if device already exists to preserve nickname
       const existingDoc = await firestore()
@@ -178,8 +164,10 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         device.nickname = savedNickname;
       }
 
-      console.log('[DeviceStore] Registering device with ID:', deviceId);
-      console.log('[DeviceStore] Device object:', JSON.stringify(device));
+      // Add FCM token if available
+      if (fcmToken) {
+        device.fcmToken = fcmToken;
+      }
 
       // Save to Firestore - always use set with merge to avoid not-found errors
       await firestore()
@@ -187,12 +175,6 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         .doc(deviceId)
         .set(device, { merge: true });
 
-      console.log(
-        '[DeviceStore] Device registered:',
-        deviceId,
-        'nickname:',
-        savedNickname,
-      );
       set({ currentDevice: device, isLoading: false });
 
       // Save credentials to native for background Firebase access
@@ -202,20 +184,8 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         // Also save the friendly device name for background notifications
         const friendlyName = savedNickname || deviceName || 'Android';
         await NativeCredentialsService.saveDeviceName(friendlyName);
-
-        console.log(
-          '[DeviceStore] Native credentials saved for background operation, deviceName:',
-          friendlyName,
-        );
-      } catch (credError) {
-        console.warn(
-          '[DeviceStore] Failed to save native credentials:',
-          credError,
-        );
-      }
+      } catch (credError) {}
     } catch (error: any) {
-      console.error('[DeviceStore] Error registering device:', error);
-
       // Fallback: create a local device only
       const { user: currentUser } = useAuthStore.getState();
       const fallbackDevice: Device = {
@@ -257,7 +227,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       });
   },
 
-  // حذف جهاز وجميع إشعاراته
+  // ??? ???? ????? ????????
   deleteDevice: async (deviceId: string) => {
     const { user } = useAuthStore.getState();
     if (!user) return;
@@ -265,7 +235,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      // حذف جميع الإشعارات الخاصة بالجهاز
+      // ??? ???? ????????? ?????? ???????
       const notificationsRef = firestore()
         .collection(COLLECTIONS.USERS)
         .doc(user.uid)
@@ -280,7 +250,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
         batch.delete(doc.ref);
       });
 
-      // حذف الجهاز من مجموعة devices الرئيسية
+      // ??? ?????? ?? ?????? devices ????????
       const devicesQuery = await firestore()
         .collection(COLLECTIONS.DEVICES)
         .where('id', '==', deviceId)
@@ -293,15 +263,12 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
 
       await batch.commit();
 
-      // تحديث القائمة محلياً
+      // ????? ??????? ??????
       set(state => ({
         devices: state.devices.filter(d => d.id !== deviceId),
         isLoading: false,
       }));
-
-      console.log('✅ Device deleted:', deviceId);
     } catch (error: any) {
-      console.error('❌ Error deleting device:', error);
       set({ error: error.message, isLoading: false });
     }
   },
@@ -330,11 +297,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       set({
         currentDevice: { ...currentDevice, isOnline, lastSeen: Date.now() },
       });
-
-      console.log(`[DeviceStore] Online status updated: ${isOnline}`);
-    } catch (error) {
-      console.error('[DeviceStore] Failed to update online status:', error);
-    }
+    } catch (error) {}
   },
 
   startOnlineStatusTracking: () => {
@@ -353,5 +316,37 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
 
     // Set online immediately
     updateOnlineStatus(true);
+  },
+
+  updateFcmToken: async (token: string) => {
+    const { currentDevice } = get();
+    if (!currentDevice) return;
+
+    try {
+      await firestore()
+        .collection(COLLECTIONS.DEVICES)
+        .doc(currentDevice.id)
+        .set({ fcmToken: token }, { merge: true });
+
+      set({
+        currentDevice: { ...currentDevice, fcmToken: token },
+      });
+
+      console.log('[DeviceStore] FCM token updated');
+    } catch (error) {
+      console.error('[DeviceStore] Error updating FCM token:', error);
+    }
+  },
+
+  startFcmTokenListener: () => {
+    const { updateFcmToken } = get();
+
+    // Listen for FCM token refresh
+    const unsubscribe = messaging().onTokenRefresh(token => {
+      console.log('[DeviceStore] FCM token refreshed');
+      updateFcmToken(token);
+    });
+
+    return unsubscribe;
   },
 }));

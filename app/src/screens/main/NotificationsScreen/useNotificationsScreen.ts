@@ -1,0 +1,523 @@
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import firestore from '@react-native-firebase/firestore';
+
+import notificationService, {
+  AppNotification,
+} from '../../../services/notificationService';
+import { useNotificationStore } from '../../../store/notificationStore';
+import { useSMSStore } from '../../../store/smsStore';
+import { useCallStore } from '../../../store/callStore';
+import { useAuthStore } from '../../../store/authStore';
+import { useDeviceStore } from '../../../store/deviceStore';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { AlertService } from '../../../components/shared';
+
+import { GroupedNotification } from './types';
+import { normalizePhoneNumber, sanitizeFirestoreKey } from './helper';
+
+export const useNotificationsScreen = () => {
+  const navigation = useNavigation<any>();
+
+  // Store hooks
+  const {
+    notifications,
+    addNotification,
+    removeNotification,
+    markGroupAsRead,
+  } = useNotificationStore();
+
+  const {
+    messages: smsMessages,
+    markMessagesAsReadBySender,
+    loadMessages: loadSmsMessages,
+    deleteMessagesBySender,
+  } = useSMSStore();
+
+  const { addCallAndSync } = useCallStore();
+  const { user } = useAuthStore();
+  const { currentDevice } = useDeviceStore();
+  const { isRTL, colors, isDarkMode } = useTheme();
+
+  // Local state
+  const [isLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [, setIsMiuiDevice] = useState(false);
+  const [, setShowMiuiWarning] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedNotifications, setSelectedNotifications] = useState<string[]>(
+    [],
+  );
+
+  // Theme colors
+  const bgColor = isDarkMode ? '#000000' : colors.background;
+  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const secondaryTextColor = isDarkMode ? '#8E8E93' : colors.textSecondary;
+
+  const groupedNotifications = useMemo(() => {
+    const groups: { [key: string]: GroupedNotification } = {};
+
+    const validSmsMessages = Array.isArray(smsMessages) ? smsMessages : [];
+    const validNotifications = Array.isArray(notifications)
+      ? notifications
+      : [];
+
+    const nameToPhoneMap: { [name: string]: string } = {};
+    const phoneToNameMap: { [phone: string]: string } = {};
+
+    validSmsMessages.forEach(sms => {
+      const rawPhone = (sms as any).phoneNumber || (sms as any).sender || '';
+      const name = (sms as any).contactName || '';
+      const isPhone = /^[\+\d\s\-\(\)]+$/.test(rawPhone.trim());
+
+      if (isPhone && name && rawPhone) {
+        const normalized = normalizePhoneNumber(rawPhone);
+        nameToPhoneMap[name] = normalized;
+        phoneToNameMap[normalized] = name;
+      }
+    });
+
+    // Process SMS messages
+    validSmsMessages.forEach(sms => {
+      let phoneNumber =
+        (sms as any).phoneNumber ||
+        (sms as any).sender ||
+        (sms as any).address ||
+        '';
+      let contactName = (sms as any).contactName || '';
+
+      const isActualPhoneNumber = /^[\+\d\s\-\(\)]+$/.test(phoneNumber.trim());
+
+      let normalizedPhone = '';
+      let groupingKey = '';
+
+      if (isActualPhoneNumber && phoneNumber.trim()) {
+        normalizedPhone = normalizePhoneNumber(phoneNumber);
+        groupingKey = normalizedPhone;
+      } else {
+        const cleanName = (phoneNumber || contactName || 'Unknown')
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '_');
+        groupingKey = `name_${cleanName}`;
+      }
+
+      if (!normalizedPhone && contactName && nameToPhoneMap[contactName]) {
+        groupingKey = nameToPhoneMap[contactName];
+      }
+
+      const displayName =
+        contactName ||
+        phoneToNameMap[normalizedPhone] ||
+        phoneNumber ||
+        'Unknown';
+      const groupKey = `sms_${groupingKey}`;
+      const smsId = sms.id || `sms_${sms.timestamp}`;
+
+      const notificationItem: AppNotification = {
+        id: smsId,
+        key: `sms_${smsId}`,
+        packageName: 'com.android.mms',
+        title: displayName,
+        text:
+          (sms as any).body || (sms as any).message || (sms as any).text || '',
+        appName: 'SMS',
+        type: 'sms',
+        smsType: (sms as any).type || 'inbox',
+        timestamp: sms.timestamp || Date.now(),
+        read: (sms as any).read || false,
+        phoneNumber: phoneNumber,
+      };
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          key: groupKey,
+          title: displayName,
+          appName: 'SMS',
+          type: 'sms',
+          lastText: notificationItem.text,
+          lastTimestamp: notificationItem.timestamp,
+          count: 1,
+          unreadCount: notificationItem.read ? 0 : 1,
+          notifications: [notificationItem],
+          phoneNumber: phoneNumber,
+        };
+      } else {
+        groups[groupKey].count++;
+        if (!notificationItem.read) groups[groupKey].unreadCount++;
+        groups[groupKey].notifications.push(notificationItem);
+        if (notificationItem.timestamp > groups[groupKey].lastTimestamp) {
+          groups[groupKey].lastTimestamp = notificationItem.timestamp;
+          groups[groupKey].lastText = notificationItem.text;
+        }
+      }
+    });
+
+    // Process regular notifications (filter out calls)
+    validNotifications
+      .filter(
+        n =>
+          n.type !== 'call' &&
+          n.type !== 'missed_call' &&
+          n.type !== 'whatsapp_call',
+      )
+      .forEach(n => {
+        const groupKey = `${n.title}_${n.appName}_${n.type}`;
+
+        if (!groups[groupKey]) {
+          groups[groupKey] = {
+            key: groupKey,
+            title: n.title,
+            appName: n.appName,
+            type: n.type,
+            lastText: n.text,
+            lastTimestamp: n.timestamp,
+            count: 1,
+            unreadCount: n.read ? 0 : 1,
+            notifications: [n],
+            packageName: n.packageName,
+            appIcon: (n as any).appIcon,
+          };
+        } else {
+          groups[groupKey].count++;
+          if (!n.read) groups[groupKey].unreadCount++;
+          groups[groupKey].notifications.push(n);
+          if (n.timestamp > groups[groupKey].lastTimestamp) {
+            groups[groupKey].lastTimestamp = n.timestamp;
+            groups[groupKey].lastText = n.text;
+          }
+          if (!groups[groupKey].packageName && n.packageName) {
+            groups[groupKey].packageName = n.packageName;
+          }
+        }
+      });
+
+    let result = Object.values(groups).sort(
+      (a, b) => b.lastTimestamp - a.lastTimestamp,
+    );
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        g =>
+          (g.title || '').toLowerCase().includes(query) ||
+          (g.lastText || '').toLowerCase().includes(query),
+      );
+    }
+
+    return result;
+  }, [notifications, smsMessages, searchQuery]);
+
+  // Permission handling
+  const checkPermission = useCallback(async () => {
+    try {
+      const granted = await notificationService.isPermissionGranted();
+      setHasPermission(granted);
+      return granted;
+    } catch (_error) {
+      return false;
+    }
+  }, []);
+
+  const requestPermission = useCallback(async () => {
+    const isMiui = await notificationService.isMiuiDevice();
+
+    if (isMiui) {
+      AlertService.requestMiuiPermission({
+        onAutoStartSettings: () => notificationService.openAutoStartSettings(),
+        onNotificationSettings: () => notificationService.openSettings(),
+      });
+    } else {
+      AlertService.requestNotificationPermission(() =>
+        notificationService.openSettings(),
+      );
+    }
+  }, []);
+
+  // Firebase operations
+  const saveToFirebase = useCallback(
+    async (notification: AppNotification) => {
+      if (!user) return;
+      const sanitizedKey = sanitizeFirestoreKey(notification.key);
+      const uniqueId = `${sanitizedKey}_${notification.timestamp}`;
+      try {
+        await firestore()
+          .collection('users')
+          .doc(user.uid)
+          .collection('notifications')
+          .doc(uniqueId)
+          .set({
+            ...notification,
+            id: uniqueId,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+          });
+      } catch (_error: any) {
+        // Silently handle Firebase errors
+      }
+    },
+    [user],
+  );
+
+  // Handlers
+  const handlePress = useCallback(
+    (group: GroupedNotification) => {
+      markGroupAsRead(group.title, group.appName, group.type);
+
+      if (group.type === 'sms' && group.phoneNumber) {
+        markMessagesAsReadBySender(group.phoneNumber);
+      }
+
+      navigation.navigate('Conversation', {
+        title: group.title,
+        appName: group.appName,
+        type: group.type,
+        phoneNumber: group.phoneNumber || group.key.replace('sms_', ''),
+        notifications: group.notifications,
+      });
+    },
+    [navigation, markGroupAsRead, markMessagesAsReadBySender],
+  );
+
+  const handleDelete = useCallback(
+    (group: GroupedNotification) => {
+      AlertService.confirmDeleteConversation(
+        group.title,
+        async () => {
+          group.notifications.forEach(n => removeNotification(n.id));
+
+          if (group.type === 'sms') {
+            const phoneNumber = group.key.replace('sms_', '');
+            await deleteMessagesBySender(phoneNumber);
+          }
+        },
+        isRTL,
+      );
+    },
+    [removeNotification, deleteMessagesBySender, isRTL],
+  );
+
+  const handleMute = useCallback(
+    (group: GroupedNotification) => {
+      AlertService.showMuted({ itemName: group.title, isRTL });
+    },
+    [isRTL],
+  );
+
+  // Selection handlers
+  const toggleSelectNotification = useCallback((key: string) => {
+    setSelectedNotifications(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key],
+    );
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedNotifications.length === groupedNotifications.length) {
+      setSelectedNotifications([]);
+    } else {
+      setSelectedNotifications(groupedNotifications.map(g => g.key));
+    }
+  }, [selectedNotifications.length, groupedNotifications]);
+
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedNotifications.length === 0) return;
+
+    AlertService.confirmDeleteSelected(
+      selectedNotifications.length,
+      async () => {
+        for (const key of selectedNotifications) {
+          const group = groupedNotifications.find(g => g.key === key);
+          if (group) {
+            group.notifications.forEach(n => removeNotification(n.id));
+
+            if (group.type === 'sms') {
+              const phoneNumber = key.replace('sms_', '');
+              await deleteMessagesBySender(phoneNumber);
+            }
+          }
+        }
+        setSelectedNotifications([]);
+        setIsSelectMode(false);
+        AlertService.showOperationComplete(
+          isRTL,
+          isRTL ? 'تم حذف الإشعارات المحددة' : 'Selected notifications deleted',
+        );
+      },
+      isRTL,
+      'conversations',
+    );
+  }, [
+    selectedNotifications,
+    groupedNotifications,
+    removeNotification,
+    deleteMessagesBySender,
+    isRTL,
+  ]);
+
+  const cancelSelectMode = useCallback(() => {
+    setIsSelectMode(false);
+    setSelectedNotifications([]);
+  }, []);
+
+  const enterSelectMode = useCallback(() => {
+    setIsSelectMode(true);
+  }, []);
+
+  // Effects
+  useEffect(() => {
+    checkPermission();
+    notificationService.isMiuiDevice().then(isMiui => {
+      setIsMiuiDevice(isMiui);
+      if (isMiui) {
+        notificationService.isServiceConnected().then(connected => {
+          if (!connected) {
+            setShowMiuiWarning(true);
+          }
+        });
+      }
+    });
+    const interval = setInterval(checkPermission, 3000);
+    return () => clearInterval(interval);
+  }, [checkPermission]);
+
+  // Load SMS from Firebase on mount
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    if (user && currentDevice) {
+      Promise.resolve(loadSmsMessages()).finally(() => {
+        setInitialLoading(false);
+      });
+    } else {
+      timer = setTimeout(() => setInitialLoading(false), 1000);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [user, currentDevice, loadSmsMessages]);
+
+  // Subscribe to notifications from Firebase
+  useEffect(() => {
+    if (!user || !currentDevice) return;
+
+    const unsubscribe = firestore()
+      .collection('users')
+      .doc(user.uid)
+      .collection('devices')
+      .doc(currentDevice.id)
+      .collection('notifications')
+      .where('type', '!=', 'sms')
+      .limit(100)
+      .onSnapshot(
+        snapshot => {
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const notification: AppNotification & { appIcon?: string } = {
+              id: doc.id,
+              key: data.key || `${data.packageName}_${data.timestamp}`,
+              packageName: data.packageName || '',
+              title: data.title || '',
+              text: data.text || '',
+              type: data.type || 'other',
+              timestamp: data.timestamp || Date.now(),
+              appName: data.appName || '',
+              read: data.read ?? false,
+              appIcon: data.appIcon,
+            };
+            addNotification(notification);
+          });
+        },
+        _error => {},
+      );
+
+    return () => unsubscribe();
+  }, [user, currentDevice, addNotification]);
+
+  // Listen for new notifications
+  useEffect(() => {
+    if (!hasPermission) return;
+
+    const unsubscribe = notificationService.onNotificationReceived(
+      notification => {
+        if (
+          notification.type === 'sms' ||
+          notification.packageName?.includes('messaging') ||
+          notification.packageName?.includes('mms')
+        ) {
+          return;
+        }
+
+        if (
+          notification.type === 'missed_call' ||
+          notification.type === 'call' ||
+          notification.type === 'whatsapp_call'
+        ) {
+          const callLog = {
+            id: notification.id || `call_${notification.timestamp}`,
+            userId: user?.uid || '',
+            deviceId: currentDevice?.id || 'android',
+            phoneNumber: '',
+            contactName: notification.title || '',
+            type: 'missed' as const,
+            duration: 0,
+            timestamp: notification.timestamp || Date.now(),
+            syncedAt: Date.now(),
+            source:
+              notification.type === 'whatsapp_call' ? 'whatsapp' : 'phone',
+          };
+
+          if (user?.uid) {
+            addCallAndSync(callLog, user.uid);
+          }
+          return;
+        }
+
+        addNotification(notification);
+        saveToFirebase(notification);
+      },
+    );
+    return () => unsubscribe();
+  }, [
+    hasPermission,
+    addNotification,
+    saveToFirebase,
+    addCallAndSync,
+    user,
+    currentDevice,
+  ]);
+
+  return {
+    // Data
+    groupedNotifications,
+    searchQuery,
+    isSelectMode,
+    selectedNotifications,
+    isLoading,
+    initialLoading,
+    hasPermission,
+
+    // Theme
+    isRTL,
+    isDarkMode,
+    colors,
+    bgColor,
+    textColor,
+    secondaryTextColor,
+
+    // Handlers
+    setSearchQuery,
+    handlePress,
+    handleDelete,
+    handleMute,
+    toggleSelectNotification,
+    toggleSelectAll,
+    handleDeleteSelected,
+    cancelSelectMode,
+    enterSelectMode,
+    checkPermission,
+    requestPermission,
+  };
+};

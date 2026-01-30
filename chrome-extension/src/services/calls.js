@@ -39,9 +39,6 @@ export async function markAllCallsAsViewed() {
 
   if (missedToMark.length === 0) return;
 
-  console.log("📞 Marking", missedToMark.length, "calls as viewed");
-
-  // Update local state immediately
   const updatedCalls = state.allCallsData.map((call) =>
     call.type === "missed" && !call.viewed ? { ...call, viewed: true } : call,
   );
@@ -67,7 +64,6 @@ export async function markAllCallsAsViewed() {
       }
     });
     await batch.commit();
-    console.log("✅ Marked all calls as viewed in Firebase");
   } catch (error) {
     console.error("Failed to mark calls as viewed:", error);
   }
@@ -79,9 +75,7 @@ export async function markAllCallsAsViewed() {
 export async function loadCalls() {
   const user = state.currentUser;
   if (!user) return;
-  console.log("Loading calls for user:", user.uid);
 
-  // First, get user's devices
   const devicesQuery = query(
     collection(db, "devices"),
     where("userId", "==", user.uid),
@@ -98,9 +92,6 @@ export async function loadCalls() {
     });
   });
 
-  console.log("📱 Loading calls from devices:", devicesList.length);
-
-  // Subscribe to calls from each device
   devicesList.forEach((device) => {
     const q = query(
       collection(db, "users", user.uid, "devices", device.id, "calls"),
@@ -111,15 +102,16 @@ export async function loadCalls() {
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        console.log("📞 Calls found for device", device.id, ":", snapshot.size);
         const calls = [];
         snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          const firestoreId = docSnap.id; // Save the actual Firestore document ID
           calls.push({
-            id: docSnap.id,
+            ...data,
+            id: firestoreId, // Use Firestore ID, not data.id
             deviceId: device.id,
             deviceName: device.name,
             docRef: docSnap.ref,
-            ...docSnap.data(),
           });
         });
         updateCallsList(device.id, calls);
@@ -315,7 +307,6 @@ async function showCallHistory(phoneNumber) {
           }
         });
         await batch.commit();
-        console.log("✅ Marked", missedToMark.length, "calls as viewed");
       }
     } catch (error) {
       console.error("Failed to mark calls as viewed:", error);

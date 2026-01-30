@@ -48,7 +48,7 @@ export async function registerDevice() {
       lastActiveAt: Date.now(),
       isOnline: true,
     },
-    { merge: true }
+    { merge: true },
   );
 }
 
@@ -62,7 +62,6 @@ export async function loadDevices() {
   const q = query(collection(db, "devices"), where("userId", "==", user.uid));
 
   const unsub = onSnapshot(q, (snapshot) => {
-    console.log("Devices found:", snapshot.size);
     const newDevices = [];
     snapshot.forEach((doc) => {
       newDevices.push({
@@ -92,7 +91,7 @@ export function renderDevices() {
           <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
         </svg>
         <p>No devices connected</p>
-        <span>Install ZyncIT on your phone to get started</span>
+        <span>Install iRopit on your phone to get started</span>
       </div>
     `;
     return;
@@ -128,14 +127,14 @@ export function renderDevices() {
         </div>
         <div class="list-item-subtitle">
           ${device.model || device.platform || "Phone"} • ${
-        device.platform || ""
-      } • ${device.isOnline ? "Online" : "Offline"}
+            device.platform || ""
+          } • ${device.isOnline ? "Online" : "Offline"}
         </div>
         <div class="device-id-info">${device.id}</div>
       </div>
       <div class="device-actions">
         <span class="list-item-time">${formatTime(
-          device.lastActiveAt || device.lastSeen
+          device.lastActiveAt || device.lastSeen,
         )}</span>
         <button class="delete-device-btn" data-device-id="${
           device.id
@@ -146,7 +145,7 @@ export function renderDevices() {
         </button>
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 
@@ -190,7 +189,7 @@ export function updateDeviceSelects() {
       d.type === "phone" ||
       d.platform === "android" ||
       d.platform === "ios" ||
-      d.platform === "Android"
+      d.platform === "Android",
   );
 
   const smsOptions = mobileDevices
@@ -207,8 +206,6 @@ export function updateDeviceSelects() {
 
   // Update chat device tabs
   updateChatDeviceTabs();
-
-  console.log(`Updated device selects: ${mobileDevices.length} SMS devices`);
 }
 
 /**
@@ -414,7 +411,7 @@ export async function updateDeviceName(docId, newName) {
       // Update all messages from this device
       const messagesQuery = query(
         collection(db, "users", user.uid, "messages"),
-        where("deviceId", "==", deviceId)
+        where("deviceId", "==", deviceId),
       );
       const messagesSnapshot = await getDocs(messagesQuery);
       const messageBatch = writeBatch(db);
@@ -427,7 +424,7 @@ export async function updateDeviceName(docId, newName) {
       const callsQuery = query(
         collection(db, "calls"),
         where("userId", "==", user.uid),
-        where("deviceId", "==", deviceId)
+        where("deviceId", "==", deviceId),
       );
       const callsSnapshot = await getDocs(callsQuery);
       const callBatch = writeBatch(db);
@@ -439,7 +436,7 @@ export async function updateDeviceName(docId, newName) {
       // Update all notifications from this device
       const notificationsQuery = query(
         collection(db, "users", user.uid, "notifications"),
-        where("deviceId", "==", deviceId)
+        where("deviceId", "==", deviceId),
       );
       const notificationsSnapshot = await getDocs(notificationsQuery);
       const notificationBatch = writeBatch(db);

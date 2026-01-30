@@ -6,7 +6,7 @@ import { MainTabParamList } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettingsStore } from '../store/settingsStore';
 import { LIGHT_COLORS, DARK_COLORS } from '../constants/theme';
-import ServiceStatusBanner from '../components/ServiceStatusBanner';
+// ServiceStatusBanner removed - permissions are handled in onboarding
 
 import NotificationsScreen from '../screens/main/NotificationsScreen';
 import CallsScreen from '../screens/main/CallsScreen';
@@ -56,22 +56,10 @@ const MainNavigator = () => {
   // In both RTL and LTR, we want SMS (Notifications) to appear first from the starting side
   // RTL (Arabic): SMS should be on the right (first in array)
   // LTR (English): SMS should be on the left (first in array)
-  // So we always use the same order
   const orderedTabs = tabs;
-
-  // Debug log to verify tab order
-  console.log(
-    '🔄 MainNavigator rendered - Language:',
-    language,
-    '| I18nManager.isRTL:',
-    I18nManager.isRTL,
-    '| Tab Order:',
-    orderedTabs.map(t => t.name).join(' → '),
-  );
 
   return (
     <View style={{ flex: 1, direction: isRTL ? 'rtl' : 'ltr' }}>
-      <ServiceStatusBanner />
       <Tab.Navigator
         key={language} // Force re-mount when language changes
         screenOptions={{

@@ -6,18 +6,22 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.ContactsContract;
 import android.util.Base64;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
@@ -297,6 +301,7 @@ public class NotificationService extends NotificationListenerService {
         String text = "";
         String bigText = "";
         String subText = "";
+        String smsPhoneNumber = null; // رقم الهاتف للـ SMS
 
         if (extras != null) {
             CharSequence titleCs = extras.getCharSequence(Notification.EXTRA_TITLE);
@@ -308,6 +313,40 @@ public class NotificationService extends NotificationListenerService {
             text = textCs != null ? textCs.toString() : "";
             bigText = bigTextCs != null ? bigTextCs.toString() : "";
             subText = subTextCs != null ? subTextCs.toString() : "";
+            
+            // محاولة استخراج رقم الهاتف من extras (لتطبيقات SMS)
+            if (isSmsPackage(packageName)) {
+                // Google Messages: استخدم extra_im_notification_participant_normalized_destination
+                String normalizedDest = extras.getString("extra_im_notification_participant_normalized_destination");
+                if (normalizedDest != null && !normalizedDest.isEmpty()) {
+                    smsPhoneNumber = normalizedDest;
+                    Log.d(TAG, "SMS phoneNumber from normalized_destination: " + smsPhoneNumber);
+                }
+                
+                // جرب android.summaryText (يحتوي أحياناً الرقم)
+                if (smsPhoneNumber == null) {
+                    CharSequence summaryText = extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT);
+                    if (summaryText != null && isPhoneNumber(summaryText.toString())) {
+                        smsPhoneNumber = summaryText.toString();
+                    }
+                }
+                
+                // جرب android.infoText
+                if (smsPhoneNumber == null) {
+                    CharSequence infoText = extras.getCharSequence(Notification.EXTRA_INFO_TEXT);
+                    if (infoText != null && isPhoneNumber(infoText.toString())) {
+                        smsPhoneNumber = infoText.toString();
+                    }
+                }
+                
+                // جرب subText
+                if (smsPhoneNumber == null && !subText.isEmpty() && isPhoneNumber(subText)) {
+                    smsPhoneNumber = subText;
+                }
+                
+                // Log all extras for debugging SMS
+                Log.d(TAG, "SMS Extras - title: " + title + ", subText: " + subText + ", phoneNumber: " + smsPhoneNumber);
+            }
         }
 
         // Skip if both title and text are empty
@@ -362,6 +401,9 @@ public class NotificationService extends NotificationListenerService {
         Log.i(TAG, "  Is Missed Call: " + isMissedCall);
         Log.i(TAG, "  Has App Icon: " + (appIcon != null));
         Log.i(TAG, "  Post Time: " + postTime + " (age: " + (now - postTime) + "ms)");
+        if (type.equals("sms")) {
+            Log.i(TAG, "  SMS Phone Number: " + smsPhoneNumber);
+        }
 
         if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
             Log.i(TAG, "🟢 WHATSAPP NOTIFICATION ACCEPTED AND WILL BE SAVED!");
@@ -369,7 +411,7 @@ public class NotificationService extends NotificationListenerService {
 
         // Always send to Firebase (works even when app is closed)
         sendToFirebase(sbn.getId(), key, packageName, title, text, bigText, subText,
-                type, postTime, appName, isMissedCall, appIcon);
+                type, postTime, appName, isMissedCall, appIcon, smsPhoneNumber);
 
         // Try to send to React Native (only works when app is open)
         WritableMap params = Arguments.createMap();
@@ -397,12 +439,43 @@ public class NotificationService extends NotificationListenerService {
      */
     private void sendToFirebase(int id, String key, String packageName, String title,
             String text, String bigText, String subText, String type,
-            long timestamp, String appName, boolean isMissedCall, String appIcon) {
+            long timestamp, String appName, boolean isMissedCall, String appIcon,
+            String smsPhoneNumber) {
         try {
             if (firebaseHelper != null && firebaseHelper.isLoggedIn()) {
+                // للـ SMS: استخراج رقم الهاتف واسم جهة الاتصال
+                String phoneNumber = null;
+                String contactName = null;
+                
+                if (type.equals("sms")) {
+                    // استخدام smsPhoneNumber المستخرج من extras إذا وُجد
+                    if (smsPhoneNumber != null && !smsPhoneNumber.isEmpty() && isPhoneNumber(smsPhoneNumber)) {
+                        phoneNumber = smsPhoneNumber;
+                        contactName = title;
+                    } else {
+                        // محاولة استخراج من key أو title أو جهات الاتصال
+                        phoneNumber = extractPhoneNumber(title, key);
+                        if (phoneNumber != null && !phoneNumber.equals(title)) {
+                            contactName = title;
+                        } else if (phoneNumber != null && phoneNumber.equals(title) && isPhoneNumber(title)) {
+                            // title هو الرقم نفسه، لا يوجد اسم
+                            contactName = null;
+                        }
+                    }
+                    
+                    // إذا لم نجد رقم هاتف، لا نحفظ SMS
+                    if (phoneNumber == null || !isPhoneNumber(phoneNumber)) {
+                        Log.w(TAG, "SMS without valid phone number, skipping: title=" + title);
+                        return;
+                    }
+                    
+                    Log.i(TAG, "SMS phoneNumber: " + phoneNumber + ", contactName: " + contactName);
+                }
+                
                 firebaseHelper.sendNotificationToFirestore(
                     String.valueOf(id), key, packageName, title, text,
-                    bigText, subText, type, timestamp, appName, isMissedCall, appIcon
+                    bigText, subText, type, timestamp, appName, isMissedCall, appIcon,
+                    phoneNumber, contactName
                 );
                 Log.i(TAG, "Notification queued for Firebase");
             } else {
@@ -411,6 +484,126 @@ public class NotificationService extends NotificationListenerService {
         } catch (Exception e) {
             Log.e(TAG, "Error sending to Firebase: " + e.getMessage());
         }
+    }
+
+    /**
+     * Extract phone number from SMS notification
+     * The key often contains the phone number, e.g., "0|com.google.android.apps.messaging|0|+1234567890|..."
+     */
+    private String extractPhoneNumber(String title, String key) {
+        // أولاً: جرب استخراج من key الإشعار
+        if (key != null && !key.isEmpty()) {
+            String[] parts = key.split("\\|");
+            for (String part : parts) {
+                String trimmed = part.trim();
+                // ابحث عن جزء يبدو كرقم هاتف (يبدأ بـ + أو أرقام فقط)
+                if (trimmed.matches("^\\+?[0-9]{7,15}$")) {
+                    return trimmed;
+                }
+            }
+        }
+        
+        // ثانياً: إذا كان title يبدو كرقم هاتف
+        if (title != null && !title.isEmpty()) {
+            // إزالة المسافات والشرطات
+            String cleanTitle = title.replaceAll("[\\s\\-]", "");
+            if (cleanTitle.matches("^\\+?[0-9]{7,15}$")) {
+                return title;
+            }
+        }
+        
+        // ثالثاً: البحث في جهات الاتصال باستخدام الاسم
+        if (title != null && !title.isEmpty()) {
+            String phoneFromContacts = getPhoneNumberFromContactName(title);
+            if (phoneFromContacts != null) {
+                Log.i(TAG, "Found phone number from contacts for '" + title + "': " + phoneFromContacts);
+                return phoneFromContacts;
+            }
+        }
+        
+        // إذا لم نجد رقم، أرجع null (لا نستخدم الاسم كرقم)
+        return null;
+    }
+
+    /**
+     * Search for phone number in contacts by contact name
+     */
+    private String getPhoneNumberFromContactName(String contactName) {
+        if (contactName == null || contactName.isEmpty()) {
+            return null;
+        }
+        
+        try {
+            ContentResolver contentResolver = getContentResolver();
+            
+            // البحث عن جهة الاتصال بالاسم
+            Uri uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI;
+            String[] projection = new String[] {
+                ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
+            };
+            
+            // البحث بالاسم (مطابقة جزئية)
+            String selection = ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?";
+            String[] selectionArgs = new String[] { "%" + contactName + "%" };
+            
+            Cursor cursor = contentResolver.query(uri, projection, selection, selectionArgs, null);
+            
+            if (cursor != null) {
+                try {
+                    if (cursor.moveToFirst()) {
+                        int numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
+                        if (numberIndex >= 0) {
+                            String phoneNumber = cursor.getString(numberIndex);
+                            if (phoneNumber != null && !phoneNumber.isEmpty()) {
+                                // تنظيف الرقم
+                                phoneNumber = phoneNumber.replaceAll("[\\s\\-\\(\\)]", "");
+                                return phoneNumber;
+                            }
+                        }
+                    }
+                } finally {
+                    cursor.close();
+                }
+            }
+            
+            // محاولة البحث بالمطابقة التامة إذا لم تنجح المطابقة الجزئية
+            selection = ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " = ?";
+            selectionArgs = new String[] { contactName };
+            
+            cursor = contentResolver.query(uri, projection, selection, selectionArgs, null);
+            
+            if (cursor != null) {
+                try {
+                    if (cursor.moveToFirst()) {
+                        int numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
+                        if (numberIndex >= 0) {
+                            String phoneNumber = cursor.getString(numberIndex);
+                            if (phoneNumber != null && !phoneNumber.isEmpty()) {
+                                phoneNumber = phoneNumber.replaceAll("[\\s\\-\\(\\)]", "");
+                                return phoneNumber;
+                            }
+                        }
+                    }
+                } finally {
+                    cursor.close();
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error searching contacts: " + e.getMessage());
+        }
+        
+        return null;
+    }
+
+    /**
+     * Check if a string looks like a phone number
+     */
+    private boolean isPhoneNumber(String text) {
+        if (text == null || text.isEmpty()) return false;
+        String clean = text.replaceAll("[\\s\\-\\(\\)]", "");
+        return clean.matches("^\\+?[0-9]{7,15}$");
     }
 
     /**

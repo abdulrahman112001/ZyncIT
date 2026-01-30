@@ -4,7 +4,7 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ZyncIT</title>
+        <title>iRopit</title>
         <link rel="stylesheet" href="popup.css">
     </head>
 
@@ -13,8 +13,8 @@
             <!-- Header -->
             <header class="header">
                 <div class="logo">
-                    <img src="../assets/icon48.png" alt="ZyncIT" class="logo-icon">
-                    <span class="logo-text">ZyncIT</span>
+                    <img src="../assets/icon48.png" alt="iRopit" class="logo-icon">
+                    <span class="logo-text">iRopit</span>
                 </div>
                 <div class="header-actions">
                     <button id="refreshBtn" class="icon-btn" title="Refresh">
@@ -36,9 +36,9 @@
             </header>
 
             <!-- Auth Container (shown when not logged in) -->
-            <div id="authContainer" class="auth-container">
+            <div id="authContainer" class="auth-container hidden">
                 <div class="auth-header">
-                    <h2>Welcome to ZyncIT</h2>
+                    <h2>Welcome to iRopit</h2>
                     <p>Sign in to sync your devices</p>
                 </div>
 
@@ -350,7 +350,7 @@
                                     <line x1="12" y1="18" x2="12.01" y2="18" />
                                 </svg>
                                 <p>No devices connected</p>
-                                <span>Install ZyncIT on your phone to get started</span>
+                                <span>Install iRopit on your phone to get started</span>
                             </div>
                         </div>
                     </div>
@@ -400,10 +400,28 @@
                                 <option value="">Select device...</option>
                             </select>
                         </div>
+                        
+                        <!-- Contacts Select - shows after device selection -->
+                        <div class="form-group" id="contactsGroup" style="display: none;">
+                            <label>📇 Select from contacts</label>
+                            <div class="contacts-select-wrapper">
+                                <input type="text" id="contactsSearch" class="contacts-search-input" placeholder="Search contacts by name or number...">
+                                <div id="contactsDropdown" class="contacts-dropdown hidden">
+                                    <div id="contactsList" class="contacts-list">
+                                        <!-- Contacts will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             <label for="smsPhone">Phone number</label>
-                            <input type="tel" id="smsPhone" placeholder="+1234567890">
+                            <input type="tel" id="smsPhone" placeholder="+1234567890" autocomplete="off">
+                            <small class="form-hint" id="phoneHint" style="display: none; color: #666; margin-top: 4px;">
+                                Or type a number manually
+                            </small>
                         </div>
+                        
                         <div class="form-group">
                             <label for="smsMessage">Message</label>
                             <textarea id="smsMessage" placeholder="Type your message..." rows="3"></textarea>
@@ -569,7 +587,7 @@
 
                             <!-- About Section -->
                             <div class="settings-footer">
-                                <p class="settings-version">ZyncIT v1.0.0</p>
+                                <p class="settings-version">iRopit v1.0.0</p>
                                 <p class="settings-tagline" data-i18n="settings_tagline">Sync your SMS and calls across
                                     all devices</p>
                             </div>
@@ -579,7 +597,7 @@
             </div>
 
             <!-- Loading Overlay -->
-            <div id="loadingOverlay" class="loading-overlay hidden">
+            <div id="loadingOverlay" class="loading-overlay">
                 <div class="spinner"></div>
             </div>
 

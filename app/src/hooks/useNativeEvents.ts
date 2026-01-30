@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import {
   NativeModules,
   Platform,
@@ -10,6 +10,8 @@ import { useSMSStore } from '../store/smsStore';
 import { useCallStore } from '../store/callStore';
 import { useAuthStore } from '../store/authStore';
 import { useDeviceStore } from '../store/deviceStore';
+import { useContactStore } from '../store/contactStore';
+import { startPushNotificationListener } from '../services/pushNotificationListener';
 
 const { ZyncITModule, CallLogModule, SmsModule } = NativeModules;
 
@@ -27,45 +29,75 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
   } = useSMSStore();
   const { addCall, addCallAndSync, syncCallsToFirebase } = useCallStore();
   const { user } = useAuthStore();
-  const { currentDevice, registerDevice, startOnlineStatusTracking } =
-    useDeviceStore();
+  const {
+    currentDevice,
+    registerDevice,
+    startOnlineStatusTracking,
+    startFcmTokenListener,
+  } = useDeviceStore();
+  const { syncContactsToFirebase } = useContactStore();
+  const pushListenerUnsubscribe = useRef<(() => void) | null>(null);
+  const fcmTokenListenerUnsubscribe = useRef<(() => void) | null>(null);
 
   // تسجيل الجهاز عند تحميل المستخدم
   useEffect(() => {
     if (user && !currentDevice) {
-      console.log('📱 Registering device...');
       registerDevice().then(() => {
-        console.log('🟢 Starting online status tracking...');
         startOnlineStatusTracking();
+        // مزامنة جهات الاتصال بعد تسجيل الجهاز
+        syncContactsToFirebase();
+        // Start FCM token refresh listener
+        fcmTokenListenerUnsubscribe.current = startFcmTokenListener();
       });
     }
-  }, [user, currentDevice, registerDevice, startOnlineStatusTracking]);
+
+    return () => {
+      if (fcmTokenListenerUnsubscribe.current) {
+        fcmTokenListenerUnsubscribe.current();
+        fcmTokenListenerUnsubscribe.current = null;
+      }
+    };
+  }, [
+    user,
+    currentDevice,
+    registerDevice,
+    startOnlineStatusTracking,
+    syncContactsToFirebase,
+    startFcmTokenListener,
+  ]);
 
   // الاستماع لطلبات إرسال SMS من Chrome Extension + بدء Foreground Service
   useEffect(() => {
     if (user && currentDevice) {
-      console.log('📡 Starting SMS requests listener...');
       listenForSMSRequests();
 
-      // Start foreground service for background SMS listening
       if (Platform.OS === 'android' && SmsModule?.startSmsRequestService) {
-        SmsModule.startSmsRequestService()
-          .then(() => console.log('✅ SmsRequestService started'))
-          .catch((err: any) =>
-            console.log('⚠️ SmsRequestService failed:', err),
-          );
+        SmsModule.startSmsRequestService().catch(() => {});
       }
+
+      // Start push notification listener
+      pushListenerUnsubscribe.current = startPushNotificationListener();
     }
+
+    return () => {
+      if (pushListenerUnsubscribe.current) {
+        pushListenerUnsubscribe.current();
+        pushListenerUnsubscribe.current = null;
+      }
+    };
   }, [user, currentDevice, listenForSMSRequests]);
 
-  // طلب الأذونات المطلوبة (فقط جهات الاتصال - الباقي يأتي من NotificationListener)
+  // طلب الأذونات المطلوبة
   const requestPermissions = useCallback(async () => {
     if (Platform.OS !== 'android') return false;
 
     try {
-      // Only request contacts permission - SMS and Call permissions removed for Google Play compliance
-      // All messages and calls are now captured via NotificationListenerService
-      const permissions = [PermissionsAndroid.PERMISSIONS.READ_CONTACTS];
+      // Request contacts and SEND_SMS permissions
+      // SEND_SMS is for sending SMS from Chrome Extension (core feature)
+      const permissions = [
+        PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+        PermissionsAndroid.PERMISSIONS.SEND_SMS,
+      ];
 
       const results = await PermissionsAndroid.requestMultiple(permissions);
 
@@ -73,10 +105,18 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
         result => result === PermissionsAndroid.RESULTS.GRANTED,
       );
 
-      // Don't show alert - contacts is optional
+      // Start SMS Request Service if SEND_SMS is granted
+      if (
+        results[PermissionsAndroid.PERMISSIONS.SEND_SMS] ===
+        PermissionsAndroid.RESULTS.GRANTED
+      ) {
+        if (SmsModule?.startSmsRequestService) {
+          SmsModule.startSmsRequestService().catch(() => {});
+        }
+      }
+
       return allGranted;
     } catch (error) {
-      console.error('Error requesting permissions:', error);
       return false;
     }
   }, []);
@@ -89,11 +129,8 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
       const hasPermissions = await requestPermissions();
       if (hasPermissions) {
         await ZyncITModule.startSyncService();
-        console.log('Sync service started');
       }
-    } catch (error) {
-      console.error('Error starting sync service:', error);
-    }
+    } catch (error) {}
   }, [requestPermissions]);
 
   // إيقاف خدمة المزامنة
@@ -102,10 +139,7 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
 
     try {
       await ZyncITModule.stopSyncService();
-      console.log('Sync service stopped');
-    } catch (error) {
-      console.error('Error stopping sync service:', error);
-    }
+    } catch (error) {}
   }, []);
 
   // تحميل كل الرسائل من الجهاز
@@ -114,18 +148,14 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
 
     try {
       if (SmsModule) {
-        console.log('[loadAllSMS] Using SmsModule');
         const messages = await SmsModule.getAllSms(100);
         return messages || [];
       } else if (ZyncITModule?.getAllSms) {
-        console.log('[loadAllSMS] Using ZyncITModule');
         const messages = await ZyncITModule.getAllSms(100);
         return messages || [];
       }
-      console.warn('[loadAllSMS] No native module available');
       return [];
     } catch (error) {
-      console.error('Error loading SMS:', error);
       return [];
     }
   }, []);
@@ -137,19 +167,14 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
     try {
       // Use CallLogModule first, fallback to ZyncITModule
       if (CallLogModule) {
-        console.log('[loadCallLog] Using CallLogModule');
         const calls = await CallLogModule.getCallLog(100);
-        console.log('[loadCallLog] Got calls:', calls?.length || 0);
         return calls || [];
       } else if (ZyncITModule?.getCallLog) {
-        console.log('[loadCallLog] Using ZyncITModule');
         const calls = await ZyncITModule.getCallLog(100);
         return calls || [];
       }
-      console.warn('[loadCallLog] No native module available');
       return [];
     } catch (error) {
-      console.error('Error loading call log:', error);
       return [];
     }
   }, []);
@@ -164,7 +189,6 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
       const result = await ZyncITModule.sendSMS(phoneNumber, message);
       return result;
     } catch (error) {
-      console.error('Error sending SMS:', error);
       throw error;
     }
   }, []);
@@ -173,23 +197,13 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
   useEffect(() => {
     if (!listenToEvents || Platform.OS !== 'android' || !user) return;
 
-    console.log('📱 Setting up native event listeners...');
-
     // الاستماع لرسائل SMS الجديدة - نستخدم DeviceEventEmitter مباشرة
     const smsSubscription = DeviceEventEmitter.addListener(
       'onSmsReceived',
       async data => {
-        console.log('📱 SMS received:', data);
-
         // ملاحظة: BackgroundSmsService يقوم بحفظ الرسالة في Firebase
         // هنا فقط نستمع للحدث لتحديث الـ UI إذا لزم الأمر
         // الرسالة ستظهر تلقائياً من real-time listener في smsStore
-
-        console.log(
-          '✅ SMS event received:',
-          data.sender || data.address,
-          data.contactName,
-        );
       },
     );
 
@@ -197,8 +211,6 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
     const callSubscription = DeviceEventEmitter.addListener(
       'onCallReceived',
       async data => {
-        console.log('📞 Call received:', data);
-
         // CallReceiver يرسل phoneNumber و contactName
         const phoneNumber = data.phoneNumber || data.number || 'Unknown';
         const contactName = data.contactName || data.name || '';
@@ -217,7 +229,6 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
 
         // حفظ في Firebase مباشرة
         await addCallAndSync(newCall, user.uid);
-        console.log('✅ Call synced to Firebase:', phoneNumber, contactName);
       },
     );
 
@@ -237,23 +248,12 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
         // Use CallLogModule.startListening to register the receiver
         if (CallLogModule?.startListening) {
           await CallLogModule.startListening();
-          console.log(
-            '[startCallListener] Call listener started via CallLogModule',
-          );
         } else if (ZyncITModule?.startCallListener) {
           await ZyncITModule.startCallListener();
-          console.log(
-            '[startCallListener] Call listener started via ZyncITModule',
-          );
         } else {
-          console.log(
-            '[startCallListener] Using event emitter for calls (no native start method)',
-          );
         }
       }
-    } catch (error) {
-      console.error('Error starting call listener:', error);
-    }
+    } catch (error) {}
   }, [requestPermissions]);
 
   return {

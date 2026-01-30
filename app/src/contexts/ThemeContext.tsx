@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
 import { I18nManager, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNRestart from 'react-native-restart';
@@ -102,6 +96,12 @@ const AR_TRANSLATIONS = {
   arabic: 'العربية',
   english: 'English',
 
+  // SMS/Conversation
+  pleaseEnterMessage: 'الرجاء إدخال رسالة',
+  couldNotDeterminePhone: 'تعذر تحديد رقم الهاتف',
+  failedToSendSMS: 'فشل إرسال الرسالة',
+  errorOccurred: 'حدث خطأ',
+
   // Status
   on: 'مفعل',
   off: 'معطل',
@@ -131,6 +131,55 @@ const AR_TRANSLATIONS = {
   every15Minutes: 'كل 15 دقيقة',
   every30Minutes: 'كل 30 دقيقة',
   everyHour: 'كل ساعة',
+
+  // Login Screen
+  appTagline: 'مزامنة أجهزتك بسلاسة',
+  welcomeBack: 'مرحباً بعودتك',
+  signInToContinue: 'سجل دخولك للمتابعة',
+  emailPlaceholder: 'البريد الإلكتروني',
+  passwordPlaceholder: 'كلمة المرور',
+  forgotPassword: 'نسيت كلمة المرور؟',
+  loginButton: 'تسجيل الدخول',
+  orDivider: 'أو',
+  googleSignIn: 'تسجيل الدخول بجوجل',
+  noAccount: 'ليس لديك حساب؟',
+  signUp: 'إنشاء حساب',
+  loginFailed: 'فشل تسجيل الدخول',
+  googleSignInFailed: 'فشل تسجيل الدخول بجوجل',
+
+  // SignUp Screen
+  createAccount: 'إنشاء حساب',
+  signUpSubtitle: 'سجل للبدء',
+  fullName: 'الاسم الكامل',
+  confirmPasswordPlaceholder: 'تأكيد كلمة المرور',
+  creatingAccount: 'جاري إنشاء الحساب...',
+  signUpButton: 'إنشاء حساب',
+  googleSignUp: 'المتابعة بجوجل',
+  hasAccount: 'لديك حساب بالفعل؟',
+  signIn: 'تسجيل الدخول',
+  passwordsNotMatch: 'كلمتا المرور غير متطابقتين',
+  passwordMinLength: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
+  signUpFailed: 'فشل إنشاء الحساب',
+  googleSignUpFailed: 'فشل التسجيل بجوجل',
+
+  // Validation Errors
+  emailRequired: 'البريد الإلكتروني مطلوب',
+  passwordRequired: 'كلمة المرور مطلوبة',
+  nameRequired: 'الاسم مطلوب',
+  confirmPasswordRequired: 'يرجى تأكيد كلمة المرور',
+
+  // Account Screen
+  noEmail: 'لا يوجد بريد',
+  signOut: 'تسجيل الخروج',
+
+  // Notifications Screen
+  loading: 'جاري التحميل...',
+  enableNotificationAccess: 'تفعيل الوصول للإشعارات',
+  notificationPermissionDesc:
+    'iRopit يحتاج إذن الوصول للإشعارات لمزامنة الرسائل',
+  enableAccess: 'تفعيل الوصول',
+  noMessagesYet: 'لا توجد رسائل',
+  messagesWillAppear: 'ستظهر رسائلك هنا عند استلام الإشعارات',
 };
 
 // English translations
@@ -218,6 +267,12 @@ const EN_TRANSLATIONS = {
   arabic: 'العربية',
   english: 'English',
 
+  // SMS/Conversation
+  pleaseEnterMessage: 'Please enter a message',
+  couldNotDeterminePhone: 'Could not determine phone number',
+  failedToSendSMS: 'Failed to send SMS',
+  errorOccurred: 'An error occurred',
+
   // Status
   on: 'On',
   off: 'Off',
@@ -246,6 +301,56 @@ const EN_TRANSLATIONS = {
   every15Minutes: 'Every 15 minutes',
   every30Minutes: 'Every 30 minutes',
   everyHour: 'Every hour',
+
+  // Login Screen
+  appTagline: 'Sync your devices seamlessly',
+  welcomeBack: 'Welcome Back',
+  signInToContinue: 'Sign in to continue',
+  emailPlaceholder: 'Email Address',
+  passwordPlaceholder: 'Password',
+  forgotPassword: 'Forgot Password?',
+  loginButton: 'Login',
+  orDivider: 'OR',
+  googleSignIn: 'Sign in with Google',
+  noAccount: "Don't have an account?",
+  signUp: 'Sign Up',
+  loginFailed: 'Login Failed',
+  googleSignInFailed: 'Google Sign In Failed',
+
+  // SignUp Screen
+  createAccount: 'Create Account',
+  signUpSubtitle: 'Sign up to get started',
+  fullName: 'Full Name',
+  confirmPasswordPlaceholder: 'Confirm Password',
+  creatingAccount: 'Creating Account...',
+  signUpButton: 'Sign Up',
+  googleSignUp: 'Continue with Google',
+  hasAccount: 'Already have an account?',
+  signIn: 'Sign In',
+  passwordsNotMatch: 'Passwords do not match',
+  passwordMinLength: 'Password must be at least 6 characters',
+  signUpFailed: 'Sign Up Failed',
+  googleSignUpFailed: 'Google Sign In Failed',
+
+  // Validation Errors
+  emailRequired: 'Email is required',
+  passwordRequired: 'Password is required',
+  nameRequired: 'Name is required',
+  confirmPasswordRequired: 'Please confirm your password',
+
+  // Account Screen
+  noEmail: 'No email',
+  signOut: 'Sign Out',
+
+  // Notifications Screen
+  loading: 'Loading...',
+  enableNotificationAccess: 'Enable Notification Access',
+  notificationPermissionDesc:
+    'iRopit needs permission to read notifications for syncing messages.',
+  enableAccess: 'Enable Access',
+  noMessagesYet: 'No Messages Yet',
+  messagesWillAppear:
+    'Your messages will appear here when you receive notifications.',
 };
 
 type TranslationKey = keyof typeof AR_TRANSLATIONS;
@@ -284,27 +389,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
       // Check saved language
       const savedLanguage = await AsyncStorage.getItem('app_language');
 
-      console.log(
-        '🌍 Language Check - Current:',
-        language,
-        '| Saved:',
-        savedLanguage,
-        '| I18nManager.isRTL:',
-        I18nManager.isRTL,
-      );
-
       if (!savedLanguage) {
         // First time - just save and set RTL
         const isRTL = language === 'ar';
         I18nManager.allowRTL(isRTL);
         I18nManager.forceRTL(isRTL);
         await AsyncStorage.setItem('app_language', language);
-        console.log(
-          '🌍 First time - Language saved:',
-          language,
-          '| RTL set to:',
-          isRTL,
-        );
         return;
       }
 
@@ -316,14 +406,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Save BEFORE restart
         await AsyncStorage.setItem('app_language', language);
-
-        console.log(
-          '🔄 Language changed from',
-          savedLanguage,
-          'to',
-          language,
-          '- RESTARTING APP...',
-        );
 
         // Restart to apply RTL changes
         if (Platform.OS === 'android') {

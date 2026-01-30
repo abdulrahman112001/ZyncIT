@@ -1,8 +1,11 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppNotification } from '../services/notificationService';
 import firestore from '@react-native-firebase/firestore';
+import { useAuthStore } from './authStore';
+import { useDeviceStore } from './deviceStore';
+import { COLLECTIONS } from '../constants';
 
 interface NotificationState {
   notifications: AppNotification[];
@@ -15,6 +18,11 @@ interface NotificationState {
   getNotificationsByType: (type: string) => AppNotification[];
   getUnreadCount: (title: string, appName: string, type: string) => number;
   syncFromFirebase: (userId: string) => Promise<void>;
+  loadNotificationsForConversation: (
+    title: string,
+    appName: string,
+    type: string,
+  ) => Promise<AppNotification[]>;
   cleanup: () => void;
 }
 
@@ -32,18 +40,8 @@ export const useNotificationStore = create<NotificationState>()(
             .substring(0, 200);
           const uniqueId = `${sanitizedKey}_${notification.timestamp}`;
 
-          console.log(
-            '[NotificationStore] Adding notification with uniqueId:',
-            uniqueId,
-          );
-          console.log(
-            '[NotificationStore] Current count:',
-            state.notifications.length,
-          );
-
           const exists = state.notifications.find(n => n.id === uniqueId);
           if (exists) {
-            console.log('[NotificationStore] Duplicate found, skipping');
             return state;
           }
 
@@ -57,7 +55,6 @@ export const useNotificationStore = create<NotificationState>()(
             0,
             500,
           );
-          console.log('[NotificationStore] New count:', updated.length);
           return { notifications: updated };
         });
       },
@@ -115,11 +112,18 @@ export const useNotificationStore = create<NotificationState>()(
       },
 
       syncFromFirebase: async (userId: string) => {
+        const { currentDevice } = useDeviceStore.getState();
+        if (!currentDevice) {
+          return;
+        }
+
         try {
           const snapshot = await firestore()
-            .collection('users')
+            .collection(COLLECTIONS.USERS)
             .doc(userId)
-            .collection('notifications')
+            .collection(COLLECTIONS.DEVICES)
+            .doc(currentDevice.id)
+            .collection(COLLECTIONS.NOTIFICATIONS)
             .orderBy('timestamp', 'desc')
             .limit(100)
             .get();
@@ -129,13 +133,13 @@ export const useNotificationStore = create<NotificationState>()(
             const data = doc.data();
             firebaseNotifications.push({
               id: doc.id,
-              key: data.key,
-              packageName: data.packageName,
-              title: data.title,
-              text: data.text,
-              type: data.type,
-              timestamp: data.timestamp,
-              appName: data.appName,
+              key: data.key || doc.id,
+              packageName: data.packageName || '',
+              title: data.title || '',
+              text: data.text || data.content || '',
+              type: data.type || 'notification',
+              timestamp: data.timestamp || data.receivedAt || Date.now(),
+              appName: data.appName || '',
               read: data.read ?? false,
             });
           });
@@ -150,22 +154,66 @@ export const useNotificationStore = create<NotificationState>()(
             merged.sort((a, b) => b.timestamp - a.timestamp);
             return { notifications: merged.slice(0, 500) };
           });
-
-          console.log(
-            '[NotificationStore] Synced from Firebase:',
-            firebaseNotifications.length,
-          );
         } catch (error) {
-          console.error(
-            '[NotificationStore] Error syncing from Firebase:',
-            error,
-          );
+          console.log('Error syncing notifications from Firebase:', error);
+        }
+      },
+
+      loadNotificationsForConversation: async (
+        title: string,
+        appName: string,
+        type: string,
+      ): Promise<AppNotification[]> => {
+        const { user } = useAuthStore.getState();
+        const { currentDevice } = useDeviceStore.getState();
+
+        if (!user || !currentDevice) {
+          return [];
+        }
+
+        try {
+          // Load all notifications and filter locally
+          const snapshot = await firestore()
+            .collection(COLLECTIONS.USERS)
+            .doc(user.uid)
+            .collection(COLLECTIONS.DEVICES)
+            .doc(currentDevice.id)
+            .collection(COLLECTIONS.NOTIFICATIONS)
+            .where('type', '==', type)
+            .orderBy('timestamp', 'desc')
+            .get();
+
+          const notifications: AppNotification[] = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const notifTitle = data.title || '';
+            const notifAppName = data.appName || '';
+
+            // Filter by title and appName
+            if (notifTitle === title && notifAppName === appName) {
+              notifications.push({
+                id: doc.id,
+                key: data.key || doc.id,
+                packageName: data.packageName || '',
+                title: notifTitle,
+                text: data.text || data.content || '',
+                type: data.type || 'notification',
+                timestamp: data.timestamp || data.receivedAt || Date.now(),
+                appName: notifAppName,
+                read: data.read ?? false,
+              });
+            }
+          });
+
+          return notifications;
+        } catch (error) {
+          console.log('Error loading notifications for conversation:', error);
+          return [];
         }
       },
 
       cleanup: () => {
         set({ notifications: [] });
-        console.log('[NotificationStore] Cleaned up');
       },
     }),
     {

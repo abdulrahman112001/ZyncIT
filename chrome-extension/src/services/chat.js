@@ -15,43 +15,42 @@ import {
   ref,
   uploadBytes,
   getDownloadURL,
-} from "../config/firebase.js"
+} from "../config/firebase.js";
 
-import { chatMessages, chatInput, sendChatBtn } from "../ui/dom.js"
-import { showToast, showLoadingOverlay, hideLoading } from "../ui/toasts.js"
-import { formatTime, getDeviceId } from "../utils/helpers.js"
-import * as state from "../state/index.js"
-import { updateTabBadges } from "./badges.js"
+import { chatMessages, chatInput, sendChatBtn } from "../ui/dom.js";
+import { showToast, showLoadingOverlay, hideLoading } from "../ui/toasts.js";
+import { formatTime, getDeviceId } from "../utils/helpers.js";
+import * as state from "../state/index.js";
+import { updateTabBadges } from "./badges.js";
+import { sendChatNotification } from "./pushNotification.js";
 
 /**
  * Subscribe to chat messages
  */
 export function subscribeToChat() {
-  const user = state.currentUser
-  if (!user) return
-
-  console.log("Subscribing to chat for user:", user.uid)
+  const user = state.currentUser;
+  if (!user) return;
 
   const q = query(
     collection(db, "chats"),
     where("participants", "array-contains", user.uid),
-    limit(100)
-  )
+    limit(100),
+  );
 
   const unsub = onSnapshot(q, (snapshot) => {
-    const messages = []
+    const messages = [];
     snapshot.forEach((doc) => {
-      const data = doc.data()
-      messages.push({ id: doc.id, ...data })
-    })
+      const data = doc.data();
+      messages.push({ id: doc.id, ...data });
+    });
 
     // Sort by timestamp locally
-    messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-    state.setCachedChatMessages(messages)
-    renderChatMessages(messages)
-  })
+    messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    state.setCachedChatMessages(messages);
+    renderChatMessages(messages);
+  });
 
-  state.addUnsubscriber(unsub)
+  state.addUnsubscriber(unsub);
 }
 
 /**
@@ -68,19 +67,19 @@ export function renderChatMessages(messages) {
         <p>Start a conversation</p>
         <span>Chat with your other devices</span>
       </div>
-    `
-    updateTabBadges()
-    return
+    `;
+    updateTabBadges();
+    return;
   }
 
   // Check if "All" tab is selected
   const selectedTab =
-    document.querySelector(".device-tab.active")?.dataset.device || "all"
-  const showDeviceName = selectedTab === "all"
+    document.querySelector(".device-tab.active")?.dataset.device || "all";
+  const showDeviceName = selectedTab === "all";
 
   chatMessages.innerHTML = messages
     .map((msg) => {
-      let content = ""
+      let content = "";
 
       // Image
       if (msg.type === "image" && msg.fileUrl) {
@@ -88,7 +87,7 @@ export function renderChatMessages(messages) {
           <a href="${msg.fileUrl}" target="_blank" class="chat-image-link">
             <img src="${msg.fileUrl}" alt="Image" class="chat-image" />
           </a>
-        `
+        `;
       }
       // File
       else if (msg.type === "file" && msg.fileUrl) {
@@ -103,28 +102,28 @@ export function renderChatMessages(messages) {
             </svg>
             <span>${msg.fileName || "File"}</span>
           </a>
-        `
+        `;
       }
       // Text
       else {
-        content = `<div>${msg.content}</div>`
+        content = `<div>${msg.content}</div>`;
       }
 
       // Get device name from devices list
       const senderDevice = state.devices.find(
-        (d) => d.id === msg.senderDeviceId
-      )
+        (d) => d.id === msg.senderDeviceId,
+      );
       const deviceName =
         senderDevice?.nickname ||
         senderDevice?.name ||
         senderDevice?.model ||
         msg.senderPlatform ||
-        ""
+        "";
 
       // Determine if message is sent from this extension
       const isSentFromExtension =
         msg.senderPlatform === "chrome-extension" ||
-        (msg.senderDeviceId && msg.senderDeviceId.startsWith("ext_"))
+        (msg.senderDeviceId && msg.senderDeviceId.startsWith("ext_"));
 
       return `
         <div class="chat-message ${isSentFromExtension ? "sent" : "received"}" 
@@ -141,32 +140,32 @@ export function renderChatMessages(messages) {
             msg.replyTo
               ? `<div class="chat-reply-preview">↩ ${msg.replyTo.content.substring(
                   0,
-                  50
+                  50,
                 )}${msg.replyTo.content.length > 50 ? "..." : ""}</div>`
               : ""
           }
           ${content}
           <div class="chat-message-time">${formatTime(msg.timestamp)}</div>
         </div>
-      `
+      `;
     })
-    .join("")
+    .join("");
 
-  chatMessages.scrollTop = chatMessages.scrollHeight
-  updateTabBadges()
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  updateTabBadges();
 }
 
 /**
  * Send a chat message
  */
 export async function sendChatMessage() {
-  const content = chatInput.value.trim()
-  const user = state.currentUser
-  if (!content || !user) return
+  const content = chatInput.value.trim();
+  const user = state.currentUser;
+  if (!content || !user) return;
 
-  const deviceId = await getDeviceId()
+  const deviceId = await getDeviceId();
   const selectedDeviceTab =
-    document.querySelector(".device-tab.active")?.dataset.device || "all"
+    document.querySelector(".device-tab.active")?.dataset.device || "all";
 
   const messageData = {
     senderId: user.uid,
@@ -180,7 +179,7 @@ export async function sendChatMessage() {
     read: false,
     timestamp: Date.now(),
     participants: [user.uid],
-  }
+  };
 
   // Add reply info if replying
   if (state.currentReplyTo) {
@@ -188,16 +187,19 @@ export async function sendChatMessage() {
       id: state.currentReplyTo.id,
       content: state.currentReplyTo.content,
       senderId: state.currentReplyTo.senderId,
-    }
+    };
   }
 
   try {
-    await addDoc(collection(db, "chats"), messageData)
-    chatInput.value = ""
-    clearReply()
+    await addDoc(collection(db, "chats"), messageData);
+    chatInput.value = "";
+    clearReply();
+
+    // Send push notification to mobile devices
+    await sendChatNotification(content, user.displayName || "Chrome Extension");
   } catch (error) {
-    console.error("Failed to send message:", error)
-    showToast("Failed to send message", "error")
+    console.error("Failed to send message:", error);
+    showToast("Failed to send message", "error");
   }
 }
 
@@ -207,20 +209,20 @@ export async function sendChatMessage() {
  * @returns {Promise<Object>} Upload result with url, fileName, fileType
  */
 async function uploadFileToStorage(file) {
-  const user = state.currentUser
-  const timestamp = Date.now()
-  const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
-  const storagePath = `chat_files/${user.uid}/${timestamp}_${sanitizedName}`
+  const user = state.currentUser;
+  const timestamp = Date.now();
+  const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+  const storagePath = `chat_files/${user.uid}/${timestamp}_${sanitizedName}`;
 
-  const storageRef = ref(storage, storagePath)
-  await uploadBytes(storageRef, file)
-  const downloadUrl = await getDownloadURL(storageRef)
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, file);
+  const downloadUrl = await getDownloadURL(storageRef);
 
   return {
     url: downloadUrl,
     fileName: file.name,
     fileType: file.type.startsWith("image/") ? "image" : "file",
-  }
+  };
 }
 
 /**
@@ -228,16 +230,19 @@ async function uploadFileToStorage(file) {
  * @param {File} file - File to send
  */
 export async function sendFileMessage(file) {
-  const user = state.currentUser
-  if (!file || !user) return
+  const user = state.currentUser;
+  if (!file || !user) return;
 
-  showLoadingOverlay()
+  showLoadingOverlay();
 
   try {
-    const result = await uploadFileToStorage(file)
-    const deviceId = await getDeviceId()
+    const result = await uploadFileToStorage(file);
+    const deviceId = await getDeviceId();
     const selectedDeviceTab =
-      document.querySelector(".device-tab.active")?.dataset.device || "all"
+      document.querySelector(".device-tab.active")?.dataset.device || "all";
+
+    const contentText =
+      result.fileType === "image" ? "📷 Image" : `📎 ${result.fileName}`;
 
     await addDoc(collection(db, "chats"), {
       senderId: user.uid,
@@ -246,26 +251,31 @@ export async function sendFileMessage(file) {
       senderPlatform: "chrome-extension",
       receiverId: user.uid,
       receiverDeviceId: selectedDeviceTab === "all" ? null : selectedDeviceTab,
-      content:
-        result.fileType === "image" ? "📷 Image" : `📎 ${result.fileName}`,
+      content: contentText,
       type: result.fileType,
       fileUrl: result.url,
       fileName: result.fileName,
       read: false,
       timestamp: Date.now(),
       participants: [user.uid],
-    })
+    });
+
+    // Send push notification for file
+    await sendChatNotification(
+      contentText,
+      user.displayName || "Chrome Extension",
+    );
 
     showToast(
       `${result.fileType === "image" ? "Image" : "File"} sent!`,
-      "success"
-    )
+      "success",
+    );
   } catch (error) {
-    showToast("Failed to send file", "error")
-    console.error(error)
+    showToast("Failed to send file", "error");
+    console.error(error);
   }
 
-  hideLoading()
+  hideLoading();
 }
 
 /**
@@ -273,44 +283,47 @@ export async function sendFileMessage(file) {
  * @param {HTMLElement} element - Message element
  */
 export function setReplyTo(element) {
-  const msgId = element.dataset.msgId
-  const msgContent = element.dataset.msgContent
-  const msgSender = element.dataset.msgSender
+  const msgId = element.dataset.msgId;
+  const msgContent = element.dataset.msgContent;
+  const msgSender = element.dataset.msgSender;
 
   state.setCurrentReplyTo({
     id: msgId,
     content: msgContent,
     senderId: msgSender,
-  })
+  });
 
   // Show reply preview above input
-  let replyPreview = document.getElementById("chatReplyPreview")
+  let replyPreview = document.getElementById("chatReplyPreview");
   if (!replyPreview) {
-    replyPreview = document.createElement("div")
-    replyPreview.id = "chatReplyPreview"
-    replyPreview.className = "chat-reply-input-preview"
-    const chatInputContainer = chatInput.parentElement
-    chatInputContainer.insertBefore(replyPreview, chatInputContainer.firstChild)
+    replyPreview = document.createElement("div");
+    replyPreview.id = "chatReplyPreview";
+    replyPreview.className = "chat-reply-input-preview";
+    const chatInputContainer = chatInput.parentElement;
+    chatInputContainer.insertBefore(
+      replyPreview,
+      chatInputContainer.firstChild,
+    );
   }
 
   replyPreview.innerHTML = `
     <span class="reply-text">↩ ${msgContent.substring(0, 40)}${
-    msgContent.length > 40 ? "..." : ""
-  }</span>
+      msgContent.length > 40 ? "..." : ""
+    }</span>
     <button class="reply-close" onclick="window.clearReply()">×</button>
-  `
-  replyPreview.style.display = "flex"
-  chatInput.focus()
+  `;
+  replyPreview.style.display = "flex";
+  chatInput.focus();
 }
 
 /**
  * Clear reply state
  */
 export function clearReply() {
-  state.setCurrentReplyTo(null)
-  const replyPreview = document.getElementById("chatReplyPreview")
+  state.setCurrentReplyTo(null);
+  const replyPreview = document.getElementById("chatReplyPreview");
   if (replyPreview) {
-    replyPreview.style.display = "none"
+    replyPreview.style.display = "none";
   }
 }
 
@@ -318,36 +331,36 @@ export function clearReply() {
  * Initialize chat event listeners
  */
 export function initChatListeners() {
-  sendChatBtn?.addEventListener("click", sendChatMessage)
+  sendChatBtn?.addEventListener("click", sendChatMessage);
   chatInput?.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") sendChatMessage()
-  })
+    if (e.key === "Enter") sendChatMessage();
+  });
 
   // File attachment button
   document.getElementById("attachFileBtn")?.addEventListener("click", () => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = "*/*"
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "*/*";
     input.onchange = (e) => {
-      const file = e.target.files?.[0]
-      if (file) sendFileMessage(file)
-    }
-    input.click()
-  })
+      const file = e.target.files?.[0];
+      if (file) sendFileMessage(file);
+    };
+    input.click();
+  });
 
   // Image attachment button
   document.getElementById("attachImageBtn")?.addEventListener("click", () => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = "image/*"
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
     input.onchange = (e) => {
-      const file = e.target.files?.[0]
-      if (file) sendFileMessage(file)
-    }
-    input.click()
-  })
+      const file = e.target.files?.[0];
+      if (file) sendFileMessage(file);
+    };
+    input.click();
+  });
 
   // Expose to window for inline onclick
-  window.setReplyTo = setReplyTo
-  window.clearReply = clearReply
+  window.setReplyTo = setReplyTo;
+  window.clearReply = clearReply;
 }

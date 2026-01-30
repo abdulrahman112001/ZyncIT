@@ -24,6 +24,28 @@ const { SmsModule } = NativeModules;
 // Track if SMS requests listener is already active
 let smsRequestsUnsubscribe: (() => void) | null = null;
 
+// Normalize phone number for comparison (remove +, spaces, dashes, etc.)
+const normalizePhoneNumber = (phone: string): string => {
+  if (!phone) return '';
+  // Remove all non-digit characters
+  let normalized = phone.replace(/\D/g, '');
+  // Remove leading zeros
+  normalized = normalized.replace(/^0+/, '');
+  // Get last 9 digits for comparison (handles country codes)
+  if (normalized.length > 9) {
+    normalized = normalized.slice(-9);
+  }
+  return normalized;
+};
+
+// Check if two phone numbers match
+const phoneNumbersMatch = (phone1: string, phone2: string): boolean => {
+  const n1 = normalizePhoneNumber(phone1);
+  const n2 = normalizePhoneNumber(phone2);
+  if (!n1 || !n2) return false;
+  return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
+};
+
 interface SMSState {
   messages: SMS[];
   isLoading: boolean;
@@ -78,24 +100,15 @@ export const useSMSStore = create<SMSState>((set, get) => ({
     // تجنب التكرار
     if (!messages.find(m => m.id === message.id)) {
       set({ messages: [message, ...messages] });
-      console.log(
-        '📥 SMS added to store, total messages:',
-        messages.length + 1,
-      );
     } else {
-      console.log('⚠️ SMS already exists in store:', message.id);
     }
 
     // If no currentDevice, try to register it first
     if (!currentDevice && userId) {
-      console.log('📱 No currentDevice found, attempting to register...');
       try {
         await useDeviceStore.getState().registerDevice();
         currentDevice = useDeviceStore.getState().currentDevice;
-        console.log('📱 Device registered:', currentDevice?.id);
-      } catch (e) {
-        console.error('❌ Failed to register device:', e);
-      }
+      } catch (e) {}
     }
 
     // حفظ في Firebase كإشعار (في نفس مسار الإشعارات)
@@ -149,18 +162,8 @@ export const useSMSStore = create<SMSState>((set, get) => ({
           .collection(COLLECTIONS.NOTIFICATIONS)
           .doc(docId)
           .set(notificationData, { merge: true });
-
-        console.log('✅ SMS saved as notification in Firebase:', phoneNumber);
-      } catch (error) {
-        console.error('❌ Error saving SMS to Firebase:', error);
-      }
+      } catch (error) {}
     } else {
-      console.warn(
-        '⚠️ SMS NOT saved to Firebase - userId:',
-        userId,
-        'currentDevice:',
-        currentDevice?.id || 'null',
-      );
     }
   },
 
@@ -172,9 +175,7 @@ export const useSMSStore = create<SMSState>((set, get) => ({
     try {
       const batch = firestore().batch();
 
-      for (const msg of messages.slice(0, 50)) {
-        // آخر 50 رسالة فقط
-        // استخدام sender أو phoneNumber (للتوافق)
+      for (const msg of messages.slice(0, 1000)) {
         const phoneNumber = msg.phoneNumber || msg.sender || 'unknown';
 
         const smsData = {
@@ -195,29 +196,17 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       }
 
       await batch.commit();
-      console.log(`✅ Synced ${messages.length} SMS to Firebase`);
-    } catch (error: any) {
-      console.error('❌ Error syncing SMS to Firebase:', error);
-    }
+    } catch (error: any) {}
   },
 
   loadMessages: () => {
     const { user } = useAuthStore.getState();
     const { currentDevice } = useDeviceStore.getState();
 
-    console.log(
-      '📱 loadMessages called - user:',
-      user?.uid,
-      'device:',
-      currentDevice?.id,
-    );
-
     if (!user || !currentDevice) {
-      console.log('⚠️ loadMessages: Missing user or device, skipping');
       return;
     }
 
-    // Unsubscribe from previous listener
     const { unsubscribe: prevUnsubscribe } = get();
     if (prevUnsubscribe) {
       prevUnsubscribe();
@@ -225,8 +214,6 @@ export const useSMSStore = create<SMSState>((set, get) => ({
 
     set({ isLoading: true });
 
-    // قراءة SMS من مسار الإشعارات مع فلتر type === 'sms'
-    // ملاحظة: تم إزالة orderBy لتجنب الحاجة لـ composite index في Firebase
     const unsubscribe = firestore()
       .collection(COLLECTIONS.USERS)
       .doc(user.uid)
@@ -247,8 +234,8 @@ export const useSMSStore = create<SMSState>((set, get) => ({
               deviceId: data.deviceId || currentDevice.id,
               body: data.text || data.content || data.body || '',
               text: data.text || data.content || data.body || '',
-              phoneNumber: data.phoneNumber || data.title || '',
-              sender: data.phoneNumber || data.title || '',
+              phoneNumber: data.phoneNumber || '',
+              sender: data.phoneNumber || '',
               contactName: data.contactName || '',
               timestamp: data.timestamp || data.receivedAt || Date.now(),
               read: data.read || false,
@@ -257,34 +244,21 @@ export const useSMSStore = create<SMSState>((set, get) => ({
             } as SMS);
           });
 
-          // دمج الرسائل المحلية الجديدة مع رسائل Firebase
           const { messages: currentMessages } = get();
           const firebaseIds = new Set(firebaseMessages.map(m => m.id));
 
-          // الاحتفاظ بالرسائل المحلية التي لم تُحفظ بعد في Firebase
           const localOnlyMessages = currentMessages.filter(
             m => !firebaseIds.has(m.id),
           );
 
-          // دمج الرسائل
           const mergedMessages = [...localOnlyMessages, ...firebaseMessages];
 
-          // ترتيب محلياً بعد جلب البيانات
           mergedMessages.sort(
             (a, b) => (b.timestamp || 0) - (a.timestamp || 0),
-          );
-          console.log(
-            '📬 SMS loaded from Firebase:',
-            firebaseMessages.length,
-            '| Local only:',
-            localOnlyMessages.length,
-            '| Total:',
-            mergedMessages.length,
           );
           set({ messages: mergedMessages, isLoading: false });
         },
         error => {
-          console.error('❌ Error loading SMS:', error);
           set({ error: error.message, isLoading: false });
         },
       );
@@ -292,27 +266,22 @@ export const useSMSStore = create<SMSState>((set, get) => ({
     set({ unsubscribe });
   },
 
-  loadMessagesForSender: async (sender: string): Promise<SMS[]> => {
+  // جلب الرسائل برقم الهاتف فقط (المعرف الفريد للمحادثة)
+  loadMessagesForSender: async (phoneNumberParam: string): Promise<SMS[]> => {
     const { user } = useAuthStore.getState();
     const { currentDevice } = useDeviceStore.getState();
 
-    console.log(
-      '📱 loadMessagesForSender called - sender:',
-      sender,
-      'user:',
-      user?.uid,
-      'device:',
-      currentDevice?.id,
-    );
+    if (!user || !currentDevice || !phoneNumberParam) {
+      return [];
+    }
 
-    if (!user || !currentDevice) {
-      console.log('⚠️ loadMessagesForSender: Missing user or device');
+    // تطبيع رقم الهاتف للبحث
+    const normalizedSearch = normalizePhoneNumber(phoneNumberParam);
+    if (!normalizedSearch) {
       return [];
     }
 
     try {
-      // لا يمكن استخدام where على phoneNumber لأن بعض الرسائل تحفظ في حقول مختلفة
-      // نجلب كل SMS ثم نفلتر locally
       const snapshot = await firestore()
         .collection(COLLECTIONS.USERS)
         .doc(user.uid)
@@ -325,11 +294,11 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       const messages: SMS[] = [];
       snapshot.forEach(doc => {
         const data = doc.data();
-        const messageSender =
-          data.phoneNumber || data.sender || data.title || '';
-
-        // فلترة: فقط الرسائل من هذا المرسل
-        if (messageSender === sender) {
+        // الحصول على رقم الهاتف المحفوظ
+        const storedPhoneNumber = data.phoneNumber || '';
+        
+        // المطابقة برقم الهاتف فقط
+        if (storedPhoneNumber && phoneNumbersMatch(storedPhoneNumber, phoneNumberParam)) {
           messages.push({
             id: doc.id,
             threadId: data.threadId || '',
@@ -337,8 +306,8 @@ export const useSMSStore = create<SMSState>((set, get) => ({
             deviceId: data.deviceId || currentDevice.id,
             body: data.text || data.content || data.body || '',
             text: data.text || data.content || data.body || '',
-            phoneNumber: messageSender,
-            sender: messageSender,
+            phoneNumber: storedPhoneNumber,
+            sender: storedPhoneNumber,
             contactName: data.contactName || '',
             timestamp: data.timestamp || data.receivedAt || Date.now(),
             read: data.read || false,
@@ -348,19 +317,11 @@ export const useSMSStore = create<SMSState>((set, get) => ({
         }
       });
 
-      // ترتيب حسب الوقت
+      // ترتيب من الأقدم للأحدث
       messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
-      console.log(
-        '📬 Loaded messages for sender',
-        sender,
-        ':',
-        messages.length,
-      );
 
       return messages;
     } catch (error) {
-      console.error('❌ Error loading messages for sender:', error);
       return [];
     }
   },
@@ -402,41 +363,25 @@ export const useSMSStore = create<SMSState>((set, get) => ({
   },
 
   sendSMS: async (phoneNumber: string, message: string) => {
-    // This would use react-native-sms or similar to send actual SMS
-    // For now, we just log the request
-    console.log('Sending SMS to', phoneNumber, ':', message);
+
   },
 
   listenForSMSRequests: () => {
-    // Prevent multiple listeners
     if (smsRequestsUnsubscribe) {
-      console.log('📡 SMS requests listener already active, skipping...');
       return;
     }
 
     const { user } = useAuthStore.getState();
     const { currentDevice } = useDeviceStore.getState();
     if (!user || !currentDevice) {
-      console.log('❌ Cannot listen for SMS requests - no user or device');
       return;
     }
 
-    // NOTE: SmsRequestService.java handles SMS sending in background
-    // We only need to listen here when the app is in foreground and service is not running
-    // To avoid duplicates, we'll skip this listener since the service handles everything
-    console.log(
-      '📡 SMS requests handled by SmsRequestService - skipping JS listener for device:',
-      currentDevice.id,
-    );
-
-    // Commenting out to avoid duplicate SMS sends and saves
-    // The SmsRequestService.java foreground service handles this
     return;
   },
 
   stopListeningForSMSRequests: () => {
     if (smsRequestsUnsubscribe) {
-      console.log('📡 Stopping SMS requests listener');
       smsRequestsUnsubscribe();
       smsRequestsUnsubscribe = null;
     }
@@ -448,7 +393,6 @@ export const useSMSStore = create<SMSState>((set, get) => ({
     if (!user || !currentDevice) return;
 
     try {
-      // تحديث في Firebase (مسار الإشعارات)
       await firestore()
         .collection(COLLECTIONS.USERS)
         .doc(user.uid)
@@ -457,10 +401,7 @@ export const useSMSStore = create<SMSState>((set, get) => ({
         .collection(COLLECTIONS.NOTIFICATIONS)
         .doc(messageId)
         .update({ read: true });
-      console.log('📖 Marked message as read in Firebase:', messageId);
-    } catch (error: any) {
-      console.error('Error marking message as read:', error);
-    }
+    } catch (error: any) {}
   },
 
   markMessagesAsReadBySender: async (sender: string) => {
@@ -468,7 +409,6 @@ export const useSMSStore = create<SMSState>((set, get) => ({
     const { currentDevice } = useDeviceStore.getState();
     const { messages } = get();
 
-    // تحديث محلي
     set(state => ({
       messages: state.messages.map(msg => {
         const msgSender =
@@ -481,9 +421,6 @@ export const useSMSStore = create<SMSState>((set, get) => ({
         return msg;
       }),
     }));
-    console.log('📖 Marked all messages from', sender, 'as read locally');
-
-    // تحديث في Firebase
     if (user && currentDevice) {
       try {
         const batch = firestore().batch();
@@ -509,27 +446,19 @@ export const useSMSStore = create<SMSState>((set, get) => ({
 
         if (count > 0) {
           await batch.commit();
-          console.log('✅ Marked', count, 'messages as read in Firebase');
         }
-      } catch (error) {
-        console.error('❌ Error marking messages as read in Firebase:', error);
-      }
+      } catch (error) {}
     }
   },
 
-  // تحديد جميع الرسائل كمقروءة
   markAllAsRead: async () => {
     const { user } = useAuthStore.getState();
     const { currentDevice } = useDeviceStore.getState();
     const { messages } = get();
 
-    // تحديث محلي
     set(state => ({
       messages: state.messages.map(msg => ({ ...msg, read: true } as SMS)),
     }));
-    console.log('📖 Marked all messages as read locally');
-
-    // تحديث في Firebase
     if (user && currentDevice && messages.length > 0) {
       try {
         const batch = firestore().batch();
@@ -551,15 +480,11 @@ export const useSMSStore = create<SMSState>((set, get) => ({
 
         if (count > 0) {
           await batch.commit();
-          console.log('✅ Marked all', count, 'messages as read in Firebase');
         }
-      } catch (error) {
-        console.error('❌ Error marking all messages as read:', error);
-      }
+      } catch (error) {}
     }
   },
 
-  // حذف رسائل حسب المرسل
   deleteMessagesBySender: async (sender: string) => {
     const { user } = useAuthStore.getState();
     const { currentDevice } = useDeviceStore.getState();
@@ -577,11 +502,9 @@ export const useSMSStore = create<SMSState>((set, get) => ({
     });
 
     if (senderMessages.length === 0) {
-      console.log('⚠️ No messages found for sender:', sender);
       return;
     }
 
-    // حذف من المتجر المحلي
     set(state => ({
       messages: state.messages.filter(msg => {
         const msgSender =
@@ -595,12 +518,6 @@ export const useSMSStore = create<SMSState>((set, get) => ({
         );
       }),
     }));
-    console.log(
-      `🗑️ Deleted ${senderMessages.length} messages locally for sender:`,
-      sender,
-    );
-
-    // حذف من Firebase
     if (user && currentDevice) {
       try {
         const batch = firestore().batch();
@@ -615,27 +532,17 @@ export const useSMSStore = create<SMSState>((set, get) => ({
           batch.delete(docRef);
         }
         await batch.commit();
-        console.log(
-          `✅ Deleted ${senderMessages.length} messages from Firebase`,
-        );
-      } catch (error) {
-        console.error('❌ Error deleting messages by sender:', error);
-      }
+      } catch (error) {}
     }
   },
 
-  // حذف رسالة واحدة
   deleteMessage: async (messageId: string) => {
     const { user } = useAuthStore.getState();
     const { currentDevice } = useDeviceStore.getState();
 
-    // حذف من المتجر المحلي
     set(state => ({
       messages: state.messages.filter(msg => msg.id !== messageId),
     }));
-    console.log('🗑️ Message deleted locally:', messageId);
-
-    // حذف من Firebase
     if (user && currentDevice) {
       try {
         await firestore()
@@ -646,24 +553,16 @@ export const useSMSStore = create<SMSState>((set, get) => ({
           .collection(COLLECTIONS.NOTIFICATIONS)
           .doc(messageId)
           .delete();
-        console.log('✅ Message deleted from Firebase:', messageId);
-      } catch (error) {
-        console.error('❌ Error deleting message:', error);
-      }
+      } catch (error) {}
     }
   },
 
-  // حذف جميع الرسائل
   deleteAllMessages: async () => {
     const { user } = useAuthStore.getState();
     const { currentDevice } = useDeviceStore.getState();
     const { messages } = get();
 
-    // حذف من المتجر المحلي
     set({ messages: [] });
-    console.log('🗑️ All messages deleted locally');
-
-    // حذف من Firebase
     if (user && currentDevice && messages.length > 0) {
       try {
         const batch = firestore().batch();
@@ -680,14 +579,7 @@ export const useSMSStore = create<SMSState>((set, get) => ({
         }
 
         await batch.commit();
-        console.log(
-          '✅ All',
-          messages.length,
-          'messages deleted from Firebase',
-        );
-      } catch (error) {
-        console.error('❌ Error deleting all messages:', error);
-      }
+      } catch (error) {}
     }
   },
 

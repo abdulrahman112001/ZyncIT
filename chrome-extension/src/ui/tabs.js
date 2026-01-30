@@ -4,6 +4,7 @@
 
 import { tabs, tabContents } from "./dom.js";
 import { markAllCallsAsViewed } from "../services/calls.js";
+import { markAllNotificationsAsRead } from "../services/notifications.js";
 
 /**
  * Initialize tab switching functionality
@@ -22,9 +23,11 @@ export function initTabs() {
 
       document.getElementById(`${tabName}Tab`)?.classList.add("active");
 
-      // Mark all calls as viewed when entering calls tab
+      // Mark all as viewed/read when entering respective tabs
       if (tabName === "calls") {
         markAllCallsAsViewed();
+      } else if (tabName === "notifications") {
+        markAllNotificationsAsRead();
       }
     });
   });

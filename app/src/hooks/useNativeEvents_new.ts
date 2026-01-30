@@ -1,4 +1,4 @@
-﻿import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import {
   NativeEventEmitter,
   NativeModules,
@@ -37,7 +37,6 @@ const getContactName = async (phoneNumber: string): Promise<string | null> => {
     const name = await SmsModule.getContactName(phoneNumber);
     return name;
   } catch (error) {
-    console.log('[getContactName] Error:', error);
     return null;
   }
 };
@@ -63,7 +62,6 @@ export const useNativeEvents = () => {
       );
       return phoneStatePermission && callLogPermission;
     } catch (error) {
-      console.error('Error checking permissions:', error);
       return false;
     }
   }, []);
@@ -94,13 +92,12 @@ export const useNativeEvents = () => {
         alertShown = true;
         Alert.alert(
           'Permissions Required',
-          'ZyncIT needs SMS, Phone and Call Log permissions to sync your messages and calls. Please grant permissions in Settings.',
+          'iRopit needs SMS, Phone and Call Log permissions to sync your messages and calls. Please grant permissions in Settings.',
           [{ text: 'OK' }],
         );
       }
       return allGranted;
     } catch (error) {
-      console.error('Error requesting permissions:', error);
       return false;
     }
   }, [checkPermissions]);
@@ -111,12 +108,10 @@ export const useNativeEvents = () => {
       const hasPermissions = await requestPermissions();
       if (hasPermissions) {
         await CallLogModule.startListening();
-        console.log('[CallLogModule] Started listening for calls');
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error starting call listener:', error);
       return false;
     }
   }, [requestPermissions]);
@@ -125,10 +120,8 @@ export const useNativeEvents = () => {
     if (Platform.OS !== 'android' || !CallLogModule) return;
     try {
       await CallLogModule.stopListening();
-      console.log('[CallLogModule] Stopped listening for calls');
-    } catch (error) {
-      console.error('Error stopping call listener:', error);
-    }
+      } catch (error) {
+      }
   }, []);
 
   const startSyncService = useCallback(async () => {
@@ -141,11 +134,9 @@ export const useNativeEvents = () => {
         if (ZyncITModule) {
           await ZyncITModule.startSyncService();
         }
-        console.log('Sync service started');
-      }
+        }
     } catch (error) {
-      console.error('Error starting sync service:', error);
-    }
+      }
   }, [requestPermissions, startCallListener, registerDevice]);
 
   const stopSyncService = useCallback(async () => {
@@ -155,28 +146,22 @@ export const useNativeEvents = () => {
       if (ZyncITModule) {
         await ZyncITModule.stopSyncService();
       }
-      console.log('Sync service stopped');
-    } catch (error) {
-      console.error('Error stopping sync service:', error);
-    }
+      } catch (error) {
+      }
   }, [stopCallListener]);
 
   const loadAllSMS = useCallback(async () => {
     if (Platform.OS !== 'android') return [];
     try {
       if (SmsModule) {
-        console.log('[loadAllSMS] Using SmsModule');
         const messages = await SmsModule.getAllSms(100);
         return messages || [];
       } else if (ZyncITModule?.getAllSMS) {
-        console.log('[loadAllSMS] Using ZyncITModule');
         const messages = await ZyncITModule.getAllSMS(100);
         return messages || [];
       }
-      console.warn('[loadAllSMS] No native module available');
       return [];
     } catch (error) {
-      console.error('Error loading SMS:', error);
       return [];
     }
   }, []);
@@ -195,7 +180,6 @@ export const useNativeEvents = () => {
       }
       throw new Error('No native SMS module available');
     } catch (error) {
-      console.error('Error sending SMS:', error);
       throw error;
     }
   }, []);
@@ -203,7 +187,6 @@ export const useNativeEvents = () => {
   const saveSmsToFirebase = useCallback(
     async (smsData: any) => {
       if (!user) {
-        console.log('[saveSmsToFirebase] No user, skipping');
         return;
       }
       try {
@@ -228,10 +211,8 @@ export const useNativeEvents = () => {
           .collection(COLLECTIONS.SMS)
           .doc(docId)
           .set(smsDoc, { merge: true });
-        console.log('[saveSmsToFirebase] SMS saved:', docId);
-      } catch (error) {
-        console.error('[saveSmsToFirebase] Error:', error);
-      }
+        } catch (error) {
+        }
     },
     [user, currentDevice, registerDevice],
   );

@@ -224,8 +224,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .doc(messageId)
         .update({ read: true });
     } catch (error: any) {
-      console.error('Error marking message as read:', error);
-    }
+      }
   },
 
   cleanup: () => {

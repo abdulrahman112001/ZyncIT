@@ -46,14 +46,12 @@ class SmsService {
         PermissionsAndroid.RESULTS.GRANTED
       );
     } catch (err) {
-      console.error('Permission error:', err);
       return false;
     }
   }
 
   async getAllSms(limit: number = 100): Promise<SmsMessage[]> {
     if (Platform.OS !== 'android' || !SmsModule) {
-      console.log('SMS Module not available');
       return [];
     }
 
@@ -61,14 +59,12 @@ class SmsService {
       const messages = await SmsModule.getAllSms(limit);
       return messages;
     } catch (error) {
-      console.error('Error getting SMS:', error);
       return [];
     }
   }
 
   async sendSms(phoneNumber: string, message: string): Promise<boolean> {
     if (Platform.OS !== 'android' || !SmsModule) {
-      console.log('SMS Module not available');
       return false;
     }
 
@@ -76,7 +72,6 @@ class SmsService {
       await SmsModule.sendSms(phoneNumber, message);
       return true;
     } catch (error) {
-      console.error('Error sending SMS:', error);
       return false;
     }
   }

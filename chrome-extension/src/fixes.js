@@ -4,8 +4,7 @@
 // Load SMS using collectionGroup
 async function loadSMS() {
   if (!currentUser) return;
-  console.log('Loading SMS for user:', currentUser.uid);
-
+  
   const q = query(
     collectionGroup(db, 'sms'),
     where('userId', '==', currentUser.uid),
@@ -16,8 +15,7 @@ async function loadSMS() {
   const unsub = onSnapshot(
     q,
     snapshot => {
-      console.log('SMS found:', snapshot.size);
-      const messages = [];
+            const messages = [];
       snapshot.forEach(doc => {
         messages.push({ id: doc.id, ...doc.data() });
       });
@@ -34,8 +32,7 @@ async function loadSMS() {
 // Load Calls using collectionGroup
 async function loadCalls() {
   if (!currentUser) return;
-  console.log('Loading calls for user:', currentUser.uid);
-
+  
   const q = query(
     collectionGroup(db, 'calls'),
     where('userId', '==', currentUser.uid),
@@ -46,8 +43,7 @@ async function loadCalls() {
   const unsub = onSnapshot(
     q,
     snapshot => {
-      console.log('Calls found:', snapshot.size);
-      const calls = [];
+            const calls = [];
       snapshot.forEach(doc => {
         calls.push({ id: doc.id, ...doc.data() });
       });

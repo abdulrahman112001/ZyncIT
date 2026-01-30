@@ -104,6 +104,14 @@ public class FirebaseHelper {
     public void sendNotificationToFirestore(String id, String key, String packageName, 
             String title, String text, String bigText, String subText, 
             String type, long timestamp, String appName, boolean isMissedCall, String appIcon) {
+        sendNotificationToFirestore(id, key, packageName, title, text, bigText, subText,
+            type, timestamp, appName, isMissedCall, appIcon, null, null);
+    }
+
+    public void sendNotificationToFirestore(String id, String key, String packageName, 
+            String title, String text, String bigText, String subText, 
+            String type, long timestamp, String appName, boolean isMissedCall, String appIcon,
+            String phoneNumber, String contactName) {
         
         String userId = getUserId();
         String deviceId = getDeviceId();
@@ -138,6 +146,13 @@ public class FirebaseHelper {
         notification.put("read", false);
         if (appIcon != null) {
             notification.put("appIcon", appIcon);
+        }
+        // حفظ phoneNumber و contactName للـ SMS
+        if (phoneNumber != null && !phoneNumber.isEmpty()) {
+            notification.put("phoneNumber", phoneNumber);
+        }
+        if (contactName != null) {
+            notification.put("contactName", contactName);
         }
 
         String docId = key.replaceAll("[^a-zA-Z0-9]", "_");

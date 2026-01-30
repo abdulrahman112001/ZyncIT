@@ -72,7 +72,6 @@ export const useSettingsStore = create<SettingsState>()(
             set({ isLoading: false });
           }
         } catch (error) {
-          console.error('Error loading settings:', error);
           set({ isLoading: false });
         }
       },
@@ -98,9 +97,7 @@ export const useSettingsStore = create<SettingsState>()(
             .collection('settings')
             .doc(userId)
             .set(settings, { merge: true });
-        } catch (error) {
-          console.error('Error syncing settings:', error);
-        }
+        } catch (error) {}
       },
 
       resetSettings: () => {
@@ -108,7 +105,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     {
-      name: 'zyncit-settings',
+      name: 'iropit-settings',
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

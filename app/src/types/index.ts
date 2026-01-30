@@ -1,4 +1,7 @@
-// ZyncIT Shared Types
+// iRopit Shared Types
+
+// Re-export generics from organized modules
+export * from './generic';
 
 export interface User {
   uid: string;

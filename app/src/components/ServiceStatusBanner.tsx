@@ -59,9 +59,7 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
             await NotificationModule.isPermissionGranted();
           newPermissions.notificationListenerConnected =
             await NotificationModule.isServiceConnected();
-        } catch (e) {
-          console.log('Error checking notification permissions:', e);
-        }
+        } catch (e) {}
       }
 
       // Check Contacts permission (only permission we need now)
@@ -177,17 +175,20 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
         id: 'notification_disconnected',
         icon: 'cloud-offline-outline',
         title: 'خدمة الإشعارات غير متصلة',
-        message: 'أوقف الإذن ثم فعّله مجدداً لإعادة الاتصال',
+        message:
+          'إذا كان جهازك Xiaomi/Redmi:\n1. افتح إعدادات AutoStart\n2. فعّل IRopit\n3. أعد تشغيل الهاتف',
         action: async () => {
           try {
-            if (NotificationModule) {
+            if (NotificationModule?.openAutoStartSettings) {
+              await NotificationModule.openAutoStartSettings();
+            } else if (NotificationModule) {
               await NotificationModule.openSettings();
             }
           } catch (e) {
-            console.error('Error opening notification settings:', e);
+            console.error('Error opening settings:', e);
           }
         },
-        actionText: 'إعادة التفعيل',
+        actionText: 'إعدادات AutoStart',
         color: '#F39C12',
         priority: 2,
       });
@@ -224,8 +225,17 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
 
   const issues = getIssues();
 
-  // Show modal when there are issues
   useEffect(() => {
+    if (
+      issues.some(
+        i =>
+          i.id === 'notification_listener' ||
+          i.id === 'notification_disconnected',
+      )
+    ) {
+      setDismissed(false);
+    }
+
     if (isReady && issues.length > 0 && !dismissed) {
       setModalVisible(true);
       Animated.spring(scaleAnim, {
@@ -235,7 +245,7 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
         useNativeDriver: true,
       }).start();
     }
-  }, [isReady, issues.length, dismissed, scaleAnim]);
+  }, [isReady, issues, dismissed, scaleAnim]);
 
   const handleDismiss = () => {
     Animated.timing(scaleAnim, {

@@ -6,11 +6,18 @@ import {
   DarkTheme,
 } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import messaging from '@react-native-firebase/messaging';
 import RootNavigator from './navigation/RootNavigator';
 import { useAuthStore } from './store/authStore';
 import { useSettingsStore } from './store/settingsStore';
 import { initializeFirebase } from './services/firebase';
 import { ThemeProvider } from './contexts/ThemeContext';
+import {
+  InAppNotificationProvider,
+  setGlobalNotificationHandler,
+  setCurrentScreen,
+  showGlobalNotification,
+} from './contexts/InAppNotificationContext';
 import { LIGHT_COLORS, DARK_COLORS } from './constants/theme';
 import { useNativeEvents } from './hooks/useNativeEvents';
 // ServiceStatusBanner is now only in MainNavigator
@@ -27,14 +34,50 @@ const AppContent = () => {
   // Initialize native event listeners for SMS and Calls - true to enable listening
   useNativeEvents(true);
   useEffect(() => {
-    console.log('App mounted - initializing...');
     initializeFirebase();
     initialize();
-  }, []);
 
-  useEffect(() => {
-    console.log('Auth state:', { isLoading, isAuthenticated, error });
-  }, [isLoading, isAuthenticated, error]);
+    // Handle foreground FCM messages (push notifications when app is open)
+    const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
+      console.log('[FCM] Foreground message received:', remoteMessage);
+      // Show professional in-app toast notification (skip if on Chat screen)
+      if (remoteMessage.notification) {
+        showGlobalNotification({
+          title: remoteMessage.notification.title || 'New Message',
+          message: remoteMessage.notification.body || '',
+          type: 'info',
+          duration: 5000,
+          skipIfOnChat: true,
+        });
+      }
+    });
+
+    // Handle notification opened when app is in background
+    const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(
+      remoteMessage => {
+        console.log('[FCM] Notification opened app:', remoteMessage);
+        // Navigate to chat screen or handle accordingly
+      },
+    );
+
+    // Check if app was opened from a notification when app was quit
+    messaging()
+      .getInitialNotification()
+      .then(remoteMessage => {
+        if (remoteMessage) {
+          console.log(
+            '[FCM] App opened from quit state by notification:',
+            remoteMessage,
+          );
+          // Navigate to chat screen or handle accordingly
+        }
+      });
+
+    return () => {
+      unsubscribeForeground();
+      unsubscribeOpenedApp();
+    };
+  }, []);
 
   // Custom navigation theme based on dark mode
   const navigationTheme = darkMode
@@ -69,7 +112,19 @@ const AppContent = () => {
         barStyle={darkMode ? 'light-content' : 'dark-content'}
         backgroundColor={darkMode ? DARK_COLORS.surface : LIGHT_COLORS.primary}
       />
-      <NavigationContainer theme={navigationTheme}>
+      <NavigationContainer
+        theme={navigationTheme}
+        onStateChange={state => {
+          // Track current screen for notification filtering
+          const route = state?.routes[state.index];
+          if (route) {
+            // Check if it's a nested navigator (like MainNavigator tabs)
+            const nestedRoute = route.state?.routes?.[route.state.index];
+            const screenName = nestedRoute?.name || route.name;
+            setCurrentScreen(screenName);
+          }
+        }}
+      >
         <RootNavigator />
       </NavigationContainer>
     </>
@@ -80,7 +135,9 @@ const App = () => {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        <InAppNotificationProvider>
+          <AppContent />
+        </InAppNotificationProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

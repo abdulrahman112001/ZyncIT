@@ -1,0 +1,173 @@
+import React from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  StatusBar,
+  Switch,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/Ionicons';
+import { styles } from './styles';
+import { getInitials } from './helper';
+import { MenuScreenProps } from './types';
+import { useMenuScreen } from './useMenuScreen';
+
+const MenuScreen = ({ navigation }: MenuScreenProps) => {
+  const {
+    user,
+    settings,
+    menuSections,
+    colors,
+    t,
+    isDarkMode,
+    isRTL,
+    bgColor,
+    textColor,
+    saveAndSync,
+    navigateToUserSettings,
+  } = useMenuScreen(navigation);
+
+  return (
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: bgColor }]}
+      edges={['top', 'left', 'right']}
+    >
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={bgColor}
+      />
+
+      {/* Title like Notifications Screen */}
+      <View style={styles.titleContainer}>
+        <Text style={[styles.title, { color: textColor }]}>
+          {t('menuTitle')}
+        </Text>
+      </View>
+
+      <ScrollView style={styles.content}>
+        {/* Profile Header - Improved Design */}
+        <TouchableOpacity
+          style={[styles.profileHeader, { backgroundColor: colors.surface }]}
+          onPress={navigateToUserSettings}
+          activeOpacity={0.7}
+        >
+          {user?.photoURL ? (
+            <Image
+              source={{ uri: user.photoURL }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <View
+              style={[styles.profileImage, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.profileInitials}>
+                {getInitials(user?.displayName || 'User')}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.profileInfo}>
+            <Text style={[styles.profileName, { color: colors.text }]}>
+              {user?.displayName || 'IRopit User'}
+            </Text>
+            <Text
+              style={[styles.profileEmail, { color: colors.textSecondary }]}
+            >
+              {user?.email}
+            </Text>
+          </View>
+
+          <Icon
+            name={isRTL ? 'chevron-back' : 'chevron-forward'}
+            size={20}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
+
+        {/* Menu Sections */}
+        {menuSections.map((section, sectionIndex) => (
+          <View key={sectionIndex}>
+            <Text
+              style={[styles.sectionTitle, { color: colors.textSecondary }]}
+            >
+              {section.title}
+            </Text>
+
+            <View style={[styles.section, { backgroundColor: colors.surface }]}>
+              {section.items.map((item: any, itemIndex: number) => (
+                <TouchableOpacity
+                  key={itemIndex}
+                  style={[
+                    styles.menuItem,
+                    { borderBottomColor: colors.border },
+                    itemIndex === section.items.length - 1 && styles.lastItem,
+                  ]}
+                  onPress={item.isSwitch ? undefined : item.onPress}
+                  activeOpacity={item.isSwitch ? 1 : 0.7}
+                >
+                  <Icon
+                    name={item.icon}
+                    size={24}
+                    color={
+                      item.iconColor ||
+                      (item.danger ? colors.error : colors.primary)
+                    }
+                    style={styles.menuIcon}
+                  />
+
+                  <View style={styles.menuContent}>
+                    <Text
+                      style={[
+                        styles.menuTitle,
+                        { color: item.danger ? colors.error : colors.text },
+                      ]}
+                    >
+                      {item.title}
+                    </Text>
+                    {item.subtitle && !item.isSwitch && (
+                      <Text
+                        style={[
+                          styles.menuSubtitle,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {item.subtitle}
+                      </Text>
+                    )}
+                  </View>
+
+                  {item.isSwitch ? (
+                    <Switch
+                      value={item.value}
+                      onValueChange={val => saveAndSync(item.settingKey, val)}
+                      trackColor={{
+                        false: colors.border,
+                        true: colors.primary,
+                      }}
+                      thumbColor={item.value ? '#fff' : '#f4f3f4'}
+                    />
+                  ) : (
+                    <Icon
+                      name={isRTL ? 'chevron-back' : 'chevron-forward'}
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ))}
+
+        <Text style={[styles.version, { color: colors.textSecondary }]}>
+          IRopit v1.0.0
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+export default MenuScreen;

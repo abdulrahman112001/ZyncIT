@@ -5,20 +5,18 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     
     <!-- Boot completed permission to restart services after device restart -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     
-    <!-- 
-    ============================================================
-    REMOVED FOR GOOGLE PLAY COMPLIANCE:
-    - READ_SMS, RECEIVE_SMS, SEND_SMS (restricted - needs Default SMS App)
-    - READ_CALL_LOG (restricted - needs Default Dialer App)
-    - PROCESS_OUTGOING_CALLS (deprecated)
+    <!-- SMS Permission for sending SMS from Chrome Extension -->
+    <!-- Google Play: Declare in Permissions Declaration Form as "SMS Sync/Mirroring" -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     
-    SMS and Calls are now captured via NotificationListenerService
-    which is allowed on Google Play with proper declaration.
-    ============================================================
+    <!-- 
+    NOTE: READ_SMS and RECEIVE_SMS not needed - using NotificationListenerService instead
+    SEND_SMS is for sending SMS from PC via Chrome Extension (core feature)
     -->
 
     <application

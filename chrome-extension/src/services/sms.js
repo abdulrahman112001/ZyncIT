@@ -39,6 +39,32 @@ let smsUnsubscribeFunctions = [];
 let processedMessageIds = new Set();
 
 /**
+ * Normalize phone number for consistent grouping/matching
+ * @param {string} phone - Raw phone number
+ * @returns {string} - Normalized phone number
+ */
+function normalizePhoneNumber(phone) {
+  if (!phone || !phone.trim()) return "";
+
+  // Remove all non-digit characters except +
+  let normalized = phone.replace(/[^\d+]/g, "").trim();
+
+  // Remove + and leading country codes
+  normalized = normalized.replace(/^\+/, "");
+
+  // Remove Egypt country code (20) if present
+  if (normalized.startsWith("20") && normalized.length > 10) {
+    normalized = normalized.substring(2);
+  }
+  // Add leading 0 if missing for local numbers
+  if (!normalized.startsWith("0") && normalized.length === 10) {
+    normalized = "0" + normalized;
+  }
+
+  return normalized;
+}
+
+/**
  * Start real-time listeners for SMS from all user devices
  */
 export async function startSMSListener() {
@@ -48,7 +74,7 @@ export async function startSMSListener() {
     return;
   }
 
-  console.log("🔄 Starting real-time SMS listeners for user:", user.uid);
+  console.log("🎧 Starting SMS real-time listeners...");
 
   // Stop previous listeners
   stopSMSListener();
@@ -61,8 +87,9 @@ export async function startSMSListener() {
     );
 
     const devicesSnapshot = await getDocs(devicesQuery);
-    console.log(`📱 Found ${devicesSnapshot.size} devices for SMS listening`);
+    console.log(`📱 Found ${devicesSnapshot.size} total devices`);
 
+    let listenerCount = 0;
     devicesSnapshot.forEach((deviceDoc) => {
       const data = deviceDoc.data();
       // Only listen to mobile devices (not extension)
@@ -73,11 +100,14 @@ export async function startSMSListener() {
       ) {
         const deviceName = getFriendlyDeviceName(data);
         console.log(
-          `👂 Setting up listener for device: ${data.id} (${deviceName})`,
+          `📱 Starting SMS listener for device: ${data.id} (${deviceName})`,
         );
         listenToDeviceSMS(user.uid, data.id, deviceName);
+        listenerCount++;
       }
     });
+
+    console.log(`✅ Started ${listenerCount} SMS listeners`);
   } catch (error) {
     console.error("❌ Error starting SMS listeners:", error);
   }
@@ -101,26 +131,30 @@ function listenToDeviceSMS(userId, deviceId, deviceName = null) {
       // Skip initial snapshot - we already loaded data with loadSMS()
       if (isInitialSnapshot) {
         console.log(
-          `📭 Initial snapshot from device ${deviceId} - skipping (already loaded)`,
+          `📨 Initial snapshot for device ${deviceId} - skipping (${snapshot.docs.length} docs)`,
         );
         isInitialSnapshot = false;
         return;
       }
 
       console.log(
-        `📬 Real-time update from device ${deviceId}: ${
-          snapshot.docChanges().length
-        } changes`,
+        `📨 SMS snapshot update for device ${deviceId}: ${snapshot.docChanges().length} changes`,
       );
+
+      let hasNewMessages = false;
 
       snapshot.docChanges().forEach((change) => {
         if (change.type === "added") {
           const data = change.doc.data();
           const messageId = change.doc.id;
 
+          console.log(
+            `🆕 New SMS detected: ${messageId} from ${data.title || data.contactName || data.phoneNumber}`,
+          );
+
           // Check if already processed
           if (processedMessageIds.has(messageId)) {
-            console.log(`⏭️ Message already processed, skipping: ${messageId}`);
+            console.log(`  ⏭️ Already processed: ${messageId}`);
             return;
           }
 
@@ -128,7 +162,7 @@ function listenToDeviceSMS(userId, deviceId, deviceName = null) {
           const currentSMS = state.getSMSData(deviceId) || [];
           const existsInList = currentSMS.some((msg) => msg.id === messageId);
           if (existsInList) {
-            console.log(`⏭️ Message already in list, skipping: ${messageId}`);
+            console.log(`  ⏭️ Already in list: ${messageId}`);
             processedMessageIds.add(messageId);
             return;
           }
@@ -147,11 +181,11 @@ function listenToDeviceSMS(userId, deviceId, deviceName = null) {
             ...data,
           };
 
-          console.log(
-            `✨ New SMS detected: ${
-              message.phoneNumber
-            } - ${message.body?.substring(0, 30)}...`,
-          );
+          console.log(`✅ Adding new SMS message: ${messageId}`, {
+            contact: message.contactName,
+            phone: message.phoneNumber,
+            body: message.body?.substring(0, 30),
+          });
 
           // Mark as processed
           processedMessageIds.add(messageId);
@@ -159,11 +193,21 @@ function listenToDeviceSMS(userId, deviceId, deviceName = null) {
           // Add to existing SMS list
           const updatedSMS = [...currentSMS, message];
           updateSMSList(deviceId, updatedSMS);
+          hasNewMessages = true;
         }
       });
+
+      if (hasNewMessages) {
+        console.log(
+          `✨ SMS list updated with new messages from device ${deviceId}`,
+        );
+      }
     },
     (error) => {
-      console.error(`❌ SMS listener error for device ${deviceId}:`, error);
+      console.error(
+        `[ERROR] SMS listener error for device ${deviceId}:`,
+        error,
+      );
     },
   );
 
@@ -174,27 +218,28 @@ function listenToDeviceSMS(userId, deviceId, deviceName = null) {
  * Stop all SMS listeners
  */
 export function stopSMSListener() {
-  console.log("🛑 Stopping SMS listeners:", smsUnsubscribeFunctions.length);
   smsUnsubscribeFunctions.forEach((unsub) => unsub());
   smsUnsubscribeFunctions = [];
   // Clear processed IDs when stopping listeners
   processedMessageIds.clear();
-  console.log("🛑 Cleared processed message IDs");
 }
 
 /**
- * Load SMS from all user devices
+ * Load SMS from all user devices using real-time listeners
  */
 export async function loadSMS() {
-  console.log("🔍 loadSMS() called");
+  console.log("[SMS] loadSMS called - setting up real-time listeners");
   const user = state.currentUser;
-  console.log("🔍 currentUser:", user?.uid || "NO USER");
   if (!user) {
-    console.warn("⚠️ No current user - cannot load SMS");
+    console.warn("[WARN] No current user - cannot load SMS");
     logger.warn("No current user");
     return;
   }
-  console.log(`🔍 Loading SMS for user: ${user.uid}`);
+
+  // Stop any previous listeners first
+  stopSMSListener();
+
+  console.log(`[SMS] Loading SMS for user: ${user.uid}`);
   logger.info(`Loading SMS for user: ${user.uid}`);
 
   try {
@@ -206,33 +251,38 @@ export async function loadSMS() {
 
     logger.debug("Fetching devices...");
     const devicesSnapshot = await getDocs(devicesQuery);
+    console.log(
+      `[SMS] Found ${devicesSnapshot.size} devices for user ${user.uid}`,
+    );
     logger.debug(`Found ${devicesSnapshot.size} devices`);
 
     const devicesList = [];
     devicesSnapshot.forEach((doc) => {
       const data = doc.data();
       console.log(
-        "📱 Found device:",
-        data.id,
-        "| platform:",
-        data.platform,
-        "| name:",
-        data.name || data.nickname,
+        `  [DEVICE] doc: ${doc.id}, platform: ${data.platform}, data.id: ${data.id}, userId: ${data.userId}`,
       );
+      console.log(`  [DEVICE] Full data:`, JSON.stringify(data, null, 2));
       // Only include non-extension devices (Android/iOS)
       if (
         data.platform !== "chrome-extension" &&
         data.platform !== "chrome" &&
         !data.id?.startsWith("ext_")
       ) {
+        console.log(`  [DEVICE] Adding mobile device: ${data.id}`);
         devicesList.push({
           id: data.id,
           name: getFriendlyDeviceName(data),
         });
+      } else {
+        console.log(`  [DEVICE] Skipping extension device: ${data.id}`);
       }
     });
 
-    console.log("Found mobile devices for SMS:", devicesList.length);
+    console.log(
+      `[SMS] Mobile devices found: ${devicesList.length}`,
+      devicesList,
+    );
 
     if (devicesList.length === 0) {
       console.warn(
@@ -242,13 +292,8 @@ export async function loadSMS() {
       return;
     }
 
-    console.log(`🔍 Will load SMS from ${devicesList.length} devices`);
-
-    // Load SMS notifications from each device
+    // Load SMS notifications from each device using onSnapshot for real-time updates
     for (const device of devicesList) {
-      console.log(`🔍 Querying SMS for device: ${device.id}`);
-      // Note: Using limit without orderBy to avoid needing composite index
-      // Sorting is done in JavaScript after fetching
       const q = query(
         collection(
           db,
@@ -262,37 +307,50 @@ export async function loadSMS() {
         limit(200),
       );
 
-      console.log("📱 Loading SMS for device:", device.id);
+      // Use onSnapshot instead of getDocs for real-time updates
+      const unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          console.log(
+            `[SMS] 🔄 Real-time update for device ${device.id}: ${snapshot.size} total SMS`,
+          );
+          const messages = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const messageId = docSnap.id;
 
-      try {
-        const snapshot = await getDocs(q);
-        console.log("✅ SMS loaded from device", device.id, ":", snapshot.size);
-        const messages = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          const messageId = docSnap.id;
-
-          // Add to processed IDs to avoid duplicates in real-time listener
-          processedMessageIds.add(messageId);
-
-          messages.push({
-            id: messageId,
-            docRef: docSnap.ref,
-            deviceId: device.id,
-            deviceName: device.name,
-            phoneNumber: data.phoneNumber || data.sender || data.title || "",
-            contactName: data.contactName || data.title || "",
-            body: data.text || data.content || data.body || "",
-            timestamp: data.timestamp || data.receivedAt || Date.now(),
-            read: data.read === true,
-            type: data.type || "sms",
-            ...data,
+            messages.push({
+              id: messageId,
+              docRef: docSnap.ref,
+              deviceId: device.id,
+              deviceName: device.name,
+              phoneNumber: data.phoneNumber || data.sender || data.title || "",
+              contactName: data.contactName || data.title || "",
+              body: data.text || data.content || data.body || "",
+              timestamp: data.timestamp || data.receivedAt || Date.now(),
+              read: data.read === true,
+              type: data.type || "sms",
+              ...data,
+            });
           });
-        });
-        updateSMSList(device.id, messages);
-      } catch (error) {
-        console.error("❌ SMS Error for device", device.id, ":", error);
-      }
+
+          console.log(
+            `[SMS] ✅ Updating SMS list with ${messages.length} messages from ${device.id}`,
+          );
+          updateSMSList(device.id, messages);
+        },
+        (error) => {
+          console.error(
+            "❌ SMS listener error for device",
+            device.id,
+            ":",
+            error,
+          );
+        },
+      );
+
+      // Store unsubscribe function
+      smsUnsubscribeFunctions.push(unsub);
     }
   } catch (error) {
     console.error("❌ loadSMS error:", error);
@@ -306,15 +364,39 @@ export async function loadSMS() {
  */
 export function updateSMSList(deviceId, newMessages) {
   console.log(
-    "📬 updateSMSList called for device:",
-    deviceId,
-    "with",
-    newMessages.length,
-    "messages",
+    `[SMS] updateSMSList called - device: ${deviceId}, messages: ${newMessages.length}`,
   );
+
+  // DEBUG: Check if تست is in newMessages
+  const testInNew = newMessages.find(
+    (m) =>
+      (m.body || m.text || "").includes("تست") ||
+      (m.contactName || m.title || "").includes("Abdl"),
+  );
+  console.log("[SMS] STEP 1 - تست in newMessages:", testInNew ? "YES" : "NO");
 
   // Store SMS by device
   state.setSMSData(deviceId, newMessages);
+
+  // DEBUG: Check if تست is stored
+  const storedMsgs = state.allSMS[deviceId] || [];
+  const testInStored = storedMsgs.find(
+    (m) =>
+      (m.body || m.text || "").includes("تست") ||
+      (m.contactName || m.title || "").includes("Abdl"),
+  );
+  console.log(
+    "[SMS] STEP 2 - تست in state.allSMS:",
+    testInStored ? "YES" : "NO",
+  );
+  console.log(
+    "[SMS] STEP 2 - state.allSMS devices:",
+    Object.keys(state.allSMS),
+  );
+  console.log(
+    "[SMS] STEP 2 - state.allSMS[deviceId] count:",
+    storedMsgs.length,
+  );
 
   // Merge all SMS from all devices
   let merged = [];
@@ -322,20 +404,55 @@ export function updateSMSList(deviceId, newMessages) {
     merged = merged.concat(msgs);
   });
 
-  console.log("📬 Total merged SMS (before dedup):", merged.length);
+  console.log("[SMS] STEP 3 - Total merged messages:", merged.length);
+
+  // DEBUG: Check if تست is in merged
+  const testInMerged = merged.find(
+    (m) =>
+      (m.body || m.text || "").includes("تست") ||
+      (m.contactName || m.title || "").includes("Abdl"),
+  );
+  console.log("[SMS] STEP 3 - تست in merged:", testInMerged ? "YES" : "NO");
 
   // إزالة التكرار - الاحتفاظ بنسخة واحدة فقط من كل رسالة
+  // استخدام docRef.referencePath كـ ID فريد لأن msg.id قد يكون مكرراً
   const uniqueMessages = [];
   const seenIds = new Set();
 
   for (const msg of merged) {
-    if (!seenIds.has(msg.id)) {
-      seenIds.add(msg.id);
+    // استخدام المسار الكامل للمستند كـ ID فريد
+    const uniqueId =
+      msg.docRef?.referencePath ||
+      msg.key ||
+      msg.id ||
+      `${msg.timestamp}_${msg.phoneNumber}`;
+
+    if (!seenIds.has(uniqueId)) {
+      seenIds.add(uniqueId);
       uniqueMessages.push(msg);
     }
   }
 
-  console.log("📬 Total unique SMS (after dedup):", uniqueMessages.length);
+  console.log("[SMS] Unique messages after dedup:", uniqueMessages.length);
+
+  // DEBUG: Check if تست is in unique messages
+  const hasTest = uniqueMessages.find(
+    (m) =>
+      (m.body || m.text || "").includes("تست") ||
+      (m.contactName || m.title || "").includes("Abdl"),
+  );
+  console.log("[SMS] تست message in uniqueMessages:", hasTest ? "YES" : "NO");
+  if (hasTest) {
+    console.log(
+      "[SMS] تست details:",
+      JSON.stringify({
+        id: hasTest.id,
+        phone: hasTest.phoneNumber,
+        contact: hasTest.contactName,
+        body: (hasTest.body || hasTest.text || "").substring(0, 30),
+      }),
+    );
+  }
 
   // Sort by timestamp descending
   uniqueMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -350,27 +467,34 @@ export function updateSMSList(deviceId, newMessages) {
  * @param {Array} messages - Array of SMS messages
  */
 export function renderSMS(messages) {
-  console.log("🎨 renderSMS called with", messages.length, "messages");
+  const hasTestInRender = messages.find(
+    (m) =>
+      (m.body || m.text || "").includes("تست") ||
+      (m.contactName || m.title || "").includes("Abdl"),
+  );
+  console.log(
+    "[SMS] تست in renderSMS:",
+    hasTestInRender
+      ? "YES - " + (hasTestInRender.contactName || hasTestInRender.phoneNumber)
+      : "NO",
+  );
 
-  // DEBUG: Alert for testing
   if (messages.length > 0) {
-    console.log("🎨 First message:", messages[0]);
+    console.log("[SMS] First 3 messages:");
+    messages.slice(0, 3).forEach((m, i) => {
+      console.log(
+        `  ${i + 1}. id=${m.id}, phone=${m.phoneNumber}, contact=${m.contactName}, text=${(m.body || m.text || "").substring(0, 20)}...`,
+      );
+    });
   }
 
   const smsListElement = document.getElementById("smsList");
-  console.log("🎨 smsList element found:", !!smsListElement);
-  console.log(
-    "🎨 smsList innerHTML before:",
-    smsListElement?.innerHTML?.substring(0, 100),
-  );
 
   if (!smsListElement) {
-    console.error("❌ smsList element not found in DOM!");
     return;
   }
 
   if (messages.length === 0) {
-    console.log("🎨 No messages, showing empty state");
     smsListElement.innerHTML = `
       <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -386,20 +510,31 @@ export function renderSMS(messages) {
 
   // Group messages by phone number or contact name
   const grouped = {};
-  messages.forEach((msg) => {
+  console.log(`[SMS] Grouping ${messages.length} messages...`);
+  messages.forEach((msg, index) => {
     let rawPhone = msg.phoneNumber || msg.sender || "";
     let contactName = msg.contactName || msg.title || "";
 
-    // If no phone number, use contact name as the key
+    // Normalize phone number using shared function
     let key;
     if (rawPhone && rawPhone.trim()) {
-      key = rawPhone.replace(/[\s\-\(\)\.]/g, "").trim();
+      key = normalizePhoneNumber(rawPhone);
     } else if (contactName && contactName.trim()) {
       key = "contact_" + contactName.trim();
       rawPhone = contactName;
     } else {
       key = "Unknown";
       rawPhone = "Unknown";
+    }
+
+    // Debug: Log grouping for تست message
+    if (
+      (msg.body || msg.text || "").includes("تست") ||
+      (contactName || "").includes("Abdl")
+    ) {
+      console.log(
+        `[SMS] DEBUG تست: key="${key}", phone="${rawPhone}", contact="${contactName}"`,
+      );
     }
 
     if (!grouped[key]) {
@@ -434,7 +569,17 @@ export function renderSMS(messages) {
     (a, b) => (b.lastMessage.timestamp || 0) - (a.lastMessage.timestamp || 0),
   );
 
-  console.log("🎨 Rendering", conversations.length, "conversations");
+  console.log(
+    "[SMS] Total conversations after grouping:",
+    conversations.length,
+  );
+  conversations.forEach((conv, i) => {
+    console.log(
+      `[SMS] Conv ${i + 1}: phone=${conv.phoneNumber}, contact=${conv.contactName}, msgCount=${conv.messages.length}, lastMsg="${(conv.lastMessage.body || conv.lastMessage.text || "").substring(0, 20)}...", timestamp=${conv.lastMessage.timestamp}`,
+    );
+  });
+  console.log("[SMS] ===== RENDER SMS END =====");
+  console.log("=".repeat(60));
 
   smsListElement.innerHTML = conversations
     .map(
@@ -472,8 +617,6 @@ export function renderSMS(messages) {
     )
     .join("");
 
-  console.log("🎨 SMS rendered! Conversations:", conversations.length);
-
   // Add click handlers using event delegation
   const oldSmsList = document.getElementById("smsList");
   if (oldSmsList) {
@@ -497,21 +640,33 @@ export function renderSMS(messages) {
  * @param {string} phoneNumber - Phone number or contact key
  */
 export function showConversation(phoneNumber) {
-  const normalizedInput = phoneNumber.replace(/[\s\-\(\)\.]/g, "").trim();
+  // Use same normalization as grouping for consistent matching
+  const normalizedInput = phoneNumber.startsWith("contact_")
+    ? phoneNumber
+    : normalizePhoneNumber(phoneNumber);
+
+  console.log(
+    `[SMS] showConversation: input="${phoneNumber}", normalized="${normalizedInput}"`,
+  );
 
   let conversation = state.allSMSMessages
     .filter((msg) => {
-      const msgPhone = (msg.phoneNumber || msg.sender || "")
-        .replace(/[\s\-\(\)\.]/g, "")
-        .trim();
+      const rawPhone = msg.phoneNumber || msg.sender || "";
+      const msgNormalized = normalizePhoneNumber(rawPhone);
+
       // Also check for contact_* keys
       const contactKey =
         msg.contactName || msg.title
           ? "contact_" + (msg.contactName || msg.title).trim()
           : "";
-      return msgPhone === normalizedInput || contactKey === normalizedInput;
+
+      const matches =
+        msgNormalized === normalizedInput || contactKey === normalizedInput;
+      return matches;
     })
     .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+  console.log(`[SMS] showConversation: found ${conversation.length} messages`);
 
   // إزالة التكرار في المحادثة
   const uniqueConversation = [];
@@ -524,7 +679,9 @@ export function showConversation(phoneNumber) {
   }
   conversation = uniqueConversation;
 
-  if (conversation.length === 0) return;
+  if (conversation.length === 0) {
+    return;
+  }
 
   markConversationAsRead(conversation);
 
@@ -637,15 +794,12 @@ async function sendConversationMessage(phoneNumber, inputElement) {
   if (!message) return;
 
   const user = state.currentUser;
-  console.log("🔍 Looking for Android device for user:", user.uid);
 
   const devicesQuery = query(
     collection(db, "devices"),
     where("userId", "==", user.uid),
   );
   const devicesSnapshot = await getDocs(devicesQuery);
-
-  console.log("📱 Found devices:", devicesSnapshot.size);
 
   const androidDevices = devicesSnapshot.docs
     .filter((doc) => !doc.data().id.startsWith("ext_"))
@@ -661,7 +815,6 @@ async function sendConversationMessage(phoneNumber, inputElement) {
     androidDevices[0].data().nickname ||
     androidDevices[0].data().name ||
     "Android";
-  console.log("📤 Sending SMS via device:", deviceId);
 
   try {
     const timestamp = Date.now();
@@ -676,7 +829,6 @@ async function sendConversationMessage(phoneNumber, inputElement) {
       status: "pending",
       timestamp: timestamp,
     });
-    console.log("✅ SMS request created:", docRef.id);
 
     const newSmsMessage = {
       id: docRef.id,
@@ -891,7 +1043,6 @@ async function deleteSingleSms(msgId) {
 export function startPolling() {
   state.clearPollingInterval();
   const interval = setInterval(() => {
-    console.log("🔄 Polling for new SMS...");
     loadSMS();
   }, 5000);
   state.setPollingInterval(interval);
