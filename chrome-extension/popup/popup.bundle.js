@@ -22804,84 +22804,171 @@ ${this.customData.serverResponse}`;
     }
   });
 
-  // src/services/pushNotification.js
-  async function sendPushNotification({
-    title,
-    body,
-    type = "chat",
-    data = {}
-  }) {
-    const user = currentUser;
-    if (!user) {
-      console.log("[PushNotification] No user logged in");
-      return;
+  // src/services/cryptoService.js
+  function simpleHash(str) {
+    const hash = [];
+    for (let i = 0; i < 32; i++) {
+      let h = 0;
+      for (let j2 = 0; j2 < str.length; j2++) {
+        h = (h * 31 + str.charCodeAt(j2) + i) % 2147483647;
+      }
+      hash.push(Math.abs(h) % 256);
+    }
+    return hash;
+  }
+  function deriveKey(userId, salt) {
+    const combined = userId + Array.from(salt).map((b) => String.fromCharCode(b)).join("");
+    const hash = simpleHash(combined);
+    return new Uint8Array(hash);
+  }
+  function generateRandomBytes(length) {
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+      return crypto.getRandomValues(new Uint8Array(length));
+    }
+    const bytes = new Uint8Array(length);
+    for (let i = 0; i < length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+    return bytes;
+  }
+  function xorCrypt(data, key, iv) {
+    const result = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+      const keyByte = key[i % key.length];
+      const ivByte = iv[i % iv.length];
+      const combinedKey = (keyByte + ivByte + i) % 256;
+      result[i] = (data[i] + combinedKey) % 256;
+    }
+    return result;
+  }
+  function xorDecrypt(data, key, iv) {
+    const result = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+      const keyByte = key[i % key.length];
+      const ivByte = iv[i % iv.length];
+      const combinedKey = (keyByte + ivByte + i) % 256;
+      result[i] = (data[i] - combinedKey + 256) % 256;
+    }
+    return result;
+  }
+  function stringToBytes(str) {
+    const encoder = new TextEncoder();
+    return encoder.encode(str);
+  }
+  function bytesToString(bytes) {
+    const decoder = new TextDecoder();
+    return decoder.decode(bytes);
+  }
+  function arrayToBase64(array) {
+    let binary = "";
+    for (let i = 0; i < array.length; i++) {
+      binary += String.fromCharCode(array[i]);
+    }
+    return btoa(binary);
+  }
+  function base64ToArray(base642) {
+    const binary = atob(base642);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  async function encrypt(plaintext, userId) {
+    if (!plaintext || !userId) {
+      return plaintext;
     }
     try {
-      const extensionDeviceId = await getDeviceId();
-      const devicesQuery = query(
-        collection(db, "devices"),
-        where("userId", "==", user.uid)
-      );
-      const devicesSnapshot = await getDocs(devicesQuery);
-      const mobileDevices = [];
-      devicesSnapshot.forEach((doc2) => {
-        const device = doc2.data();
-        if (device.id !== extensionDeviceId && device.fcmToken && (device.platform === "android" || device.platform === "Android" || device.platform === "ios")) {
-          mobileDevices.push({
-            id: device.id,
-            fcmToken: device.fcmToken,
-            name: device.nickname || device.name || device.model || "Mobile Device"
-          });
-        }
-      });
-      if (mobileDevices.length === 0) {
-        console.log("[PushNotification] No mobile devices with FCM tokens found");
-        return;
-      }
-      console.log(
-        `[PushNotification] Sending to ${mobileDevices.length} device(s)`
-      );
-      for (const device of mobileDevices) {
-        await addDoc(collection(db, "push_notifications"), {
-          userId: user.uid,
-          deviceId: device.id,
-          fcmToken: device.fcmToken,
-          notification: {
-            title,
-            body
-          },
-          data: {
-            type,
-            senderId: user.uid,
-            senderDeviceId: extensionDeviceId,
-            timestamp: Date.now().toString(),
-            ...data
-          },
-          status: "pending",
-          createdAt: Date.now()
-        });
-      }
-      console.log("[PushNotification] Notification requests created");
+      const salt = generateRandomBytes(SALT_LENGTH);
+      const iv = generateRandomBytes(IV_LENGTH);
+      const key = deriveKey(userId, salt);
+      const data = stringToBytes(plaintext);
+      const encrypted = xorCrypt(data, key, iv);
+      const combined = new Uint8Array(salt.length + iv.length + encrypted.length);
+      combined.set(salt, 0);
+      combined.set(iv, salt.length);
+      combined.set(encrypted, salt.length + iv.length);
+      return ENCRYPTION_PREFIX + arrayToBase64(combined);
     } catch (error) {
-      console.error("[PushNotification] Error sending notification:", error);
+      console.error("[Crypto] Encryption error:", error);
+      return plaintext;
     }
   }
-  async function sendChatNotification(messageContent, senderName = "Chrome Extension") {
-    const truncatedBody = messageContent.length > 100 ? messageContent.substring(0, 100) + "..." : messageContent;
-    await sendPushNotification({
-      title: `\u{1F4AC} ${senderName}`,
-      body: truncatedBody,
-      type: "chat",
-      data: {
-        messagePreview: truncatedBody
-      }
-    });
+  async function decrypt(encryptedData, userId) {
+    if (!encryptedData || !userId) {
+      return encryptedData;
+    }
+    if (!encryptedData.startsWith(ENCRYPTION_PREFIX)) {
+      return encryptedData;
+    }
+    try {
+      const combined = base64ToArray(
+        encryptedData.slice(ENCRYPTION_PREFIX.length)
+      );
+      const salt = combined.slice(0, SALT_LENGTH);
+      const iv = combined.slice(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
+      const ciphertext = combined.slice(SALT_LENGTH + IV_LENGTH);
+      const key = deriveKey(userId, salt);
+      const decrypted = xorDecrypt(ciphertext, key, iv);
+      return bytesToString(decrypted);
+    } catch (error) {
+      console.error("[Crypto] Decryption error:", error);
+      return encryptedData;
+    }
   }
-  var init_pushNotification = __esm({
-    "src/services/pushNotification.js"() {
-      init_firebase();
-      init_state();
-      init_helpers();
+  async function encryptFields(data, userId, fields) {
+    if (!data || !userId) return data;
+    const encrypted = { ...data };
+    for (const field of fields) {
+      if (encrypted[field] && typeof encrypted[field] === "string") {
+        encrypted[field] = await encrypt(encrypted[field], userId);
+      }
+    }
+    return encrypted;
+  }
+  async function decryptFields(data, userId, fields) {
+    if (!data || !userId) return data;
+    const decrypted = { ...data };
+    for (const field of fields) {
+      if (decrypted[field] && typeof decrypted[field] === "string") {
+        decrypted[field] = await decrypt(decrypted[field], userId);
+      }
+    }
+    return decrypted;
+  }
+  async function encryptChatMessage(message, userId) {
+    return encryptFields(message, userId, ENCRYPTED_FIELDS.chat);
+  }
+  async function decryptChatMessage(message, userId) {
+    return decryptFields(message, userId, ENCRYPTED_FIELDS.chat);
+  }
+  async function decryptSMS(sms, userId) {
+    return decryptFields(sms, userId, ENCRYPTED_FIELDS.sms);
+  }
+  async function decryptCall(call, userId) {
+    return decryptFields(call, userId, ENCRYPTED_FIELDS.call);
+  }
+  var ENCRYPTION_PREFIX, SALT_LENGTH, IV_LENGTH, ENCRYPTED_FIELDS;
+  var init_cryptoService = __esm({
+    "src/services/cryptoService.js"() {
+      ENCRYPTION_PREFIX = "ENC:";
+      SALT_LENGTH = 16;
+      IV_LENGTH = 12;
+      ENCRYPTED_FIELDS = {
+        chat: ["content", "fileName", "fileUrl"],
+        sms: [
+          "body",
+          "address",
+          "displayName",
+          "text",
+          "title",
+          "phoneNumber",
+          "contactName"
+        ],
+        call: ["phoneNumber", "contactName", "displayName"],
+        notification: ["title", "body", "text"],
+        contact: ["name", "phoneNumber", "email"]
+      };
     }
   });
 
@@ -22892,7 +22979,6 @@ ${this.customData.serverResponse}`;
     initChatListeners: () => initChatListeners,
     renderChatMessages: () => renderChatMessages,
     sendChatMessage: () => sendChatMessage,
-    sendFileMessage: () => sendFileMessage,
     setReplyTo: () => setReplyTo,
     subscribeToChat: () => subscribeToChat
   });
@@ -22904,13 +22990,16 @@ ${this.customData.serverResponse}`;
       where("participants", "array-contains", user.uid),
       limit(100)
     );
-    const unsub = onSnapshot(q2, (snapshot) => {
-      const messages = [];
+    const unsub = onSnapshot(q2, async (snapshot) => {
+      const rawMessages = [];
       snapshot.forEach((doc2) => {
         const data = doc2.data();
-        messages.push({ id: doc2.id, ...data });
+        rawMessages.push({ id: doc2.id, ...data });
       });
-      messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      rawMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      const messages = await Promise.all(
+        rawMessages.map((msg) => decryptChatMessage(msg, user.uid))
+      );
       setCachedChatMessages(messages);
       renderChatMessages(messages);
     });
@@ -22965,8 +23054,7 @@ ${this.customData.serverResponse}`;
         <div class="chat-message ${isSentFromExtension ? "sent" : "received"}" 
              data-msg-id="${msg.id}" 
              data-msg-content="${(msg.content || "").replace(/"/g, "&quot;")}" 
-             data-msg-sender="${msg.senderId}" 
-             onclick="window.setReplyTo && window.setReplyTo(this)">
+             data-msg-sender="${msg.senderId}">
           ${showDeviceName && deviceName ? `<div class="chat-message-device">${deviceName}</div>` : ""}
           ${msg.replyTo ? `<div class="chat-reply-preview">\u21A9 ${msg.replyTo.content.substring(
         0,
@@ -22977,6 +23065,9 @@ ${this.customData.serverResponse}`;
         </div>
       `;
     }).join("");
+    chatMessages.querySelectorAll(".chat-message").forEach((el) => {
+      el.addEventListener("click", () => setReplyTo(el));
+    });
     chatMessages.scrollTop = chatMessages.scrollHeight;
     updateTabBadges();
   }
@@ -22986,7 +23077,7 @@ ${this.customData.serverResponse}`;
     if (!content || !user) return;
     const deviceId = await getDeviceId();
     const selectedDeviceTab = document.querySelector(".device-tab.active")?.dataset.device || "all";
-    const messageData = {
+    let messageData = {
       senderId: user.uid,
       senderDeviceId: deviceId,
       senderName: user.displayName || "User",
@@ -23007,14 +23098,87 @@ ${this.customData.serverResponse}`;
       };
     }
     try {
+      messageData = await encryptChatMessage(messageData, user.uid);
       await addDoc(collection(db, "chats"), messageData);
       chatInput.value = "";
       clearReply();
-      await sendChatNotification(content, user.displayName || "Chrome Extension");
     } catch (error) {
       console.error("Failed to send message:", error);
       showToast("Failed to send message", "error");
     }
+  }
+  function formatFileSize(bytes) {
+    if (bytes === 0) return "0 Bytes";
+    const k2 = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k2));
+    return parseFloat((bytes / Math.pow(k2, i)).toFixed(2)) + " " + sizes[i];
+  }
+  function getFileExtension(fileName) {
+    return fileName.split(".").pop()?.toLowerCase() || "";
+  }
+  function showFilePreview(file) {
+    pendingFile = file;
+    const modal = document.getElementById("filePreviewModal");
+    const previewBody = document.getElementById("filePreviewBody");
+    const progressContainer = document.getElementById("uploadProgressContainer");
+    const sendBtn = document.getElementById("sendFileBtn");
+    progressContainer.classList.add("hidden");
+    document.getElementById("uploadProgressFill").style.width = "0%";
+    document.getElementById("uploadProgressText").textContent = "0%";
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="22" y1="2" x2="11" y2="13"></line>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+    </svg>
+    Send
+  `;
+    const isImage = file.type.startsWith("image/");
+    const ext = getFileExtension(file.name);
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewBody.innerHTML = `
+        <img src="${e.target.result}" alt="Preview" class="file-preview-image" />
+        <div class="file-preview-info">
+          <span class="file-preview-name">${file.name}</span>
+          <span class="file-preview-size">${formatFileSize(file.size)}</span>
+        </div>
+      `;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      previewBody.innerHTML = `
+      <div class="file-preview-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      </div>
+      <div class="file-preview-info">
+        <span class="file-preview-name">${file.name}</span>
+        <span class="file-preview-size">${formatFileSize(file.size)}</span>
+        <span class="file-preview-type">${ext || "FILE"}</span>
+      </div>
+    `;
+    }
+    modal.classList.remove("hidden");
+  }
+  function hideFilePreview() {
+    const modal = document.getElementById("filePreviewModal");
+    modal.classList.add("hidden");
+    pendingFile = null;
+  }
+  function updateUploadProgress(progress) {
+    const progressFill = document.getElementById("uploadProgressFill");
+    const progressText = document.getElementById("uploadProgressText");
+    const progressContainer = document.getElementById("uploadProgressContainer");
+    progressContainer.classList.remove("hidden");
+    progressFill.style.width = `${progress}%`;
+    progressText.textContent = `${Math.round(progress)}%`;
   }
   async function uploadFileToStorage(file) {
     const user = currentUser;
@@ -23022,7 +23186,23 @@ ${this.customData.serverResponse}`;
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const storagePath = `chat_files/${user.uid}/${timestamp}_${sanitizedName}`;
     const storageRef = ref(storage, storagePath);
-    await uploadBytes(storageRef, file);
+    const fileSize = file.size;
+    const isLargeFile = fileSize > 500 * 1024;
+    if (isLargeFile) {
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        updateUploadProgress(progress);
+      }, 200);
+      await uploadBytes(storageRef, file);
+      clearInterval(progressInterval);
+      updateUploadProgress(100);
+    } else {
+      updateUploadProgress(30);
+      await uploadBytes(storageRef, file);
+      updateUploadProgress(100);
+    }
     const downloadUrl = await getDownloadURL(storageRef);
     return {
       url: downloadUrl,
@@ -23030,16 +23210,26 @@ ${this.customData.serverResponse}`;
       fileType: file.type.startsWith("image/") ? "image" : "file"
     };
   }
-  async function sendFileMessage(file) {
+  async function sendFileFromPreview() {
+    if (!pendingFile) return;
     const user = currentUser;
+    const file = pendingFile;
+    const sendBtn = document.getElementById("sendFileBtn");
     if (!file || !user) return;
-    showLoadingOverlay();
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = `
+    <svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+      <path d="M12 2a10 10 0 0110 10" stroke-linecap="round"/>
+    </svg>
+    Uploading...
+  `;
     try {
       const result = await uploadFileToStorage(file);
       const deviceId = await getDeviceId();
       const selectedDeviceTab = document.querySelector(".device-tab.active")?.dataset.device || "all";
       const contentText = result.fileType === "image" ? "\u{1F4F7} Image" : `\u{1F4CE} ${result.fileName}`;
-      await addDoc(collection(db, "chats"), {
+      let fileMessageData = {
         senderId: user.uid,
         senderDeviceId: deviceId,
         senderName: user.displayName || "User",
@@ -23053,11 +23243,10 @@ ${this.customData.serverResponse}`;
         read: false,
         timestamp: Date.now(),
         participants: [user.uid]
-      });
-      await sendChatNotification(
-        contentText,
-        user.displayName || "Chrome Extension"
-      );
+      };
+      fileMessageData = await encryptChatMessage(fileMessageData, user.uid);
+      await addDoc(collection(db, "chats"), fileMessageData);
+      hideFilePreview();
       showToast(
         `${result.fileType === "image" ? "Image" : "File"} sent!`,
         "success"
@@ -23065,8 +23254,15 @@ ${this.customData.serverResponse}`;
     } catch (error) {
       showToast("Failed to send file", "error");
       console.error(error);
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+      Retry
+    `;
     }
-    hideLoading();
   }
   function setReplyTo(element) {
     const msgId = element.dataset.msgId;
@@ -23113,7 +23309,7 @@ ${this.customData.serverResponse}`;
       input.accept = "*/*";
       input.onchange = (e) => {
         const file = e.target.files?.[0];
-        if (file) sendFileMessage(file);
+        if (file) showFilePreview(file);
       };
       input.click();
     });
@@ -23123,13 +23319,17 @@ ${this.customData.serverResponse}`;
       input.accept = "image/*";
       input.onchange = (e) => {
         const file = e.target.files?.[0];
-        if (file) sendFileMessage(file);
+        if (file) showFilePreview(file);
       };
       input.click();
     });
+    document.getElementById("closePreviewBtn")?.addEventListener("click", hideFilePreview);
+    document.getElementById("cancelFileBtn")?.addEventListener("click", hideFilePreview);
+    document.getElementById("sendFileBtn")?.addEventListener("click", sendFileFromPreview);
     window.setReplyTo = setReplyTo;
     window.clearReply = clearReply;
   }
+  var pendingFile;
   var init_chat = __esm({
     "src/services/chat.js"() {
       init_firebase();
@@ -23138,7 +23338,8 @@ ${this.customData.serverResponse}`;
       init_helpers();
       init_state();
       init_badges();
-      init_pushNotification();
+      init_cryptoService();
+      pendingFile = null;
     }
   });
 
@@ -23157,6 +23358,7 @@ ${this.customData.serverResponse}`;
   init_helpers();
   init_state();
   init_badges();
+  init_cryptoService();
   async function markAllCallsAsViewed() {
     const user = currentUser;
     if (!user) return;
@@ -23215,20 +23417,20 @@ ${this.customData.serverResponse}`;
       );
       const unsub = onSnapshot(
         q2,
-        (snapshot) => {
+        async (snapshot) => {
           const calls = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
+          for (const docSnap of snapshot.docs) {
+            let data = docSnap.data();
             const firestoreId = docSnap.id;
+            data = await decryptCall(data, user.uid);
             calls.push({
               ...data,
               id: firestoreId,
-              // Use Firestore ID, not data.id
               deviceId: device.id,
               deviceName: device.name,
               docRef: docSnap.ref
             });
-          });
+          }
           updateCallsList(device.id, calls);
         },
         (error) => {
@@ -23986,6 +24188,7 @@ ${this.customData.serverResponse}`;
   init_helpers();
   init_state();
   init_badges();
+  init_cryptoService();
   var smsUnsubscribeFunctions = [];
   var processedMessageIds = /* @__PURE__ */ new Set();
   function normalizePhoneNumber(phone) {
@@ -24070,14 +24273,15 @@ ${this.customData.serverResponse}`;
         );
         const unsub = onSnapshot(
           q2,
-          (snapshot) => {
+          async (snapshot) => {
             console.log(
               `[SMS] \u{1F504} Real-time update for device ${device.id}: ${snapshot.size} total SMS`
             );
             const messages = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data();
+            for (const docSnap of snapshot.docs) {
+              let data = docSnap.data();
               const messageId = docSnap.id;
+              data = await decryptSMS(data, user.uid);
               messages.push({
                 id: messageId,
                 docRef: docSnap.ref,
@@ -24091,7 +24295,7 @@ ${this.customData.serverResponse}`;
                 type: data.type || "sms",
                 ...data
               });
-            });
+            }
             console.log(
               `[SMS] \u2705 Updating SMS list with ${messages.length} messages from ${device.id}`
             );

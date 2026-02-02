@@ -4,6 +4,7 @@ import { CallLog } from '../types';
 import { COLLECTIONS, CALL_PAGE_SIZE } from '../constants';
 import { useAuthStore } from './authStore';
 import { useDeviceStore } from './deviceStore';
+import { encryptCall, decryptCall } from '../services/cryptoService';
 
 interface CallState {
   calls: CallLog[];
@@ -78,6 +79,10 @@ export const useCallStore = create<CallState>((set, get) => ({
           /[\/\.]/g,
           '_',
         );
+
+        // Encrypt sensitive call data before saving
+        const encryptedCallData = await encryptCall(callData, userId);
+
         await firestore()
           .collection(COLLECTIONS.USERS)
           .doc(userId)
@@ -85,9 +90,8 @@ export const useCallStore = create<CallState>((set, get) => ({
           .doc(currentDevice.id)
           .collection(COLLECTIONS.CALLS)
           .doc(docId)
-          .set(callData, { merge: true });
-        } catch (error) {
-        }
+          .set(encryptedCallData, { merge: true });
+      } catch (error) {}
     }
   },
 
@@ -127,12 +131,14 @@ export const useCallStore = create<CallState>((set, get) => ({
           .doc(currentDevice.id)
           .collection(COLLECTIONS.CALLS)
           .doc(docId);
-        batch.set(docRef, callData, { merge: true });
+
+        // Encrypt call data before saving
+        const encryptedCallData = await encryptCall(callData, userId);
+        batch.set(docRef, encryptedCallData, { merge: true });
       }
 
       await batch.commit();
-      } catch (error: any) {
-      }
+    } catch (error: any) {}
   },
 
   loadCalls: async () => {
@@ -157,11 +163,15 @@ export const useCallStore = create<CallState>((set, get) => ({
       .orderBy('timestamp', 'desc')
       .limit(CALL_PAGE_SIZE)
       .onSnapshot(
-        snapshot => {
-          const calls: CallLog[] = [];
+        async snapshot => {
+          const rawCalls: CallLog[] = [];
           snapshot.forEach(doc => {
-            calls.push({ id: doc.id, ...doc.data() } as CallLog);
+            rawCalls.push({ id: doc.id, ...doc.data() } as CallLog);
           });
+          // Decrypt calls
+          const calls = (await Promise.all(
+            rawCalls.map(call => decryptCall(call, user.uid)),
+          )) as CallLog[];
           set({ calls, isLoading: false });
         },
         error => {
@@ -258,8 +268,7 @@ export const useCallStore = create<CallState>((set, get) => ({
 
       // Clear local state
       set({ calls: [] });
-      } catch (error) {
-      }
+    } catch (error) {}
   },
 
   deleteCallsByPhoneNumbers: async (phoneNumbers: string[]) => {
@@ -300,8 +309,7 @@ export const useCallStore = create<CallState>((set, get) => ({
         call => !phoneNumbers.includes(call.phoneNumber),
       );
       set({ calls: updatedCalls });
-      } catch (error) {
-      }
+    } catch (error) {}
   },
 
   cleanup: () => {

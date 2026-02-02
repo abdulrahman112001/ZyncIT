@@ -32,6 +32,7 @@ import {
 } from "../utils/helpers.js";
 import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
+import { decryptSMS } from "./cryptoService.js";
 
 // Store unsubscribe functions for real-time listeners
 let smsUnsubscribeFunctions = [];
@@ -127,7 +128,7 @@ function listenToDeviceSMS(userId, deviceId, deviceName = null) {
 
   const unsubscribe = onSnapshot(
     q,
-    (snapshot) => {
+    async (snapshot) => {
       // Skip initial snapshot - we already loaded data with loadSMS()
       if (isInitialSnapshot) {
         console.log(
@@ -141,12 +142,18 @@ function listenToDeviceSMS(userId, deviceId, deviceName = null) {
         `📨 SMS snapshot update for device ${deviceId}: ${snapshot.docChanges().length} changes`,
       );
 
+      const user = state.currentUser;
       let hasNewMessages = false;
 
-      snapshot.docChanges().forEach((change) => {
+      for (const change of snapshot.docChanges()) {
         if (change.type === "added") {
-          const data = change.doc.data();
+          let data = change.doc.data();
           const messageId = change.doc.id;
+
+          // Decrypt SMS data
+          if (user) {
+            data = await decryptSMS(data, user.uid);
+          }
 
           console.log(
             `🆕 New SMS detected: ${messageId} from ${data.title || data.contactName || data.phoneNumber}`,
@@ -195,7 +202,7 @@ function listenToDeviceSMS(userId, deviceId, deviceName = null) {
           updateSMSList(deviceId, updatedSMS);
           hasNewMessages = true;
         }
-      });
+      }
 
       if (hasNewMessages) {
         console.log(
@@ -310,14 +317,18 @@ export async function loadSMS() {
       // Use onSnapshot instead of getDocs for real-time updates
       const unsub = onSnapshot(
         q,
-        (snapshot) => {
+        async (snapshot) => {
           console.log(
             `[SMS] 🔄 Real-time update for device ${device.id}: ${snapshot.size} total SMS`,
           );
           const messages = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
+
+          for (const docSnap of snapshot.docs) {
+            let data = docSnap.data();
             const messageId = docSnap.id;
+
+            // Decrypt SMS data
+            data = await decryptSMS(data, user.uid);
 
             messages.push({
               id: messageId,
@@ -332,7 +343,7 @@ export async function loadSMS() {
               type: data.type || "sms",
               ...data,
             });
-          });
+          }
 
           console.log(
             `[SMS] ✅ Updating SMS list with ${messages.length} messages from ${device.id}`,

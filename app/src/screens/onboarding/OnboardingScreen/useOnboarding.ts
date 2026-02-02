@@ -79,7 +79,7 @@ export const useOnboarding = () => {
   const [permissionsAlreadyHandled, setPermissionsAlreadyHandled] =
     useState(false);
 
-  const totalSteps = 5; // Welcome, Theme, Language, Permissions, Overview
+  const totalSteps = 6; // Welcome, Language, Theme, Permissions, Overview, Security
 
   // Update actual theme when selection or system changes
   useEffect(() => {

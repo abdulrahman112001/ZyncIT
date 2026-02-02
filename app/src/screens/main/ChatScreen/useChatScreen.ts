@@ -8,6 +8,11 @@ import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { FlatList } from 'react-native';
 import { Message } from './types';
 import { uploadFile } from './helper';
+import { pickDocument as pickDocumentFromDevice } from '../../../services/fileService';
+import {
+  encryptChatMessage,
+  decryptChatMessage,
+} from '../../../services/cryptoService';
 
 export const useChatScreen = () => {
   const { colors, isRTL, isDarkMode } = useTheme();
@@ -97,6 +102,21 @@ export const useChatScreen = () => {
     }
   }, [isRTL, user?.uid, currentDevice]);
 
+  // Pick document from device
+  const pickDocument = useCallback(async () => {
+    try {
+      const document = await pickDocumentFromDevice();
+      if (document) {
+        await sendFileMessage(document.uri, document.name, 'file');
+      }
+    } catch (_error) {
+      Alert.alert(
+        isRTL ? 'خطأ' : 'Error',
+        isRTL ? 'فشل في اختيار الملف' : 'Failed to pick file',
+      );
+    }
+  }, [isRTL, user?.uid, currentDevice]);
+
   // Send file message
   const sendFileMessage = useCallback(
     async (uri: string, fileName: string, type: 'image' | 'file') => {
@@ -106,24 +126,27 @@ export const useChatScreen = () => {
       try {
         const downloadUrl = await uploadFile(uri, fileName, type, user.uid);
 
-        await firestore()
-          .collection('chats')
-          .add({
-            senderId: user.uid,
-            senderDeviceId: currentDevice.id,
-            senderName:
-              (currentDevice as any).nickname || currentDevice.name || 'Mobile',
-            senderPlatform: (currentDevice as any).platform || 'android',
-            receiverId: user.uid,
-            receiverDeviceId: null,
-            content: type === 'image' ? '📷 Image' : `📎 ${fileName}`,
-            type: type,
-            fileUrl: downloadUrl,
-            fileName: fileName,
-            read: false,
-            timestamp: Date.now(),
-            participants: [user.uid],
-          });
+        // Prepare message data
+        let fileMessageData: any = {
+          senderId: user.uid,
+          senderDeviceId: currentDevice.id,
+          senderName:
+            (currentDevice as any).nickname || currentDevice.name || 'Mobile',
+          senderPlatform: (currentDevice as any).platform || 'android',
+          receiverId: user.uid,
+          receiverDeviceId: null,
+          content: type === 'image' ? '📷 Image' : `📎 ${fileName}`,
+          type: type,
+          fileUrl: downloadUrl,
+          fileName: fileName,
+          read: false,
+          timestamp: Date.now(),
+          participants: [user.uid],
+        };
+
+        // Encrypt message before sending
+        fileMessageData = await encryptChatMessage(fileMessageData, user.uid);
+        await firestore().collection('chats').add(fileMessageData);
       } catch (_error) {
         Alert.alert(
           isRTL ? 'خطأ' : 'Error',
@@ -148,14 +171,18 @@ export const useChatScreen = () => {
       .where('participants', 'array-contains', user.uid)
       .limit(100)
       .onSnapshot(
-        snapshot => {
-          const msgs: Message[] = [];
+        async snapshot => {
+          const rawMsgs: Message[] = [];
           snapshot.forEach(doc => {
             const data = doc.data();
-            msgs.push({ id: doc.id, ...data } as Message);
+            rawMsgs.push({ id: doc.id, ...data } as Message);
           });
-          msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-          setMessages(msgs);
+          rawMsgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          // Decrypt messages
+          const decryptedMsgs = await Promise.all(
+            rawMsgs.map(msg => decryptChatMessage(msg, user.uid)),
+          );
+          setMessages(decryptedMsgs as Message[]);
           setIsLoading(false);
         },
         _error => {
@@ -177,7 +204,7 @@ export const useChatScreen = () => {
       return;
     }
 
-    const messageData: any = {
+    let messageData: any = {
       senderId: user.uid,
       senderDeviceId: currentDevice.id,
       senderName:
@@ -203,6 +230,8 @@ export const useChatScreen = () => {
     }
 
     try {
+      // Encrypt message before sending
+      messageData = await encryptChatMessage(messageData, user.uid);
       await firestore().collection('chats').add(messageData);
       setInputText('');
       setReplyTo(null);
@@ -311,6 +340,7 @@ export const useChatScreen = () => {
     clearReply,
     pickImage,
     takePhoto,
+    pickDocument,
     sendMessage,
     deleteAllMessages,
     scrollToEnd,

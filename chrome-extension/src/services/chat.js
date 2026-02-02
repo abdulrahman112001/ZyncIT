@@ -22,7 +22,8 @@ import { showToast, showLoadingOverlay, hideLoading } from "../ui/toasts.js";
 import { formatTime, getDeviceId } from "../utils/helpers.js";
 import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
-import { sendChatNotification } from "./pushNotification.js";
+import { encryptChatMessage, decryptChatMessage } from "./cryptoService.js";
+// Push notifications are now handled automatically by Cloud Function onNewChatMessage
 
 /**
  * Subscribe to chat messages
@@ -37,15 +38,21 @@ export function subscribeToChat() {
     limit(100),
   );
 
-  const unsub = onSnapshot(q, (snapshot) => {
-    const messages = [];
+  const unsub = onSnapshot(q, async (snapshot) => {
+    const rawMessages = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
-      messages.push({ id: doc.id, ...data });
+      rawMessages.push({ id: doc.id, ...data });
     });
 
     // Sort by timestamp locally
-    messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    rawMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+    // Decrypt messages
+    const messages = await Promise.all(
+      rawMessages.map((msg) => decryptChatMessage(msg, user.uid)),
+    );
+
     state.setCachedChatMessages(messages);
     renderChatMessages(messages);
   });
@@ -129,8 +136,7 @@ export function renderChatMessages(messages) {
         <div class="chat-message ${isSentFromExtension ? "sent" : "received"}" 
              data-msg-id="${msg.id}" 
              data-msg-content="${(msg.content || "").replace(/"/g, "&quot;")}" 
-             data-msg-sender="${msg.senderId}" 
-             onclick="window.setReplyTo && window.setReplyTo(this)">
+             data-msg-sender="${msg.senderId}">
           ${
             showDeviceName && deviceName
               ? `<div class="chat-message-device">${deviceName}</div>`
@@ -151,6 +157,11 @@ export function renderChatMessages(messages) {
     })
     .join("");
 
+  // Add click listeners for reply
+  chatMessages.querySelectorAll(".chat-message").forEach((el) => {
+    el.addEventListener("click", () => setReplyTo(el));
+  });
+
   chatMessages.scrollTop = chatMessages.scrollHeight;
   updateTabBadges();
 }
@@ -167,7 +178,7 @@ export async function sendChatMessage() {
   const selectedDeviceTab =
     document.querySelector(".device-tab.active")?.dataset.device || "all";
 
-  const messageData = {
+  let messageData = {
     senderId: user.uid,
     senderDeviceId: deviceId,
     senderName: user.displayName || "User",
@@ -191,12 +202,13 @@ export async function sendChatMessage() {
   }
 
   try {
+    // Encrypt message before sending
+    messageData = await encryptChatMessage(messageData, user.uid);
     await addDoc(collection(db, "chats"), messageData);
     chatInput.value = "";
     clearReply();
 
-    // Send push notification to mobile devices
-    await sendChatNotification(content, user.displayName || "Chrome Extension");
+    // Push notification is sent automatically by Cloud Function onNewChatMessage
   } catch (error) {
     console.error("Failed to send message:", error);
     showToast("Failed to send message", "error");
@@ -204,7 +216,118 @@ export async function sendChatMessage() {
 }
 
 /**
- * Upload file to Firebase Storage
+ * Format file size
+ * @param {number} bytes - File size in bytes
+ * @returns {string} Formatted file size
+ */
+function formatFileSize(bytes) {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+/**
+ * Get file extension
+ * @param {string} fileName - File name
+ * @returns {string} File extension
+ */
+function getFileExtension(fileName) {
+  return fileName.split(".").pop()?.toLowerCase() || "";
+}
+
+// Store pending file for preview
+let pendingFile = null;
+
+/**
+ * Show file preview modal
+ * @param {File} file - File to preview
+ */
+function showFilePreview(file) {
+  pendingFile = file;
+
+  const modal = document.getElementById("filePreviewModal");
+  const previewBody = document.getElementById("filePreviewBody");
+  const progressContainer = document.getElementById("uploadProgressContainer");
+  const sendBtn = document.getElementById("sendFileBtn");
+
+  // Reset progress
+  progressContainer.classList.add("hidden");
+  document.getElementById("uploadProgressFill").style.width = "0%";
+  document.getElementById("uploadProgressText").textContent = "0%";
+  sendBtn.disabled = false;
+  sendBtn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="22" y1="2" x2="11" y2="13"></line>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+    </svg>
+    Send
+  `;
+
+  const isImage = file.type.startsWith("image/");
+  const ext = getFileExtension(file.name);
+
+  if (isImage) {
+    // Show image preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewBody.innerHTML = `
+        <img src="${e.target.result}" alt="Preview" class="file-preview-image" />
+        <div class="file-preview-info">
+          <span class="file-preview-name">${file.name}</span>
+          <span class="file-preview-size">${formatFileSize(file.size)}</span>
+        </div>
+      `;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    // Show file info
+    previewBody.innerHTML = `
+      <div class="file-preview-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      </div>
+      <div class="file-preview-info">
+        <span class="file-preview-name">${file.name}</span>
+        <span class="file-preview-size">${formatFileSize(file.size)}</span>
+        <span class="file-preview-type">${ext || "FILE"}</span>
+      </div>
+    `;
+  }
+
+  modal.classList.remove("hidden");
+}
+
+/**
+ * Hide file preview modal
+ */
+function hideFilePreview() {
+  const modal = document.getElementById("filePreviewModal");
+  modal.classList.add("hidden");
+  pendingFile = null;
+}
+
+/**
+ * Update upload progress
+ * @param {number} progress - Progress percentage (0-100)
+ */
+function updateUploadProgress(progress) {
+  const progressFill = document.getElementById("uploadProgressFill");
+  const progressText = document.getElementById("uploadProgressText");
+  const progressContainer = document.getElementById("uploadProgressContainer");
+
+  progressContainer.classList.remove("hidden");
+  progressFill.style.width = `${progress}%`;
+  progressText.textContent = `${Math.round(progress)}%`;
+}
+
+/**
+ * Upload file to Firebase Storage with progress
  * @param {File} file - File to upload
  * @returns {Promise<Object>} Upload result with url, fileName, fileType
  */
@@ -215,7 +338,29 @@ async function uploadFileToStorage(file) {
   const storagePath = `chat_files/${user.uid}/${timestamp}_${sanitizedName}`;
 
   const storageRef = ref(storage, storagePath);
-  await uploadBytes(storageRef, file);
+
+  // Simulate progress for small files (uploadBytes doesn't support progress)
+  const fileSize = file.size;
+  const isLargeFile = fileSize > 500 * 1024; // > 500KB
+
+  if (isLargeFile) {
+    // Simulate progress updates
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += Math.random() * 15;
+      if (progress > 90) progress = 90;
+      updateUploadProgress(progress);
+    }, 200);
+
+    await uploadBytes(storageRef, file);
+    clearInterval(progressInterval);
+    updateUploadProgress(100);
+  } else {
+    updateUploadProgress(30);
+    await uploadBytes(storageRef, file);
+    updateUploadProgress(100);
+  }
+
   const downloadUrl = await getDownloadURL(storageRef);
 
   return {
@@ -226,14 +371,26 @@ async function uploadFileToStorage(file) {
 }
 
 /**
- * Send file in chat
- * @param {File} file - File to send
+ * Send file in chat (called from preview modal)
  */
-export async function sendFileMessage(file) {
+async function sendFileFromPreview() {
+  if (!pendingFile) return;
+
   const user = state.currentUser;
+  const file = pendingFile;
+  const sendBtn = document.getElementById("sendFileBtn");
+
   if (!file || !user) return;
 
-  showLoadingOverlay();
+  // Disable send button
+  sendBtn.disabled = true;
+  sendBtn.innerHTML = `
+    <svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+      <path d="M12 2a10 10 0 0110 10" stroke-linecap="round"/>
+    </svg>
+    Uploading...
+  `;
 
   try {
     const result = await uploadFileToStorage(file);
@@ -244,7 +401,8 @@ export async function sendFileMessage(file) {
     const contentText =
       result.fileType === "image" ? "📷 Image" : `📎 ${result.fileName}`;
 
-    await addDoc(collection(db, "chats"), {
+    // Prepare file message data
+    let fileMessageData = {
       senderId: user.uid,
       senderDeviceId: deviceId,
       senderName: user.displayName || "User",
@@ -258,14 +416,15 @@ export async function sendFileMessage(file) {
       read: false,
       timestamp: Date.now(),
       participants: [user.uid],
-    });
+    };
 
-    // Send push notification for file
-    await sendChatNotification(
-      contentText,
-      user.displayName || "Chrome Extension",
-    );
+    // Encrypt message before sending
+    fileMessageData = await encryptChatMessage(fileMessageData, user.uid);
+    await addDoc(collection(db, "chats"), fileMessageData);
 
+    // Push notification is sent automatically by Cloud Function onNewChatMessage
+
+    hideFilePreview();
     showToast(
       `${result.fileType === "image" ? "Image" : "File"} sent!`,
       "success",
@@ -273,9 +432,15 @@ export async function sendFileMessage(file) {
   } catch (error) {
     showToast("Failed to send file", "error");
     console.error(error);
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+      Retry
+    `;
   }
-
-  hideLoading();
 }
 
 /**
@@ -336,29 +501,40 @@ export function initChatListeners() {
     if (e.key === "Enter") sendChatMessage();
   });
 
-  // File attachment button
+  // File attachment button - show preview
   document.getElementById("attachFileBtn")?.addEventListener("click", () => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "*/*";
     input.onchange = (e) => {
       const file = e.target.files?.[0];
-      if (file) sendFileMessage(file);
+      if (file) showFilePreview(file);
     };
     input.click();
   });
 
-  // Image attachment button
+  // Image attachment button - show preview
   document.getElementById("attachImageBtn")?.addEventListener("click", () => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
     input.onchange = (e) => {
       const file = e.target.files?.[0];
-      if (file) sendFileMessage(file);
+      if (file) showFilePreview(file);
     };
     input.click();
   });
+
+  // Preview modal buttons
+  document
+    .getElementById("closePreviewBtn")
+    ?.addEventListener("click", hideFilePreview);
+  document
+    .getElementById("cancelFileBtn")
+    ?.addEventListener("click", hideFilePreview);
+  document
+    .getElementById("sendFileBtn")
+    ?.addEventListener("click", sendFileFromPreview);
 
   // Expose to window for inline onclick
   window.setReplyTo = setReplyTo;

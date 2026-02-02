@@ -596,6 +596,40 @@
                 </div>
             </div>
 
+            <!-- File Preview Modal -->
+            <div id="filePreviewModal" class="file-preview-modal hidden">
+                <div class="file-preview-content">
+                    <div class="file-preview-header">
+                        <h3>Preview</h3>
+                        <button id="closePreviewBtn" class="close-preview-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="filePreviewBody" class="file-preview-body">
+                        <!-- Image preview or file info will be inserted here -->
+                    </div>
+                    <div id="uploadProgressContainer" class="upload-progress-container hidden">
+                        <div class="upload-progress-bar">
+                            <div id="uploadProgressFill" class="upload-progress-fill"></div>
+                        </div>
+                        <span id="uploadProgressText" class="upload-progress-text">0%</span>
+                    </div>
+                    <div class="file-preview-actions">
+                        <button id="cancelFileBtn" class="btn btn-secondary">Cancel</button>
+                        <button id="sendFileBtn" class="btn btn-primary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Loading Overlay -->
             <div id="loadingOverlay" class="loading-overlay">
                 <div class="spinner"></div>

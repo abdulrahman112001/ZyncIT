@@ -25,6 +25,7 @@ import {
 } from "../utils/helpers.js";
 import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
+import { decryptCall } from "./cryptoService.js";
 
 /**
  * Mark all missed calls as viewed when entering calls tab
@@ -101,19 +102,23 @@ export async function loadCalls() {
 
     const unsub = onSnapshot(
       q,
-      (snapshot) => {
+      async (snapshot) => {
         const calls = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          const firestoreId = docSnap.id; // Save the actual Firestore document ID
+        for (const docSnap of snapshot.docs) {
+          let data = docSnap.data();
+          const firestoreId = docSnap.id;
+
+          // Decrypt call data
+          data = await decryptCall(data, user.uid);
+
           calls.push({
             ...data,
-            id: firestoreId, // Use Firestore ID, not data.id
+            id: firestoreId,
             deviceId: device.id,
             deviceName: device.name,
             docRef: docSnap.ref,
           });
-        });
+        }
         updateCallsList(device.id, calls);
       },
       (error) => {

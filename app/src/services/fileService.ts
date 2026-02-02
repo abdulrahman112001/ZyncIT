@@ -6,6 +6,7 @@ import {
   ImagePickerResponse,
   Asset,
 } from 'react-native-image-picker';
+import { pick, types } from '@react-native-documents/picker';
 
 export interface UploadResult {
   url: string;
@@ -14,11 +15,11 @@ export interface UploadResult {
   fileSize?: number;
 }
 
-// Placeholder type for document picker (removed for compatibility)
 export interface DocumentPickerResponse {
   uri: string;
   name: string;
   type: string;
+  size?: number;
 }
 
 /**
@@ -73,16 +74,39 @@ export const takePhoto = async (): Promise<Asset | null> => {
 };
 
 /**
- * اختيار ملف من الجهاز (معطل مؤقتاً - يحتاج Storage upgrade)
+ * اختيار ملف من الجهاز
  */
 export const pickDocument =
   async (): Promise<DocumentPickerResponse | null> => {
-    Alert.alert(
-      'Feature Unavailable',
-      'File sharing requires Firebase Storage upgrade. You can still share images!',
-      [{ text: 'OK' }],
-    );
-    return null;
+    try {
+      const [result] = await pick({
+        type: [types.allFiles],
+        mode: 'open',
+      });
+
+      if (result) {
+        return {
+          uri: result.uri,
+          name: result.name || 'document',
+          type: result.type || 'application/octet-stream',
+          size: result.size || undefined,
+        };
+      }
+      return null;
+    } catch (error: any) {
+      // User cancelled - not an error
+      if (
+        error?.code === 'DOCUMENT_PICKER_CANCELED' ||
+        error?.message?.includes('cancel')
+      ) {
+        return null;
+      }
+      console.error('Document picker error:', error);
+      Alert.alert('Error', 'Failed to pick document. Please try again.', [
+        { text: 'OK' },
+      ]);
+      return null;
+    }
   };
 
 /**
@@ -148,8 +172,7 @@ export const deleteFile = async (fileUrl: string): Promise<void> => {
   try {
     const reference = storage().refFromURL(fileUrl);
     await reference.delete();
-  } catch (error) {
-    }
+  } catch (error) {}
 };
 
 /**

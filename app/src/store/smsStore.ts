@@ -18,6 +18,7 @@ import {
   deduplicateById,
   mergeByIdKeepNewest,
 } from '../utils/performance';
+import { encryptSMS, decryptSMS } from '../services/cryptoService';
 
 const { SmsModule } = NativeModules;
 
@@ -153,6 +154,12 @@ export const useSMSStore = create<SMSState>((set, get) => ({
         // استخدام نفس بنية docId مثل BackgroundSmsService.java: sms_deviceId_timestamp_messageHash
         const docId = `sms_${currentDevice.id}_${message.timestamp}_${messageHash}`;
 
+        // Encrypt sensitive SMS data before saving
+        const encryptedNotificationData = await encryptSMS(
+          notificationData,
+          userId,
+        );
+
         // حفظ في مسار الإشعارات: users/{userId}/devices/{deviceId}/notifications
         await firestore()
           .collection(COLLECTIONS.USERS)
@@ -161,7 +168,7 @@ export const useSMSStore = create<SMSState>((set, get) => ({
           .doc(currentDevice.id)
           .collection(COLLECTIONS.NOTIFICATIONS)
           .doc(docId)
-          .set(notificationData, { merge: true });
+          .set(encryptedNotificationData, { merge: true });
       } catch (error) {}
     } else {
     }
@@ -223,26 +230,35 @@ export const useSMSStore = create<SMSState>((set, get) => ({
       .where('type', '==', 'sms')
       .limit(SMS_PAGE_SIZE)
       .onSnapshot(
-        snapshot => {
-          const firebaseMessages: SMS[] = [];
+        async snapshot => {
+          const rawMessages: any[] = [];
           snapshot.forEach(doc => {
-            const data = doc.data();
-            firebaseMessages.push({
-              id: doc.id,
-              threadId: data.threadId || '',
-              userId: data.userId || user.uid,
-              deviceId: data.deviceId || currentDevice.id,
-              body: data.text || data.content || data.body || '',
-              text: data.text || data.content || data.body || '',
-              phoneNumber: data.phoneNumber || '',
-              sender: data.phoneNumber || '',
-              contactName: data.contactName || '',
-              timestamp: data.timestamp || data.receivedAt || Date.now(),
-              read: data.read || false,
-              type: data.smsType || 'inbox', // استخدام smsType من Firebase (sent أو inbox)
-              syncedAt: data.syncedAt || Date.now(),
-            } as SMS);
+            rawMessages.push({ id: doc.id, ...doc.data() });
           });
+
+          // Decrypt all messages
+          const decryptedMessages = await Promise.all(
+            rawMessages.map(msg => decryptSMS(msg, user.uid)),
+          );
+
+          const firebaseMessages: SMS[] = decryptedMessages.map(
+            data =>
+              ({
+                id: data.id,
+                threadId: data.threadId || '',
+                userId: data.userId || user.uid,
+                deviceId: data.deviceId || currentDevice.id,
+                body: data.text || data.content || data.body || '',
+                text: data.text || data.content || data.body || '',
+                phoneNumber: data.phoneNumber || '',
+                sender: data.phoneNumber || '',
+                contactName: data.contactName || '',
+                timestamp: data.timestamp || data.receivedAt || Date.now(),
+                read: data.read || false,
+                type: data.smsType || 'inbox',
+                syncedAt: data.syncedAt || Date.now(),
+              } as SMS),
+          );
 
           const { messages: currentMessages } = get();
           const firebaseIds = new Set(firebaseMessages.map(m => m.id));
@@ -296,9 +312,12 @@ export const useSMSStore = create<SMSState>((set, get) => ({
         const data = doc.data();
         // الحصول على رقم الهاتف المحفوظ
         const storedPhoneNumber = data.phoneNumber || '';
-        
+
         // المطابقة برقم الهاتف فقط
-        if (storedPhoneNumber && phoneNumbersMatch(storedPhoneNumber, phoneNumberParam)) {
+        if (
+          storedPhoneNumber &&
+          phoneNumbersMatch(storedPhoneNumber, phoneNumberParam)
+        ) {
           messages.push({
             id: doc.id,
             threadId: data.threadId || '',
@@ -362,9 +381,7 @@ export const useSMSStore = create<SMSState>((set, get) => ({
     }
   },
 
-  sendSMS: async (phoneNumber: string, message: string) => {
-
-  },
+  sendSMS: async (phoneNumber: string, message: string) => {},
 
   listenForSMSRequests: () => {
     if (smsRequestsUnsubscribe) {

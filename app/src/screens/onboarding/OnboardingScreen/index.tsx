@@ -11,6 +11,7 @@ import {
   LanguageSelectionStep,
   PermissionsStep,
   OverviewStep,
+  SecurityStep,
   ProgressBar,
   OnboardingHeader,
 } from './components';
@@ -91,6 +92,10 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
         );
       case 4:
         return <OverviewStep colors={colors} translate={translate} />;
+      case 5:
+        return (
+          <SecurityStep colors={colors} translate={translate} isRTL={isRTL} />
+        );
       default:
         return null;
     }
@@ -104,6 +109,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
       return translate('onboarding.language.confirmLanguage');
     if (currentStep === 2) return translate('onboarding.theme.setAppearance');
     if (currentStep === 3) return translate('onboarding.permissions.continue');
+    if (currentStep === 4) return translate('common.next');
     if (isLastStep) return translate('onboarding.overview.letsGo');
     return translate('common.next');
   };

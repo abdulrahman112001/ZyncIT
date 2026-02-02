@@ -3,6 +3,7 @@ export { default as ThemeSelectionStep } from './ThemeSelectionStep';
 export { default as LanguageSelectionStep } from './LanguageSelectionStep';
 export { default as PermissionsStep } from './PermissionsStep';
 export { default as OverviewStep } from './OverviewStep';
+export { default as SecurityStep } from './SecurityStep';
 export { default as ProgressBar } from './ProgressBar';
 export { default as PhoneMockup } from './PhoneMockup';
 export { default as OnboardingHeader } from './OnboardingHeader';

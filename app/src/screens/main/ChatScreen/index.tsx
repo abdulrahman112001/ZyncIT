@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   StatusBar,
   Image,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { EmptyState, ScreenTitle } from '../../../components/shared';
@@ -17,6 +19,8 @@ import { styles } from './styles';
 import { useChatScreen } from './useChatScreen';
 
 const ChatScreen = () => {
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   const {
     messages,
     inputText,
@@ -40,6 +44,7 @@ const ChatScreen = () => {
     setReplyMessage,
     pickImage,
     takePhoto,
+    pickDocument,
     sendMessage,
     deleteAllMessages,
     scrollToEnd,
@@ -84,11 +89,13 @@ const ChatScreen = () => {
           onLongPress={() => setReplyMessage(item)}
         >
           {msgType === 'image' && fileUrl && (
-            <Image
-              source={{ uri: fileUrl }}
-              style={styles.chatImage}
-              resizeMode="cover"
-            />
+            <TouchableOpacity onPress={() => setPreviewImage(fileUrl)}>
+              <Image
+                source={{ uri: fileUrl }}
+                style={styles.chatImage}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
           )}
 
           {msgType === 'file' && fileUrl && (
@@ -192,7 +199,6 @@ const ChatScreen = () => {
         isDarkMode={isDarkMode}
         isRTL={isRTL}
         rightComponent={renderDeleteButton()}
-        subtitle={isTyping ? (isRTL ? 'يكتب...' : 'typing...') : undefined}
       />
 
       {isLoading && messages.length === 0 ? (
@@ -266,6 +272,18 @@ const ChatScreen = () => {
           />
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.attachButton}
+          onPress={pickDocument}
+          disabled={isUploading}
+        >
+          <Ionicons
+            name="attach-outline"
+            size={24}
+            color={secondaryTextColor}
+          />
+        </TouchableOpacity>
+
         <TextInput
           style={[
             styles.input,
@@ -301,6 +319,49 @@ const ChatScreen = () => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Image Preview Modal */}
+      <Modal
+        visible={!!previewImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPreviewImage(null)}
+      >
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.95)',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          activeOpacity={1}
+          onPress={() => setPreviewImage(null)}
+        >
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: 50,
+              right: 20,
+              zIndex: 10,
+              padding: 10,
+            }}
+            onPress={() => setPreviewImage(null)}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </TouchableOpacity>
+
+          {previewImage && (
+            <Image
+              source={{ uri: previewImage }}
+              style={{
+                width: Dimensions.get('window').width - 40,
+                height: Dimensions.get('window').height * 0.7,
+              }}
+              resizeMode="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };

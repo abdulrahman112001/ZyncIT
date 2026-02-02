@@ -3,24 +3,30 @@
  * Handles push notifications via FCM
  */
 
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getMessaging } = require("firebase-admin/messaging");
 
 // Initialize Firebase Admin SDK
-admin.initializeApp();
+initializeApp();
 
-const db = admin.firestore();
-const messaging = admin.messaging();
+const db = getFirestore();
+const messaging = getMessaging();
 
 /**
  * Cloud Function: Process push notification requests
  * Triggered when a new document is created in push_notifications collection
  */
-exports.sendPushNotification = functions.firestore
-  .document("push_notifications/{notificationId}")
-  .onCreate(async (snap, context) => {
+exports.sendPushNotification = onDocumentCreated(
+  "push_notifications/{notificationId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return null;
+
     const notification = snap.data();
-    const notificationId = context.params.notificationId;
+    const notificationId = event.params.notificationId;
 
     // Skip if already processed
     if (notification.status !== "pending") {
@@ -84,7 +90,7 @@ exports.sendPushNotification = functions.firestore
       // Update status to delivered
       await snap.ref.update({
         status: "delivered",
-        deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
+        deliveredAt: FieldValue.serverTimestamp(),
         fcmResponse: response,
       });
 
@@ -106,7 +112,7 @@ exports.sendPushNotification = functions.firestore
 
           deviceQuery.forEach(async (doc) => {
             await doc.ref.update({
-              fcmToken: admin.firestore.FieldValue.delete(),
+              fcmToken: FieldValue.delete(),
             });
             console.log(`Removed invalid FCM token from device ${doc.id}`);
           });
@@ -120,58 +126,59 @@ exports.sendPushNotification = functions.firestore
         status: "failed",
         error: error.message,
         errorCode: error.code,
-        failedAt: admin.firestore.FieldValue.serverTimestamp(),
+        failedAt: FieldValue.serverTimestamp(),
       });
 
       return { success: false, error: error.message };
     }
-  });
+  },
+);
 
 /**
  * Cloud Function: Clean up old notifications
  * Runs daily at midnight
  */
-exports.cleanupOldNotifications = functions.pubsub
-  .schedule("0 0 * * *")
-  .timeZone("UTC")
-  .onRun(async (context) => {
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+exports.cleanupOldNotifications = onSchedule("0 0 * * *", async (event) => {
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
 
-    try {
-      const oldNotifications = await db
-        .collection("push_notifications")
-        .where("createdAt", "<", oneDayAgo)
-        .get();
+  try {
+    const oldNotifications = await db
+      .collection("push_notifications")
+      .where("createdAt", "<", oneDayAgo)
+      .get();
 
-      const batch = db.batch();
-      let count = 0;
+    const batch = db.batch();
+    let count = 0;
 
-      oldNotifications.forEach((doc) => {
-        batch.delete(doc.ref);
-        count++;
-      });
+    oldNotifications.forEach((doc) => {
+      batch.delete(doc.ref);
+      count++;
+    });
 
-      if (count > 0) {
-        await batch.commit();
-        console.log(`Cleaned up ${count} old notifications`);
-      }
-
-      return { cleaned: count };
-    } catch (error) {
-      console.error("Error cleaning up notifications:", error);
-      return { error: error.message };
+    if (count > 0) {
+      await batch.commit();
+      console.log(`Cleaned up ${count} old notifications`);
     }
-  });
+
+    return { cleaned: count };
+  } catch (error) {
+    console.error("Error cleaning up notifications:", error);
+    return { error: error.message };
+  }
+});
 
 /**
  * Cloud Function: Listen for new chat messages and send notifications
  * Alternative approach - trigger directly from chats collection
  */
-exports.onNewChatMessage = functions.firestore
-  .document("chats/{messageId}")
-  .onCreate(async (snap, context) => {
+exports.onNewChatMessage = onDocumentCreated(
+  "chats/{messageId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return null;
+
     const message = snap.data();
-    const messageId = context.params.messageId;
+    const messageId = event.params.messageId;
 
     // Only send notification for messages from chrome-extension
     if (message.senderPlatform !== "chrome-extension") {
@@ -248,4 +255,5 @@ exports.onNewChatMessage = functions.firestore
       console.error("Error sending chat notifications:", error);
       return { error: error.message };
     }
-  });
+  },
+);

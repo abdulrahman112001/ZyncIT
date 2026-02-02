@@ -530,4 +530,74 @@ export const styles = StyleSheet.create({
     borderRadius: 999,
     opacity: 0.08,
   },
+
+  // Security Step Styles
+  securityShieldContainer: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
+  securityIconsWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  securityLockIcon: {
+    position: 'absolute',
+    top: 35,
+  },
+  securityCheckIcon: {
+    position: 'absolute',
+    bottom: -5,
+    right: -15,
+  },
+  securityCheckBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  securityFeaturesList: {
+    width: '100%',
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  securityFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  securityFeatureIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  securityFeatureText: {
+    flex: 1,
+  },
+  securityFeatureTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  securityFeatureDesc: {
+    fontSize: 13,
+    opacity: 0.7,
+  },
 });
