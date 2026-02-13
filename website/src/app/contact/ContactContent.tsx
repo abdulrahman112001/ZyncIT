@@ -208,7 +208,7 @@ export default function ContactContent() {
                           onChange={(e) =>
                             setFormData({ ...formData, name: e.target.value })
                           }
-                      className="w-full px-4 py-3 rounded-[var(--radius)] border border-border bg-bg dark:bg-surface-tertiary text-txt placeholder:text-txt-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                          className="w-full px-4 py-3 rounded-[var(--radius)] border border-border bg-bg dark:bg-surface-tertiary text-txt placeholder:text-txt-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
                           placeholder="Your name"
                         />
                       </div>
@@ -227,7 +227,7 @@ export default function ContactContent() {
                           onChange={(e) =>
                             setFormData({ ...formData, email: e.target.value })
                           }
-                      className="w-full px-4 py-3 rounded-[var(--radius)] border border-border bg-bg dark:bg-surface-tertiary text-txt placeholder:text-txt-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                          className="w-full px-4 py-3 rounded-[var(--radius)] border border-border bg-bg dark:bg-surface-tertiary text-txt placeholder:text-txt-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
                           placeholder="your@email.com"
                         />
                       </div>
