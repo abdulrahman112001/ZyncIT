@@ -1,9 +1,18 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy",
+  title: "Privacy Policy — How We Protect Your Data",
   description:
-    "iRopit Privacy Policy — Learn how we collect, use, protect, and handle your personal information.",
+    "iRopit Privacy Policy — Learn how we collect, use, protect, and handle your personal information. End-to-end encryption, GDPR & CCPA compliant, no data selling.",
+  alternates: {
+    canonical: "https://www.iropit.com/privacy-policy",
+  },
+  openGraph: {
+    title: "iRopit Privacy Policy",
+    description:
+      "Your privacy matters. Learn how iRopit protects your data with end-to-end encryption and transparent data practices.",
+    url: "https://www.iropit.com/privacy-policy",
+  },
 };
 
 export default function PrivacyPolicyPage() {

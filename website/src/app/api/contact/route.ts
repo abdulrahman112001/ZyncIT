@@ -80,15 +80,7 @@ export async function POST(request: NextRequest) {
 
     if (!smtpUser || !smtpPass) {
       // If SMTP is not configured, log and return success (for development)
-      console.log("=== Contact Form Submission ===");
-      console.log(`Name: ${name}`);
-      console.log(`Email: ${email}`);
-      console.log(`Subject: ${subject}`);
-      console.log(`Message: ${message}`);
-      console.log("================================");
-      console.warn(
-        "SMTP not configured. Set SMTP_USER and SMTP_PASS environment variables.",
-      );
+ 
 
       return NextResponse.json({
         success: true,

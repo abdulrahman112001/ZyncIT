@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageSquare,
   Phone,
@@ -18,6 +19,9 @@ import {
   RefreshCw,
   ChevronDown,
   MessagesSquare,
+  HelpCircle,
+  Plus,
+  Minus,
 } from "lucide-react";
 import AnimatedSection from "@/components/AnimatedSection";
 import DownloadButtons from "@/components/DownloadButtons";
@@ -103,6 +107,69 @@ const stats = [
   { value: "Cross", label: "Platform", icon: Monitor },
   { value: "100%", label: "Free to Use", icon: Globe },
 ];
+
+const faqs = [
+  {
+    q: "What is iRopit?",
+    a: "iRopit is a free device synchronization platform that lets you view and manage your phone's SMS messages, call history, notifications, and chat on your computer through a Chrome extension. All data is protected with end-to-end encryption.",
+  },
+  {
+    q: "Is iRopit free to use?",
+    a: "Yes! iRopit is completely free. Both the Android app and Chrome extension are available at no cost with all features included.",
+  },
+  {
+    q: "Is my data secure?",
+    a: "Absolutely. iRopit uses 256-bit end-to-end encryption. Your messages, calls, and notifications are encrypted before leaving your device and can only be decrypted by your authorized devices. We never store or read your personal data.",
+  },
+  {
+    q: "How does SMS sync work?",
+    a: "After installing the iRopit Android app and Chrome extension, simply sign in with the same account on both. Your SMS messages will automatically sync in real-time to your browser, allowing you to read and manage them from your computer.",
+  },
+  {
+    q: "What platforms are supported?",
+    a: "iRopit currently supports Android phones (via Google Play Store) and Chrome browsers (via Chrome Web Store). We're actively working on expanding to more platforms in the future.",
+  },
+  {
+    q: "Can I sync WhatsApp and Telegram notifications?",
+    a: "Yes! iRopit syncs all your app notifications including WhatsApp, Telegram, and other messaging apps directly to your desktop in real-time.",
+  },
+];
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-border rounded-[var(--radius-lg)] overflow-hidden transition-all duration-200 hover:border-primary-light">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between p-5 sm:p-6 text-left bg-surface hover:bg-surface-secondary transition-colors"
+        aria-expanded={open}
+      >
+        <span className="text-base sm:text-lg font-semibold text-txt pr-4">
+          {q}
+        </span>
+        {open ? (
+          <Minus className="w-5 h-5 text-primary-dark flex-shrink-0" />
+        ) : (
+          <Plus className="w-5 h-5 text-txt-tertiary flex-shrink-0" />
+        )}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <div className="px-5 sm:px-6 pb-5 sm:pb-6 text-sm sm:text-base text-txt-secondary leading-relaxed">
+              {a}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export default function HomePage() {
   return (
@@ -312,6 +379,33 @@ export default function HomePage() {
         </motion.div>
       </section>
 
+      {/* ====== TRUST BADGES ====== */}
+      <section className="py-8 border-b border-border bg-surface-secondary">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-12 text-txt-tertiary">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-success" />
+              <span className="text-sm font-medium">256-bit Encryption</span>
+            </div>
+            <div className="w-px h-6 bg-border hidden sm:block" />
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-warning" />
+              <span className="text-sm font-medium">Real-time Sync</span>
+            </div>
+            <div className="w-px h-6 bg-border hidden sm:block" />
+            <div className="flex items-center gap-2">
+              <Globe className="w-5 h-5 text-info" />
+              <span className="text-sm font-medium">Multi-Language</span>
+            </div>
+            <div className="w-px h-6 bg-border hidden sm:block" />
+            <div className="flex items-center gap-2">
+              <Lock className="w-5 h-5 text-error" />
+              <span className="text-sm font-medium">Privacy First</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ====== FEATURES SECTION ====== */}
       <section className="py-20 lg:py-28 bg-surface" id="features">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -514,6 +608,43 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+          </AnimatedSection>
+        </div>
+      </section>
+
+      {/* ====== FAQ SECTION ====== */}
+      <section className="py-20 lg:py-28 bg-surface" id="faq">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <AnimatedSection className="text-center mb-12">
+            <span className="inline-block text-sm font-semibold text-primary-dark bg-primary-soft px-4 py-1.5 rounded-full mb-4">
+              FAQ
+            </span>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-txt mb-4">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-lg text-txt-secondary max-w-xl mx-auto">
+              Got questions? We&apos;ve got answers. Find out everything you
+              need to know about iRopit.
+            </p>
+          </AnimatedSection>
+
+          <div className="space-y-3">
+            {faqs.map((faq, i) => (
+              <AnimatedSection key={i} delay={i * 0.08}>
+                <FaqItem q={faq.q} a={faq.a} />
+              </AnimatedSection>
+            ))}
+          </div>
+
+          <AnimatedSection className="text-center mt-10">
+            <p className="text-txt-secondary mb-4">Still have questions?</p>
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-txt-inverse px-6 py-3 rounded-[var(--radius)] font-semibold transition-all hover:scale-105"
+            >
+              Contact Us
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </AnimatedSection>
         </div>
       </section>

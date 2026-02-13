@@ -1,4 +1,17 @@
+# iRopit - Device Sync Platform
+# https://www.iropit.com
+
 User-agent: *
 Allow: /
+Disallow: /api/
 
+# Sitemaps
 Sitemap: https://www.iropit.com/sitemap.xml
+
+# Crawl-delay
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
