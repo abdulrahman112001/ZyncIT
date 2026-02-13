@@ -257,7 +257,7 @@ export default function AboutContent() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {values.map((value, i) => (
               <AnimatedSection key={value.title} delay={i * 0.1}>
-                <div className="text-center p-6 lg:p-8 bg-bg rounded-[var(--radius-lg)] border border-border hover:border-primary-light transition-all hover:shadow-md hover:-translate-y-1">
+                <div className="text-center p-6 lg:p-8 bg-bg dark:bg-surface-secondary rounded-[var(--radius-lg)] border border-border hover:border-primary-light transition-all hover:shadow-md hover:-translate-y-1">
                   <div
                     className={`w-14 h-14 ${value.bg} rounded-2xl flex items-center justify-center mx-auto mb-4`}
                   >

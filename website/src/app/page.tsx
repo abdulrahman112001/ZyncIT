@@ -425,7 +425,7 @@ export default function HomePage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
             {features.map((feature, i) => (
               <AnimatedSection key={feature.title} delay={i * 0.1}>
-                <div className="group h-full bg-bg hover:bg-primary-soft border border-border hover:border-primary-light rounded-[var(--radius-lg)] p-6 lg:p-8 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                <div className="group h-full bg-bg dark:bg-surface-secondary hover:bg-primary-soft border border-border hover:border-primary-light rounded-[var(--radius-lg)] p-6 lg:p-8 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
                   <div
                     className={`w-12 h-12 ${feature.bg} rounded-[var(--radius)] flex items-center justify-center mb-5`}
                   >
@@ -544,7 +544,7 @@ export default function HomePage() {
                           <div className="w-2.5 h-2.5 rounded-full bg-warning/60" />
                           <div className="w-2.5 h-2.5 rounded-full bg-success/60" />
                         </div>
-                        <div className="flex-1 bg-bg rounded h-4 mx-8 flex items-center justify-center">
+                        <div className="flex-1 bg-bg dark:bg-surface-tertiary rounded h-4 mx-8 flex items-center justify-center">
                           <span className="text-[8px] text-txt-tertiary">
                             chrome-extension://iropit
                           </span>
@@ -583,7 +583,7 @@ export default function HomePage() {
                           {[1, 2, 3].map((i) => (
                             <div
                               key={i}
-                              className="bg-bg rounded-lg p-2 flex items-center gap-2"
+                              className="bg-bg dark:bg-surface-secondary rounded-lg p-2 flex items-center gap-2"
                             >
                               <div className="w-6 h-6 rounded-full bg-primary-soft" />
                               <div className="flex-1">

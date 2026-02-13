@@ -235,7 +235,7 @@ export default function ServicesContent() {
                           {[1, 2, 3].map((item) => (
                             <div
                               key={item}
-                              className="flex items-center gap-3 p-3 bg-bg rounded-[var(--radius)] hover:bg-surface-secondary transition-colors"
+                              className="flex items-center gap-3 p-3 bg-bg dark:bg-surface-secondary rounded-[var(--radius)] hover:bg-surface-tertiary dark:hover:bg-surface-tertiary transition-colors"
                             >
                               <div
                                 className={`w-8 h-8 rounded-full ${service.bg} flex items-center justify-center`}

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   /* Primary - Warm Gold */
   --color-primary: #D5C19E;

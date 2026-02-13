@@ -11,7 +11,7 @@ export default function DownloadButtons({
       {/* Google Play Button */}
       <Link
         href="#"
-        className="group flex items-center gap-3 bg-txt text-txt-inverse px-5 py-3 rounded-[var(--radius)] hover:bg-txt/90 transition-all hover:scale-105"
+        className="group flex items-center gap-3 bg-txt dark:bg-surface-secondary text-txt-inverse dark:text-txt px-5 py-3 rounded-[var(--radius)] hover:bg-txt/90 dark:hover:bg-surface-tertiary transition-all hover:scale-105 dark:border dark:border-border"
       >
         <svg
           viewBox="0 0 24 24"
@@ -29,7 +29,7 @@ export default function DownloadButtons({
       {/* Chrome Extension Button */}
       <Link
         href="#"
-        className="group flex items-center gap-3 bg-txt text-txt-inverse px-5 py-3 rounded-[var(--radius)] hover:bg-txt/90 transition-all hover:scale-105"
+        className="group flex items-center gap-3 bg-txt dark:bg-surface-secondary text-txt-inverse dark:text-txt px-5 py-3 rounded-[var(--radius)] hover:bg-txt/90 dark:hover:bg-surface-tertiary transition-all hover:scale-105 dark:border dark:border-border"
       >
         <svg
           viewBox="0 0 24 24"
