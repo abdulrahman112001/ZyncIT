@@ -25,6 +25,49 @@ import { loadContactsForDevice, searchContacts } from "../services/contacts.js";
 // Store loaded contacts
 let deviceContacts = [];
 let isContactsLoading = false;
+let lastContactsDeviceId = null;
+let lastContactsLoadedAt = 0;
+
+/**
+ * Refresh contacts for the selected device
+ * @param {boolean} force - Force reload even if recently loaded
+ */
+async function refreshContactsForSelectedDevice(force = false) {
+  const deviceId = smsDevice?.value;
+  if (!deviceId) return;
+
+  const isRecentLoad =
+    lastContactsDeviceId === deviceId &&
+    Date.now() - lastContactsLoadedAt < 3000;
+
+  if (!force && isRecentLoad) return;
+
+  // Show contacts group
+  contactsGroup.style.display = "block";
+  phoneHint.style.display = "block";
+
+  // Clear previous data
+  contactsSearch.value = "";
+  deviceContacts = [];
+  renderContacts([]);
+
+  // Load contacts
+  isContactsLoading = true;
+  contactsSearch.placeholder = "⏳ Loading contacts...";
+
+  deviceContacts = await loadContactsForDevice(deviceId);
+
+  isContactsLoading = false;
+  lastContactsDeviceId = deviceId;
+  lastContactsLoadedAt = Date.now();
+
+  if (deviceContacts.length > 0) {
+    contactsSearch.placeholder = `Search ${deviceContacts.length} contacts...`;
+    renderContacts(deviceContacts);
+  } else {
+    contactsSearch.placeholder = "No contacts found";
+  }
+}
 
 /**
  * Initialize SMS modal event listeners
@@ -42,6 +85,7 @@ export function initSmsModal() {
     if (smsDevice.value) {
       contactsGroup.style.display = "block";
       phoneHint.style.display = "block";
+      refreshContactsForSelectedDevice(true);
     }
   });
 
@@ -68,30 +112,7 @@ export function initSmsModal() {
     const deviceId = smsDevice.value;
 
     if (deviceId) {
-      // Show contacts group
-      contactsGroup.style.display = "block";
-      phoneHint.style.display = "block";
-
-      // Clear previous data
-      contactsSearch.value = "";
-      deviceContacts = [];
-      renderContacts([]);
-
-      // Load contacts
-      isContactsLoading = true;
-      contactsSearch.placeholder = "⏳ Loading contacts...";
-
-      deviceContacts = await loadContactsForDevice(deviceId);
-
-      isContactsLoading = false;
-
-      if (deviceContacts.length > 0) {
-        contactsSearch.placeholder = `Search ${deviceContacts.length} contacts...`;
-        renderContacts(deviceContacts);
-      } else {
-        contactsSearch.placeholder = "No contacts - sync from mobile app";
-      }
-
+      await refreshContactsForSelectedDevice(true);
       console.log(
         `[Modal] Loaded ${deviceContacts.length} contacts for device`,
       );
@@ -100,7 +121,17 @@ export function initSmsModal() {
       contactsGroup.style.display = "none";
       phoneHint.style.display = "none";
       deviceContacts = [];
+      renderContacts([]);
     }
+  });
+
+  // Refresh contacts when user focuses the search input
+  contactsSearch?.addEventListener("focus", () => {
+    refreshContactsForSelectedDevice();
+  });
+
+  contactsSearch?.addEventListener("click", () => {
+    refreshContactsForSelectedDevice();
   });
 
   // Search contacts - show dropdown on focus/input

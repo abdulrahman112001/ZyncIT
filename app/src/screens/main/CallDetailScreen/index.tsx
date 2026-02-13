@@ -31,7 +31,7 @@ const CallDetailScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<CallDetailRouteProp>();
   const { call } = route.params;
-  const { isRTL, t, isDarkMode } = useTheme();
+  const { isRTL, t, isDarkMode, colors } = useTheme();
   const { calls } = useCallStore();
 
   // Get all calls for this phone number
@@ -123,20 +123,8 @@ const CallDetailScreen = () => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text
-            style={[
-              styles.backIcon,
-              { color: isDarkMode ? '#0A84FF' : '#007AFF' },
-            ]}
-          >
-            ‹
-          </Text>
-          <Text
-            style={[
-              styles.backText,
-              { color: isDarkMode ? '#0A84FF' : '#007AFF' },
-            ]}
-          >
+          <Text style={[styles.backIcon, { color: colors.primary }]}>‹</Text>
+          <Text style={[styles.backText, { color: colors.primary }]}>
             {isRTL ? 'المكالمات' : 'Calls'}
           </Text>
         </TouchableOpacity>
@@ -162,7 +150,7 @@ const CallDetailScreen = () => {
                 { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
               ]}
             >
-              <Icon name="chatbubble" size={24} color="#0A84FF" />
+              <Icon name="chatbubble" size={24} color={colors.primary} />
             </View>
             <Text style={styles.actionLabel}>
               {isRTL ? 'رسالة' : 'message'}
@@ -176,7 +164,7 @@ const CallDetailScreen = () => {
                 { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
               ]}
             >
-              <Icon name="call" size={24} color="#0A84FF" />
+              <Icon name="call" size={24} color={colors.primary} />
             </View>
             <Text style={styles.actionLabel}>{isRTL ? 'اتصال' : 'call'}</Text>
           </TouchableOpacity>
@@ -188,7 +176,7 @@ const CallDetailScreen = () => {
                 { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
               ]}
             >
-              <Icon name="mail" size={24} color="#0A84FF" />
+              <Icon name="mail" size={24} color={colors.primary} />
             </View>
             <Text style={styles.actionLabel}>{isRTL ? 'بريد' : 'mail'}</Text>
           </TouchableOpacity>
@@ -248,7 +236,7 @@ const CallDetailScreen = () => {
         {/* Call History Section */}
         <View style={[styles.section, { backgroundColor: surfaceColor }]}>
           <View style={styles.sectionHeader}>
-            <Icon name="time-outline" size={20} color="#0A84FF" />
+            <Icon name="time-outline" size={20} color={colors.primary} />
             <Text style={[styles.sectionTitle, { color: textColor }]}>
               {isRTL ? 'سجل المكالمات' : 'Call History'} ({callHistory.length})
             </Text>
@@ -256,7 +244,7 @@ const CallDetailScreen = () => {
 
           {callHistory.map((historyCall, index) => (
             <View
-              key={historyCall.id}
+              key={`${historyCall.id}_${historyCall.timestamp}_${index}`}
               style={[
                 styles.historyItem,
                 index < callHistory.length - 1 && {
@@ -300,12 +288,7 @@ const CallDetailScreen = () => {
             {isRTL ? 'الهاتف' : 'Phone'}
           </Text>
           <TouchableOpacity style={styles.phoneRow} onPress={handleCall}>
-            <Text
-              style={[
-                styles.phoneNumber,
-                { color: isDarkMode ? '#0A84FF' : '#007AFF' },
-              ]}
-            >
+            <Text style={[styles.phoneNumber, { color: colors.primary }]}>
               {call.phoneNumber}
             </Text>
             <Text style={[styles.phoneLabel, { color: secondaryTextColor }]}>

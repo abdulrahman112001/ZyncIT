@@ -1,5 +1,12 @@
 ﻿import React, { useEffect } from 'react';
-import { StatusBar, LogBox } from 'react-native';
+import {
+  StatusBar,
+  LogBox,
+  Alert,
+  NativeModules,
+  Platform,
+  PermissionsAndroid,
+} from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -20,7 +27,10 @@ import {
 } from './contexts/InAppNotificationContext';
 import { LIGHT_COLORS, DARK_COLORS } from './constants/theme';
 import { useNativeEvents } from './hooks/useNativeEvents';
+import { checkOnboardingComplete } from './screens/onboarding/OnboardingScreen/useOnboarding';
 // ServiceStatusBanner is now only in MainNavigator
+
+const { NotificationModule } = NativeModules;
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -36,6 +46,63 @@ const AppContent = () => {
   useEffect(() => {
     initializeFirebase();
     initialize();
+
+    // Check Notification Access permission on app start (only after onboarding)
+    if (Platform.OS === 'android' && NotificationModule) {
+      const checkNotificationAccess = async () => {
+        try {
+          // Only show alert if user has completed onboarding
+          const onboardingComplete = await checkOnboardingComplete();
+          if (!onboardingComplete) {
+            return; // Skip alert if onboarding not complete
+          }
+
+          // Request SMS permissions if not granted (for BroadcastReceiver fallback)
+          const hasReceiveSms = await PermissionsAndroid.check(
+            PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+          );
+          const hasReadSms = await PermissionsAndroid.check(
+            PermissionsAndroid.PERMISSIONS.READ_SMS,
+          );
+          if (!hasReceiveSms || !hasReadSms) {
+            await PermissionsAndroid.requestMultiple([
+              PermissionsAndroid.PERMISSIONS.READ_SMS,
+              PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+            ]);
+          }
+
+          const isGranted = await NotificationModule.isPermissionGranted();
+          if (!isGranted) {
+            // Show alert to guide user to enable Notification Access
+            Alert.alert(
+              '⚠️ SMS & Notifications Not Working',
+              'Notification Access is required for SMS sync to work.\n\n' +
+                'Please enable it:\n' +
+                'Settings → Apps → Special Access → Notification Access → Enable IRopit\n\n' +
+                'Without this, SMS messages will NOT sync to the extension.',
+              [
+                { text: 'Later', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: async () => {
+                    try {
+                      await NotificationModule.openSettings();
+                    } catch (e) {
+                      console.error('Error opening notification settings:', e);
+                    }
+                  },
+                },
+              ],
+              { cancelable: true },
+            );
+          }
+        } catch (e) {
+          console.error('Error checking notification access:', e);
+        }
+      };
+      // Small delay to let UI render first
+      setTimeout(checkNotificationAccess, 2000);
+    }
 
     // Handle foreground FCM messages (push notifications when app is open)
     const unsubscribeForeground = messaging().onMessage(async remoteMessage => {

@@ -21,13 +21,13 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backIcon: {
-    color: '#0A84FF',
+    color: '#D5C19E',
     fontSize: 28,
     fontWeight: '300',
     marginRight: 4,
   },
   backText: {
-    color: '#0A84FF',
+    color: '#D5C19E',
     fontSize: 17,
   },
   avatarContainer: {
@@ -75,7 +75,7 @@ export const styles = StyleSheet.create({
     fontSize: 24,
   },
   actionLabel: {
-    color: '#0A84FF',
+    color: '#D5C19E',
     fontSize: 12,
   },
   tabContainer: {
@@ -178,7 +178,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   phoneNumber: {
-    color: '#0A84FF',
+    color: '#D5C19E',
     fontSize: 16,
   },
   phoneLabel: {

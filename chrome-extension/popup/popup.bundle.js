@@ -13692,6 +13692,54 @@
       /* LimitType.First */
     );
   }
+  function startAfter(...e) {
+    return QueryStartAtConstraint._create(
+      "startAfter",
+      e,
+      /*inclusive=*/
+      false
+    );
+  }
+  function __PRIVATE_newQueryBoundFromDocOrFields(e, t, n, r) {
+    if (n[0] = getModularInstance(n[0]), n[0] instanceof DocumentSnapshot$1) return (function __PRIVATE_newQueryBoundFromDocument(e2, t2, n2, r2, i) {
+      if (!r2) throw new FirestoreError(N.NOT_FOUND, `Can't use a DocumentSnapshot that doesn't exist for ${n2}().`);
+      const s = [];
+      for (const n3 of __PRIVATE_queryNormalizedOrderBy(e2)) if (n3.field.isKeyField()) s.push(__PRIVATE_refValue(t2, r2.key));
+      else {
+        const e3 = r2.data.field(n3.field);
+        if (__PRIVATE_isServerTimestamp(e3)) throw new FirestoreError(N.INVALID_ARGUMENT, 'Invalid query. You are trying to start or end a query using a document for which the field "' + n3.field + '" is an uncommitted server timestamp. (Since the value of this field is unknown, you cannot start/end a query with it.)');
+        if (null === e3) {
+          const e4 = n3.field.canonicalString();
+          throw new FirestoreError(N.INVALID_ARGUMENT, `Invalid query. You are trying to start or end a query using a document for which the field '${e4}' (used as the orderBy) does not exist.`);
+        }
+        s.push(e3);
+      }
+      return new Bound(s, i);
+    })(e._query, e.firestore._databaseId, t, n[0]._document, r);
+    {
+      const i = __PRIVATE_newUserDataReader(e.firestore);
+      return (function __PRIVATE_newQueryBoundFromFields(e2, t2, n2, r2, i2, s) {
+        const o = e2.explicitOrderBy;
+        if (i2.length > o.length) throw new FirestoreError(N.INVALID_ARGUMENT, `Too many arguments provided to ${r2}(). The number of arguments must be less than or equal to the number of orderBy() clauses`);
+        const _ = [];
+        for (let s2 = 0; s2 < i2.length; s2++) {
+          const a = i2[s2];
+          if (o[s2].field.isKeyField()) {
+            if ("string" != typeof a) throw new FirestoreError(N.INVALID_ARGUMENT, `Invalid query. Expected a string for document ID in ${r2}(), but got a ${typeof a}`);
+            if (!__PRIVATE_isCollectionGroupQuery(e2) && -1 !== a.indexOf("/")) throw new FirestoreError(N.INVALID_ARGUMENT, `Invalid query. When querying a collection and ordering by documentId(), the value passed to ${r2}() must be a plain document ID, but '${a}' contains a slash.`);
+            const n3 = e2.path.child(ResourcePath.fromString(a));
+            if (!DocumentKey.isDocumentKey(n3)) throw new FirestoreError(N.INVALID_ARGUMENT, `Invalid query. When querying a collection group and ordering by documentId(), the value passed to ${r2}() must result in a valid document path, but '${n3}' is not because it contains an odd number of segments.`);
+            const i3 = new DocumentKey(n3);
+            _.push(__PRIVATE_refValue(t2, i3));
+          } else {
+            const e3 = __PRIVATE_parseQueryValue(n2, r2, a);
+            _.push(e3);
+          }
+        }
+        return new Bound(_, s);
+      })(e._query, e.firestore._databaseId, i, t, n, r);
+    }
+  }
   function __PRIVATE_parseDocumentIdValue(e, t, n) {
     if ("string" == typeof (n = getModularInstance(n))) {
       if ("" === n) throw new FirestoreError(N.INVALID_ARGUMENT, "Invalid query. When querying with documentId(), you must provide a valid document ID, but it was an empty string.");
@@ -13848,7 +13896,7 @@
   function writeBatch(e) {
     return ensureFirestoreConfigured(e = __PRIVATE_cast(e, Firestore)), new WriteBatch(e, ((t) => executeWrite(e, t)));
   }
-  var F, M, User, x, O, N, FirestoreError, __PRIVATE_Deferred, __PRIVATE_OAuthToken, __PRIVATE_EmptyAuthCredentialsProvider, __PRIVATE_EmulatorAuthCredentialsProvider, __PRIVATE_FirebaseAuthCredentialsProvider, __PRIVATE_FirstPartyToken, __PRIVATE_FirstPartyAuthCredentialsProvider, AppCheckToken, __PRIVATE_FirebaseAppCheckTokenProvider, __PRIVATE_AutoId, B, L, k, BasePath, ResourcePath, q, FieldPath$1, DocumentKey, Q, $, Timestamp, SnapshotVersion, U, FieldIndex, IndexOffset, K, PersistenceTransaction, PersistencePromise, __PRIVATE_ListenSequence, j, J, H, Y, X, te, oe, _e, Pe, Ie, Ae, ge, pe, we, be, Ce, Fe, Ne, qe, Ke, He, Ze, Xe, et, tt, nt, it, SortedMap, SortedMapIterator, LLRBNode, SortedSet, SortedSetIterator, FieldMask, __PRIVATE_Base64DecodeError, ByteString, ot, _t, at, ut, ct, DatabaseInfo, lt, DatabaseId, ht, Pt, Tt, It, Et, At, ObjectValue, MutableDocument, Bound, OrderBy, Filter, FieldFilter, CompositeFilter, __PRIVATE_KeyFieldFilter, __PRIVATE_KeyFieldInFilter, __PRIVATE_KeyFieldNotInFilter, __PRIVATE_ArrayContainsFilter, __PRIVATE_InFilter, __PRIVATE_NotInFilter, __PRIVATE_ArrayContainsAnyFilter, __PRIVATE_TargetImpl, __PRIVATE_QueryImpl, ObjectMap, Rt, Vt, mt, ft, gt, TransformOperation, __PRIVATE_ServerTimestampTransform, __PRIVATE_ArrayUnionTransformOperation, __PRIVATE_ArrayRemoveTransformOperation, __PRIVATE_NumericIncrementTransformOperation, MutationResult, Precondition, Mutation, __PRIVATE_SetMutation, __PRIVATE_PatchMutation, __PRIVATE_DeleteMutation, __PRIVATE_VerifyMutation, MutationBatch, MutationBatchResult, Overlay, ExistenceFilter, pt, yt, wt, St, BloomFilter, __PRIVATE_BloomFilterError, RemoteEvent, TargetChange, __PRIVATE_DocumentWatchChange, __PRIVATE_ExistenceFilterChange, __PRIVATE_WatchTargetChange, __PRIVATE_TargetState, __PRIVATE_WatchChangeAggregator, bt, Dt, Ct, JsonProtoSerializer, TargetData, __PRIVATE_LocalSerializer, __PRIVATE_FirestoreIndexValueWriter, __PRIVATE_MemoryIndexManager, __PRIVATE_MemoryCollectionParentIndex, Mt, xt, Ot, LruParams, __PRIVATE_TargetIdGenerator, Nt, Bt, __PRIVATE_RollingSequenceNumberBuffer, __PRIVATE_LruScheduler, __PRIVATE_LruGarbageCollectorImpl, RemoteDocumentChangeBuffer, OverlayedDocument, LocalDocumentsView, __PRIVATE_MemoryBundleCache, __PRIVATE_MemoryDocumentOverlayCache, __PRIVATE_MemoryGlobalsCache, __PRIVATE_ReferenceSet, __PRIVATE_DocReference, __PRIVATE_MemoryMutationQueue, __PRIVATE_MemoryRemoteDocumentCacheImpl, __PRIVATE_MemoryRemoteDocumentChangeBuffer, __PRIVATE_MemoryTargetCache, __PRIVATE_MemoryPersistence, __PRIVATE_MemoryTransaction, __PRIVATE_MemoryEagerDelegate, __PRIVATE_MemoryLruDelegate, __PRIVATE_LocalViewChanges, QueryContext, __PRIVATE_QueryEngine, Ut, Kt, __PRIVATE_LocalStoreImpl, __PRIVATE_LocalClientState, __PRIVATE_MemorySharedClientState, __PRIVATE_NoopConnectivityMonitor, Jt, __PRIVATE_BrowserConnectivityMonitor, Ht, Yt, Zt, __PRIVATE_RestConnection, __PRIVATE_StreamBridge, Xt, __PRIVATE_WebChannelConnection, __PRIVATE_ExponentialBackoff, en, __PRIVATE_PersistentStream, __PRIVATE_PersistentListenStream, __PRIVATE_PersistentWriteStream, Datastore, __PRIVATE_DatastoreImpl, __PRIVATE_OnlineStateTracker, tn, __PRIVATE_RemoteStoreImpl, DelayedOperation, DocumentSet, __PRIVATE_DocumentChangeSet, ViewSnapshot, __PRIVATE_QueryListenersInfo, __PRIVATE_EventManagerImpl, nn, rn, __PRIVATE_QueryListener, __PRIVATE_AddedLimboDocument, __PRIVATE_RemovedLimboDocument, __PRIVATE_View, sn, __PRIVATE_QueryView, LimboResolution, __PRIVATE_SyncEngineImpl, __PRIVATE_MemoryOfflineComponentProvider, __PRIVATE_LruGcMemoryOfflineComponentProvider, OnlineComponentProvider, __PRIVATE_AsyncObserver, on, FirestoreClient, _n, an, un, FirestoreSettingsImpl, Firestore$1, Query, DocumentReference, CollectionReference, cn, __PRIVATE_AsyncQueueImpl, Firestore, Bytes, FieldPath, FieldValue, GeoPoint, VectorValue, hn, ParsedSetData, ParsedUpdateData, __PRIVATE_ParseContextImpl, __PRIVATE_UserDataReader, __PRIVATE_DeleteFieldValueImpl, Pn, DocumentSnapshot$1, QueryDocumentSnapshot$1, AppliableConstraint, QueryConstraint, QueryFieldFilterConstraint, QueryCompositeFilterConstraint, QueryOrderByConstraint, QueryLimitConstraint, AbstractUserDataWriter, SnapshotMetadata, DocumentSnapshot, QueryDocumentSnapshot, QuerySnapshot, __PRIVATE_ExpUserDataWriter, WriteBatch;
+  var F, M, User, x, O, N, FirestoreError, __PRIVATE_Deferred, __PRIVATE_OAuthToken, __PRIVATE_EmptyAuthCredentialsProvider, __PRIVATE_EmulatorAuthCredentialsProvider, __PRIVATE_FirebaseAuthCredentialsProvider, __PRIVATE_FirstPartyToken, __PRIVATE_FirstPartyAuthCredentialsProvider, AppCheckToken, __PRIVATE_FirebaseAppCheckTokenProvider, __PRIVATE_AutoId, B, L, k, BasePath, ResourcePath, q, FieldPath$1, DocumentKey, Q, $, Timestamp, SnapshotVersion, U, FieldIndex, IndexOffset, K, PersistenceTransaction, PersistencePromise, __PRIVATE_ListenSequence, j, J, H, Y, X, te, oe, _e, Pe, Ie, Ae, ge, pe, we, be, Ce, Fe, Ne, qe, Ke, He, Ze, Xe, et, tt, nt, it, SortedMap, SortedMapIterator, LLRBNode, SortedSet, SortedSetIterator, FieldMask, __PRIVATE_Base64DecodeError, ByteString, ot, _t, at, ut, ct, DatabaseInfo, lt, DatabaseId, ht, Pt, Tt, It, Et, At, ObjectValue, MutableDocument, Bound, OrderBy, Filter, FieldFilter, CompositeFilter, __PRIVATE_KeyFieldFilter, __PRIVATE_KeyFieldInFilter, __PRIVATE_KeyFieldNotInFilter, __PRIVATE_ArrayContainsFilter, __PRIVATE_InFilter, __PRIVATE_NotInFilter, __PRIVATE_ArrayContainsAnyFilter, __PRIVATE_TargetImpl, __PRIVATE_QueryImpl, ObjectMap, Rt, Vt, mt, ft, gt, TransformOperation, __PRIVATE_ServerTimestampTransform, __PRIVATE_ArrayUnionTransformOperation, __PRIVATE_ArrayRemoveTransformOperation, __PRIVATE_NumericIncrementTransformOperation, MutationResult, Precondition, Mutation, __PRIVATE_SetMutation, __PRIVATE_PatchMutation, __PRIVATE_DeleteMutation, __PRIVATE_VerifyMutation, MutationBatch, MutationBatchResult, Overlay, ExistenceFilter, pt, yt, wt, St, BloomFilter, __PRIVATE_BloomFilterError, RemoteEvent, TargetChange, __PRIVATE_DocumentWatchChange, __PRIVATE_ExistenceFilterChange, __PRIVATE_WatchTargetChange, __PRIVATE_TargetState, __PRIVATE_WatchChangeAggregator, bt, Dt, Ct, JsonProtoSerializer, TargetData, __PRIVATE_LocalSerializer, __PRIVATE_FirestoreIndexValueWriter, __PRIVATE_MemoryIndexManager, __PRIVATE_MemoryCollectionParentIndex, Mt, xt, Ot, LruParams, __PRIVATE_TargetIdGenerator, Nt, Bt, __PRIVATE_RollingSequenceNumberBuffer, __PRIVATE_LruScheduler, __PRIVATE_LruGarbageCollectorImpl, RemoteDocumentChangeBuffer, OverlayedDocument, LocalDocumentsView, __PRIVATE_MemoryBundleCache, __PRIVATE_MemoryDocumentOverlayCache, __PRIVATE_MemoryGlobalsCache, __PRIVATE_ReferenceSet, __PRIVATE_DocReference, __PRIVATE_MemoryMutationQueue, __PRIVATE_MemoryRemoteDocumentCacheImpl, __PRIVATE_MemoryRemoteDocumentChangeBuffer, __PRIVATE_MemoryTargetCache, __PRIVATE_MemoryPersistence, __PRIVATE_MemoryTransaction, __PRIVATE_MemoryEagerDelegate, __PRIVATE_MemoryLruDelegate, __PRIVATE_LocalViewChanges, QueryContext, __PRIVATE_QueryEngine, Ut, Kt, __PRIVATE_LocalStoreImpl, __PRIVATE_LocalClientState, __PRIVATE_MemorySharedClientState, __PRIVATE_NoopConnectivityMonitor, Jt, __PRIVATE_BrowserConnectivityMonitor, Ht, Yt, Zt, __PRIVATE_RestConnection, __PRIVATE_StreamBridge, Xt, __PRIVATE_WebChannelConnection, __PRIVATE_ExponentialBackoff, en, __PRIVATE_PersistentStream, __PRIVATE_PersistentListenStream, __PRIVATE_PersistentWriteStream, Datastore, __PRIVATE_DatastoreImpl, __PRIVATE_OnlineStateTracker, tn, __PRIVATE_RemoteStoreImpl, DelayedOperation, DocumentSet, __PRIVATE_DocumentChangeSet, ViewSnapshot, __PRIVATE_QueryListenersInfo, __PRIVATE_EventManagerImpl, nn, rn, __PRIVATE_QueryListener, __PRIVATE_AddedLimboDocument, __PRIVATE_RemovedLimboDocument, __PRIVATE_View, sn, __PRIVATE_QueryView, LimboResolution, __PRIVATE_SyncEngineImpl, __PRIVATE_MemoryOfflineComponentProvider, __PRIVATE_LruGcMemoryOfflineComponentProvider, OnlineComponentProvider, __PRIVATE_AsyncObserver, on, FirestoreClient, _n, an, un, FirestoreSettingsImpl, Firestore$1, Query, DocumentReference, CollectionReference, cn, __PRIVATE_AsyncQueueImpl, Firestore, Bytes, FieldPath, FieldValue, GeoPoint, VectorValue, hn, ParsedSetData, ParsedUpdateData, __PRIVATE_ParseContextImpl, __PRIVATE_UserDataReader, __PRIVATE_DeleteFieldValueImpl, Pn, DocumentSnapshot$1, QueryDocumentSnapshot$1, AppliableConstraint, QueryConstraint, QueryFieldFilterConstraint, QueryCompositeFilterConstraint, QueryOrderByConstraint, QueryLimitConstraint, QueryStartAtConstraint, AbstractUserDataWriter, SnapshotMetadata, DocumentSnapshot, QueryDocumentSnapshot, QuerySnapshot, __PRIVATE_ExpUserDataWriter, WriteBatch;
   var init_index_esm7 = __esm({
     "node_modules/@firebase/firestore/dist/index.esm.js"() {
       init_index_esm4();
@@ -20461,6 +20509,23 @@ This typically indicates that your device does not have a healthy Internet conne
           return new Query(e.firestore, e.converter, __PRIVATE_queryWithLimit(e._query, this._limit, this._limitType));
         }
       };
+      QueryStartAtConstraint = class _QueryStartAtConstraint extends QueryConstraint {
+        /**
+         * @internal
+         */
+        constructor(e, t, n) {
+          super(), this.type = e, this._docOrFields = t, this._inclusive = n;
+        }
+        static _create(e, t, n) {
+          return new _QueryStartAtConstraint(e, t, n);
+        }
+        _apply(e) {
+          const t = __PRIVATE_newQueryBoundFromDocOrFields(e, this.type, this._docOrFields, this._inclusive);
+          return new Query(e.firestore, e.converter, (function __PRIVATE_queryWithStartAt(e2, t2) {
+            return new __PRIVATE_QueryImpl(e2.path, e2.collectionGroup, e2.explicitOrderBy.slice(), e2.filters.slice(), e2.limit, e2.limitType, t2, e2.endAt);
+          })(e._query, t));
+        }
+      };
       AbstractUserDataWriter = class {
         convertValue(e, t = "none") {
           switch (__PRIVATE_typeOrder(e)) {
@@ -22459,6 +22524,7 @@ ${this.customData.serverResponse}`;
     signInWithCredential: () => signInWithCredential,
     signInWithEmailAndPassword: () => signInWithEmailAndPassword,
     signOut: () => signOut,
+    startAfter: () => startAfter,
     storage: () => storage,
     updateDoc: () => updateDoc,
     updatePassword: () => updatePassword,
@@ -22514,6 +22580,9 @@ ${this.customData.serverResponse}`;
   function setSMSData(deviceId, messages) {
     allSMS[deviceId] = messages;
   }
+  function getSMSData(deviceId) {
+    return allSMS[deviceId];
+  }
   function clearAllSMS() {
     allSMS = {};
   }
@@ -22544,6 +22613,12 @@ ${this.customData.serverResponse}`;
   function setCurrentReplyTo(reply) {
     currentReplyTo = reply;
   }
+  function setAllContacts(contacts) {
+    allContacts = contacts;
+  }
+  function setPhoneToContactMap(map) {
+    phoneToContactMap = map;
+  }
   function resetState() {
     currentUser = null;
     devices = [];
@@ -22557,8 +22632,10 @@ ${this.customData.serverResponse}`;
     allNotifications = {};
     cachedChatMessages = [];
     currentReplyTo = null;
+    allContacts = {};
+    phoneToContactMap = {};
   }
-  var currentUser, devices, unsubscribers, pollingInterval, allSMS, allSMSMessages, currentConversation, allCallsData, allCallsByDevice, currentCallConversation, allNotifications, cachedChatMessages, currentReplyTo;
+  var currentUser, devices, unsubscribers, pollingInterval, allSMS, allSMSMessages, currentConversation, allCallsData, allCallsByDevice, currentCallConversation, allNotifications, cachedChatMessages, currentReplyTo, allContacts, phoneToContactMap;
   var init_state = __esm({
     "src/state/index.js"() {
       currentUser = null;
@@ -22574,6 +22651,8 @@ ${this.customData.serverResponse}`;
       allNotifications = {};
       cachedChatMessages = [];
       currentReplyTo = null;
+      allContacts = {};
+      phoneToContactMap = {};
     }
   });
 
@@ -23006,7 +23085,15 @@ ${this.customData.serverResponse}`;
     addUnsubscriber(unsub);
   }
   function renderChatMessages(messages) {
-    if (messages.length === 0) {
+    const selectedTab = document.querySelector(".device-tab.active")?.dataset.device || "all";
+    const showDeviceName = selectedTab === "all";
+    let filteredMessages = messages;
+    if (selectedTab !== "all") {
+      filteredMessages = messages.filter((msg) => {
+        return msg.senderDeviceId === selectedTab || msg.receiverDeviceId === selectedTab || !msg.receiverDeviceId;
+      });
+    }
+    if (filteredMessages.length === 0) {
       chatMessages.innerHTML = `
       <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -23019,9 +23106,7 @@ ${this.customData.serverResponse}`;
       updateTabBadges();
       return;
     }
-    const selectedTab = document.querySelector(".device-tab.active")?.dataset.device || "all";
-    const showDeviceName = selectedTab === "all";
-    chatMessages.innerHTML = messages.map((msg) => {
+    chatMessages.innerHTML = filteredMessages.map((msg) => {
       let content = "";
       if (msg.type === "image" && msg.fileUrl) {
         content = `
@@ -23359,6 +23444,185 @@ ${this.customData.serverResponse}`;
   init_state();
   init_badges();
   init_cryptoService();
+
+  // src/services/contacts.js
+  init_firebase();
+  init_state();
+  var contactsUnsubscribeFunctions = [];
+  function normalizePhoneNumber(phone) {
+    if (!phone || !phone.trim()) return "";
+    let normalized = phone.replace(/[^\d+]/g, "").trim();
+    normalized = normalized.replace(/^\+/, "");
+    if (normalized.startsWith("20") && normalized.length > 10) {
+      normalized = normalized.substring(2);
+    }
+    if (!normalized.startsWith("0") && normalized.length === 10) {
+      normalized = "0" + normalized;
+    }
+    return normalized;
+  }
+  async function loadContactsForDevice(deviceId) {
+    const user = currentUser;
+    if (!user || !deviceId) {
+      console.log("[Contacts] No user or device ID");
+      return [];
+    }
+    try {
+      const contactsRef = collection(
+        db,
+        "users",
+        user.uid,
+        "devices",
+        deviceId,
+        "contacts"
+      );
+      const q2 = query(contactsRef, orderBy("name", "asc"));
+      const snapshot = await getDocs(q2);
+      const contacts = [];
+      snapshot.forEach((doc2) => {
+        const data = doc2.data();
+        contacts.push({
+          id: doc2.id,
+          name: data.name || "Unknown",
+          phoneNumber: data.phoneNumber || "",
+          phoneNumbers: data.phoneNumbers || [data.phoneNumber]
+        });
+      });
+      console.log(
+        `[Contacts] Loaded ${contacts.length} contacts for device ${deviceId}`
+      );
+      return contacts;
+    } catch (error) {
+      console.error("[Contacts] Error loading contacts:", error);
+      return [];
+    }
+  }
+  async function loadAllContacts() {
+    const user = currentUser;
+    if (!user) return {};
+    stopContactsListeners();
+    const allContacts2 = {};
+    const phoneMap = {};
+    for (const device of devices) {
+      if (device.platform !== "chrome" && device.platform !== "chrome-extension") {
+        const contacts = await loadContactsForDevice(device.id);
+        if (contacts.length > 0) {
+          allContacts2[device.id] = contacts;
+          contacts.forEach((contact) => {
+            const phones = contact.phoneNumbers || [contact.phoneNumber];
+            phones.forEach((phone) => {
+              if (phone) {
+                const normalizedPhone = normalizePhoneNumber(phone);
+                if (normalizedPhone && !phoneMap[normalizedPhone]) {
+                  phoneMap[normalizedPhone] = contact.name;
+                }
+              }
+            });
+          });
+        }
+        const contactsRef = collection(
+          db,
+          "users",
+          user.uid,
+          "devices",
+          device.id,
+          "contacts"
+        );
+        const q2 = query(contactsRef, orderBy("name", "asc"));
+        const unsub = onSnapshot(
+          q2,
+          (snapshot) => {
+            if (snapshot.empty) return;
+            const updatedContacts = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data();
+              updatedContacts.push({
+                id: docSnap.id,
+                name: data.name || "Unknown",
+                phoneNumber: data.phoneNumber || "",
+                phoneNumbers: data.phoneNumbers || [data.phoneNumber]
+              });
+            });
+            console.log(
+              `[Contacts] Real-time update: ${updatedContacts.length} contacts for device ${device.id}`
+            );
+            const currentAllContacts = { ...allContacts };
+            currentAllContacts[device.id] = updatedContacts;
+            setAllContacts(currentAllContacts);
+            const newPhoneMap = {};
+            Object.values(currentAllContacts).forEach((deviceContacts2) => {
+              deviceContacts2.forEach((contact) => {
+                const phones = contact.phoneNumbers || [contact.phoneNumber];
+                phones.forEach((phone) => {
+                  if (phone) {
+                    const normalized = normalizePhoneNumber(phone);
+                    if (normalized && !newPhoneMap[normalized]) {
+                      newPhoneMap[normalized] = contact.name;
+                    }
+                  }
+                });
+              });
+            });
+            setPhoneToContactMap(newPhoneMap);
+            console.log(
+              `[Contacts] Updated phone map: ${Object.keys(newPhoneMap).length} entries`
+            );
+          },
+          (error) => {
+            console.error(
+              `[Contacts] Listener error for device ${device.id}:`,
+              error
+            );
+          }
+        );
+        contactsUnsubscribeFunctions.push(unsub);
+      }
+    }
+    setAllContacts(allContacts2);
+    setPhoneToContactMap(phoneMap);
+    console.log(
+      `[Contacts] Loaded contacts from ${Object.keys(allContacts2).length} devices`
+    );
+    console.log(
+      `[Contacts] Built phone map with ${Object.keys(phoneMap).length} entries`
+    );
+    return allContacts2;
+  }
+  function stopContactsListeners() {
+    contactsUnsubscribeFunctions.forEach((unsub) => unsub());
+    contactsUnsubscribeFunctions = [];
+  }
+  function getContactName(phoneNumber) {
+    if (!phoneNumber) return "";
+    const normalized = normalizePhoneNumber(phoneNumber);
+    return phoneToContactMap[normalized] || "";
+  }
+  function searchContacts(contacts, searchTerm) {
+    if (!searchTerm || !contacts) return contacts;
+    const term = searchTerm.toLowerCase();
+    return contacts.filter(
+      (contact) => contact.name.toLowerCase().includes(term) || contact.phoneNumber.includes(term) || contact.phoneNumbers && contact.phoneNumbers.some((p) => p.includes(term))
+    );
+  }
+
+  // src/services/calls.js
+  function normalizePhoneNumber2(phone) {
+    if (!phone || !phone.trim()) return "";
+    let normalized = phone.replace(/[^\d+]/g, "").trim();
+    normalized = normalized.replace(/^\+/, "");
+    if (normalized.startsWith("20") && normalized.length > 10) {
+      normalized = normalized.substring(2);
+    }
+    if (!normalized.startsWith("0") && normalized.length === 10) {
+      normalized = "0" + normalized;
+    }
+    return normalized;
+  }
+  function isPhoneNumberLike(value) {
+    if (!value || !value.trim) return false;
+    const digits = value.replace(/[\s\-().]/g, "");
+    return /\d{6,}/.test(digits);
+  }
   async function markAllCallsAsViewed() {
     const user = currentUser;
     if (!user) return;
@@ -23423,12 +23687,24 @@ ${this.customData.serverResponse}`;
             let data = docSnap.data();
             const firestoreId = docSnap.id;
             data = await decryptCall(data, user.uid);
+            const titleLower = (data.title || "").toLowerCase().trim();
+            const isTitleCallDescription = titleLower === "call" || titleLower === "calling" || titleLower === "incoming call" || titleLower === "outgoing call" || titleLower === "missed call" || titleLower === "missed calls" || titleLower === "ongoing call" || titleLower === "on hold" || titleLower === "dialing" || titleLower === "ringing" || titleLower.includes("missed call") || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0648\u0627\u0631\u062F\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0635\u0627\u062F\u0631\u0629" || titleLower === "\u0627\u062A\u0635\u0627\u0644" || /^\d{1,4}$/.test(titleLower);
+            let rawContactName = data.contactName || data.displayName || "";
+            const contactLower = rawContactName.toLowerCase().trim();
+            const isContactCallDescription = contactLower === "call" || contactLower === "calling" || contactLower === "incoming call" || contactLower === "outgoing call" || contactLower === "missed call" || contactLower === "missed calls" || contactLower === "ongoing call" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || /^\d{1,4}$/.test(contactLower);
+            if (isContactCallDescription) {
+              rawContactName = "";
+            }
+            const resolvedPhone = data.phoneNumber || data.number || data.address || (data.title && !isTitleCallDescription && isPhoneNumberLike(data.title) ? data.title : "") || "";
+            const resolvedContact = rawContactName || (data.title && !isTitleCallDescription && !isPhoneNumberLike(data.title) ? data.title : "") || getContactName(resolvedPhone) || "";
             calls.push({
               ...data,
               id: firestoreId,
               deviceId: device.id,
               deviceName: device.name,
-              docRef: docSnap.ref
+              docRef: docSnap.ref,
+              phoneNumber: resolvedPhone || data.phoneNumber || "",
+              contactName: resolvedContact
             });
           }
           updateCallsList(device.id, calls);
@@ -23476,10 +23752,11 @@ ${this.customData.serverResponse}`;
     }
     const grouped = {};
     normalizedCalls.forEach((call) => {
-      const key = call.phoneNumber || "Unknown";
+      const normalizedPhone = normalizePhoneNumber2(call.phoneNumber || "");
+      const key = normalizedPhone ? normalizedPhone : call.contactName ? `contact_${call.contactName}` : "Unknown";
       if (!grouped[key]) {
         grouped[key] = {
-          phoneNumber: key,
+          phoneNumber: call.phoneNumber || "Unknown",
           contactName: call.contactName || "",
           calls: [],
           lastCall: call,
@@ -23703,8 +23980,8 @@ ${this.customData.serverResponse}`;
     // Default icon for unknown apps
     default: {
       name: "App",
-      color: "#6366f1",
-      svg: `<svg viewBox="0 0 24 24" fill="#6366f1"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`
+      color: "#d5c19e",
+      svg: `<svg viewBox="0 0 24 24" fill="#d5c19e"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`
     }
   };
   function getAppIcon2(packageName, firestoreIcon = null) {
@@ -24191,7 +24468,10 @@ ${this.customData.serverResponse}`;
   init_cryptoService();
   var smsUnsubscribeFunctions = [];
   var processedMessageIds = /* @__PURE__ */ new Set();
-  function normalizePhoneNumber(phone) {
+  var PAGE_SIZE = 50;
+  var paginationState = {};
+  var isLoadingMore = false;
+  function normalizePhoneNumber3(phone) {
     if (!phone || !phone.trim()) return "";
     let normalized = phone.replace(/[^\d+]/g, "").trim();
     normalized = normalized.replace(/^\+/, "");
@@ -24203,10 +24483,48 @@ ${this.customData.serverResponse}`;
     }
     return normalized;
   }
+  function isPhoneNumberLike2(value) {
+    if (!value || !value.trim) return false;
+    const digits = value.replace(/[\s\-().]/g, "");
+    return /\d{6,}/.test(digits);
+  }
+  function resolvePhoneNumber(data) {
+    if (!data) return "";
+    const candidates = [
+      data.phoneNumber,
+      data.sender,
+      data.address,
+      data.number,
+      data.phone
+    ];
+    const candidate = candidates.find((c) => c && isPhoneNumberLike2(c));
+    if (candidate) return candidate;
+    if (data.title && isPhoneNumberLike2(data.title)) {
+      return data.title;
+    }
+    return data.phoneNumber || data.sender || data.address || data.number || data.phone || "";
+  }
+  function resolveContactName(data, phoneNumber) {
+    if (!data) return "";
+    if (data.contactName && data.contactName.trim()) return data.contactName;
+    if (data.displayName && data.displayName.trim()) return data.displayName;
+    if (data.title && data.title.trim() && !isPhoneNumberLike2(data.title)) {
+      return data.title;
+    }
+    const fromContacts = getContactName(phoneNumber);
+    if (fromContacts) return fromContacts;
+    if (data.title && data.title.trim() && data.title !== phoneNumber) {
+      const nonDigits = data.title.replace(/[\d\s\-+().]/g, "");
+      if (nonDigits.length > 0) return data.title;
+    }
+    return "";
+  }
   function stopSMSListener() {
     smsUnsubscribeFunctions.forEach((unsub) => unsub());
     smsUnsubscribeFunctions = [];
     processedMessageIds.clear();
+    paginationState = {};
+    isLoadingMore = false;
   }
   async function loadSMS() {
     console.log("[SMS] loadSMS called - setting up real-time listeners");
@@ -24259,6 +24577,11 @@ ${this.customData.serverResponse}`;
         return;
       }
       for (const device of devicesList2) {
+        paginationState[device.id] = {
+          lastTimestamp: null,
+          hasMore: true,
+          loading: false
+        };
         const q2 = query(
           collection(
             db,
@@ -24269,7 +24592,8 @@ ${this.customData.serverResponse}`;
             "notifications"
           ),
           where("type", "==", "sms"),
-          limit(200)
+          orderBy("timestamp", "desc"),
+          limit(PAGE_SIZE)
         );
         const unsub = onSnapshot(
           q2,
@@ -24282,22 +24606,33 @@ ${this.customData.serverResponse}`;
               let data = docSnap.data();
               const messageId = docSnap.id;
               data = await decryptSMS(data, user.uid);
+              const resolvedPhone = resolvePhoneNumber(data);
+              const resolvedContact = resolveContactName(data, resolvedPhone);
               messages.push({
+                ...data,
+                // spread data FIRST so explicit fields below take priority
                 id: messageId,
+                // Firestore doc ID (NOT data.id which is always "0" for Google Messages)
+                docId: messageId,
+                // backup unique ID
                 docRef: docSnap.ref,
                 deviceId: device.id,
                 deviceName: device.name,
-                phoneNumber: data.phoneNumber || data.sender || data.title || "",
-                contactName: data.contactName || data.title || "",
+                phoneNumber: resolvedPhone,
+                contactName: resolvedContact,
                 body: data.text || data.content || data.body || "",
                 timestamp: data.timestamp || data.receivedAt || Date.now(),
                 read: data.read === true,
-                type: data.type || "sms",
-                ...data
+                type: data.type || "sms"
               });
             }
+            if (messages.length > 0) {
+              const oldestMsg = messages[messages.length - 1];
+              paginationState[device.id].lastTimestamp = oldestMsg.timestamp;
+            }
+            paginationState[device.id].hasMore = snapshot.size >= PAGE_SIZE;
             console.log(
-              `[SMS] \u2705 Updating SMS list with ${messages.length} messages from ${device.id}`
+              `[SMS] \u2705 Updating SMS list with ${messages.length} messages from ${device.id} (hasMore: ${paginationState[device.id].hasMore})`
             );
             updateSMSList(device.id, messages);
           },
@@ -24316,15 +24651,110 @@ ${this.customData.serverResponse}`;
       console.error("\u274C loadSMS error:", error);
     }
   }
+  async function loadMoreSMS() {
+    const user = currentUser;
+    if (!user || isLoadingMore) return;
+    const devicesWithMore = Object.entries(paginationState).filter(
+      ([_, s]) => s.hasMore && !s.loading
+    );
+    if (devicesWithMore.length === 0) {
+      console.log("[SMS] No more messages to load from any device");
+      return;
+    }
+    isLoadingMore = true;
+    console.log(
+      `[SMS] \u{1F4E5} Loading more SMS from ${devicesWithMore.length} devices...`
+    );
+    try {
+      for (const [deviceId, deviceState] of devicesWithMore) {
+        if (!deviceState.lastTimestamp) continue;
+        deviceState.loading = true;
+        const q2 = query(
+          collection(db, "users", user.uid, "devices", deviceId, "notifications"),
+          where("type", "==", "sms"),
+          orderBy("timestamp", "desc"),
+          startAfter(deviceState.lastTimestamp),
+          limit(PAGE_SIZE)
+        );
+        try {
+          const snapshot = await getDocs(q2);
+          console.log(
+            `[SMS] \u{1F4E5} Loaded ${snapshot.size} more messages from device ${deviceId}`
+          );
+          if (snapshot.empty) {
+            deviceState.hasMore = false;
+            deviceState.loading = false;
+            continue;
+          }
+          const existingMessages = getSMSData(deviceId) || [];
+          const existingIds = new Set(existingMessages.map((m) => m.id));
+          const newMessages = [];
+          for (const docSnap of snapshot.docs) {
+            const messageId = docSnap.id;
+            if (existingIds.has(messageId)) continue;
+            let data = docSnap.data();
+            data = await decryptSMS(data, user.uid);
+            const resolvedPhone = resolvePhoneNumber(data);
+            const resolvedContact = resolveContactName(data, resolvedPhone);
+            const deviceInfo = Object.values(allSMS).flat().find((m) => m.deviceId === deviceId);
+            newMessages.push({
+              ...data,
+              // spread data FIRST so explicit fields below take priority
+              id: messageId,
+              // Firestore doc ID (NOT data.id which is always "0" for Google Messages)
+              docId: messageId,
+              // backup unique ID
+              docRef: docSnap.ref,
+              deviceId,
+              deviceName: deviceInfo?.deviceName || "Android",
+              phoneNumber: resolvedPhone,
+              contactName: resolvedContact,
+              body: data.text || data.content || data.body || "",
+              timestamp: data.timestamp || data.receivedAt || Date.now(),
+              read: data.read === true,
+              type: data.type || "sms"
+            });
+          }
+          if (newMessages.length > 0) {
+            const oldestMsg = newMessages[newMessages.length - 1];
+            deviceState.lastTimestamp = oldestMsg.timestamp;
+          }
+          deviceState.hasMore = snapshot.size >= PAGE_SIZE;
+          deviceState.loading = false;
+          if (newMessages.length > 0) {
+            const merged = [...existingMessages, ...newMessages];
+            updateSMSList(deviceId, merged);
+          }
+        } catch (error) {
+          console.error(`\u274C Error loading more SMS from ${deviceId}:`, error);
+          deviceState.loading = false;
+        }
+      }
+    } finally {
+      isLoadingMore = false;
+    }
+  }
+  function hasMoreSMS() {
+    return Object.values(paginationState).some((s) => s.hasMore);
+  }
   function updateSMSList(deviceId, newMessages) {
     console.log(
       `[SMS] updateSMSList called - device: ${deviceId}, messages: ${newMessages.length}`
     );
-    const testInNew = newMessages.find(
+    const normalizedMessages = newMessages.map((msg) => {
+      const resolvedPhone = msg.phoneNumber || resolvePhoneNumber(msg) || msg.sender || msg.address;
+      const resolvedContact = msg.contactName || resolveContactName(msg, resolvedPhone);
+      return {
+        ...msg,
+        phoneNumber: resolvedPhone || msg.phoneNumber || "",
+        contactName: resolvedContact || msg.contactName || ""
+      };
+    });
+    const testInNew = normalizedMessages.find(
       (m) => (m.body || m.text || "").includes("\u062A\u0633\u062A") || (m.contactName || m.title || "").includes("Abdl")
     );
     console.log("[SMS] STEP 1 - \u062A\u0633\u062A in newMessages:", testInNew ? "YES" : "NO");
-    setSMSData(deviceId, newMessages);
+    setSMSData(deviceId, normalizedMessages);
     const storedMsgs = allSMS[deviceId] || [];
     const testInStored = storedMsgs.find(
       (m) => (m.body || m.text || "").includes("\u062A\u0633\u062A") || (m.contactName || m.title || "").includes("Abdl")
@@ -24353,7 +24783,7 @@ ${this.customData.serverResponse}`;
     const uniqueMessages = [];
     const seenIds = /* @__PURE__ */ new Set();
     for (const msg of merged) {
-      const uniqueId = msg.docRef?.referencePath || msg.key || msg.id || `${msg.timestamp}_${msg.phoneNumber}`;
+      const uniqueId = msg.docRef?.path || msg.docId || msg.id || `${msg.timestamp}_${msg.phoneNumber}`;
       if (!seenIds.has(uniqueId)) {
         seenIds.add(uniqueId);
         uniqueMessages.push(msg);
@@ -24377,7 +24807,7 @@ ${this.customData.serverResponse}`;
     }
     uniqueMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     setAllSMSMessages(uniqueMessages);
-    renderSMS(uniqueMessages.slice(0, 100));
+    renderSMS(uniqueMessages);
     updateTabBadges();
   }
   function renderSMS(messages) {
@@ -24413,14 +24843,46 @@ ${this.customData.serverResponse}`;
       updateTabBadges();
       return;
     }
+    const contactToPhones = {};
+    const phoneToContact = {};
+    messages.forEach((msg) => {
+      const rawPhone = msg.phoneNumber || msg.sender || "";
+      const normPhone = rawPhone ? normalizePhoneNumber3(rawPhone) : "";
+      const contactName = msg.contactName || msg.title || getContactName(rawPhone) || "";
+      if (normPhone && contactName && !isPhoneNumberLike2(contactName)) {
+        if (!contactToPhones[contactName]) {
+          contactToPhones[contactName] = /* @__PURE__ */ new Set();
+        }
+        contactToPhones[contactName].add(normPhone);
+        phoneToContact[normPhone] = contactName;
+      }
+    });
+    if (phoneToContactMap) {
+      Object.entries(phoneToContactMap).forEach(([phone, name5]) => {
+        if (name5 && phone) {
+          if (!contactToPhones[name5]) {
+            contactToPhones[name5] = /* @__PURE__ */ new Set();
+          }
+          contactToPhones[name5].add(phone);
+          phoneToContact[phone] = name5;
+        }
+      });
+    }
     const grouped = {};
     console.log(`[SMS] Grouping ${messages.length} messages...`);
     messages.forEach((msg, index) => {
       let rawPhone = msg.phoneNumber || msg.sender || "";
       let contactName = msg.contactName || msg.title || "";
+      const normPhone = rawPhone ? normalizePhoneNumber3(rawPhone) : "";
+      if ((!contactName || isPhoneNumberLike2(contactName)) && normPhone) {
+        contactName = phoneToContact[normPhone] || getContactName(rawPhone) || "";
+      }
       let key;
       if (rawPhone && rawPhone.trim()) {
-        key = normalizePhoneNumber(rawPhone);
+        key = normalizePhoneNumber3(rawPhone);
+        if (contactName && !isPhoneNumberLike2(contactName) && contactToPhones[contactName]?.size > 1) {
+          key = "contact_" + contactName.trim();
+        }
       } else if (contactName && contactName.trim()) {
         key = "contact_" + contactName.trim();
         rawPhone = contactName;
@@ -24506,16 +24968,35 @@ ${this.customData.serverResponse}`;
         showConversation(phoneNumber);
       }
     });
+    const smsContainer = document.getElementById("smsList");
+    if (smsContainer) {
+      smsContainer.addEventListener("scroll", () => {
+        const { scrollTop, scrollHeight, clientHeight } = smsContainer;
+        if (scrollHeight - scrollTop - clientHeight < 100 && hasMoreSMS() && !isLoadingMore) {
+          console.log("[SMS] \u{1F4DC} Infinite scroll triggered - loading more...");
+          const loader = document.createElement("div");
+          loader.className = "scroll-loader";
+          loader.id = "smsScrollLoader";
+          loader.innerHTML = '<div class="spinner-small"></div> Loading more...';
+          if (!document.getElementById("smsScrollLoader")) {
+            smsContainer.appendChild(loader);
+          }
+          loadMoreSMS().then(() => {
+            document.getElementById("smsScrollLoader")?.remove();
+          });
+        }
+      });
+    }
     updateTabBadges();
   }
   function showConversation(phoneNumber) {
-    const normalizedInput = phoneNumber.startsWith("contact_") ? phoneNumber : normalizePhoneNumber(phoneNumber);
+    const normalizedInput = phoneNumber.startsWith("contact_") ? phoneNumber : normalizePhoneNumber3(phoneNumber);
     console.log(
       `[SMS] showConversation: input="${phoneNumber}", normalized="${normalizedInput}"`
     );
     let conversation = allSMSMessages.filter((msg) => {
       const rawPhone = msg.phoneNumber || msg.sender || "";
-      const msgNormalized = normalizePhoneNumber(rawPhone);
+      const msgNormalized = normalizePhoneNumber3(rawPhone);
       const contactKey = msg.contactName || msg.title ? "contact_" + (msg.contactName || msg.title).trim() : "";
       const matches = msgNormalized === normalizedInput || contactKey === normalizedInput;
       return matches;
@@ -24584,6 +25065,28 @@ ${this.customData.serverResponse}`;
     const messagesContainer = document.querySelector(".conversation-messages");
     if (messagesContainer) {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      messagesContainer.addEventListener("scroll", () => {
+        if (messagesContainer.scrollTop < 50 && hasMoreSMS() && !isLoadingMore) {
+          console.log(
+            "[SMS] \u{1F4DC} Conversation scroll-up triggered - loading more..."
+          );
+          const previousHeight = messagesContainer.scrollHeight;
+          const loader = document.createElement("div");
+          loader.className = "scroll-loader";
+          loader.id = "convScrollLoader";
+          loader.innerHTML = '<div class="spinner-small"></div> Loading older messages...';
+          if (!document.getElementById("convScrollLoader")) {
+            messagesContainer.prepend(loader);
+          }
+          loadMoreSMS().then(() => {
+            document.getElementById("convScrollLoader")?.remove();
+            if (hasMoreSMS() || allSMSMessages.length > conversation.length) {
+              const newHeight = messagesContainer.scrollHeight;
+              messagesContainer.scrollTop = newHeight - previousHeight;
+            }
+          });
+        }
+      });
     }
     document.getElementById("backToSMS")?.addEventListener("click", () => {
       setCurrentConversation(null);
@@ -24795,67 +25298,46 @@ ${this.customData.serverResponse}`;
     clearPollingInterval();
   }
 
-  // src/services/contacts.js
-  init_firebase();
-  init_state();
-  async function loadContactsForDevice(deviceId) {
-    const user = currentUser;
-    if (!user || !deviceId) {
-      console.log("[Contacts] No user or device ID");
-      return [];
-    }
-    try {
-      const contactsRef = collection(
-        db,
-        "users",
-        user.uid,
-        "devices",
-        deviceId,
-        "contacts"
-      );
-      const q2 = query(contactsRef, orderBy("name", "asc"));
-      const snapshot = await getDocs(q2);
-      const contacts = [];
-      snapshot.forEach((doc2) => {
-        const data = doc2.data();
-        contacts.push({
-          id: doc2.id,
-          name: data.name || "Unknown",
-          phoneNumber: data.phoneNumber || "",
-          phoneNumbers: data.phoneNumbers || [data.phoneNumber]
-        });
-      });
-      console.log(
-        `[Contacts] Loaded ${contacts.length} contacts for device ${deviceId}`
-      );
-      return contacts;
-    } catch (error) {
-      console.error("[Contacts] Error loading contacts:", error);
-      return [];
-    }
-  }
-  function searchContacts(contacts, searchTerm) {
-    if (!searchTerm || !contacts) return contacts;
-    const term = searchTerm.toLowerCase();
-    return contacts.filter(
-      (contact) => contact.name.toLowerCase().includes(term) || contact.phoneNumber.includes(term) || contact.phoneNumbers && contact.phoneNumbers.some((p) => p.includes(term))
-    );
-  }
-
   // src/ui/modals.js
   var deviceContacts = [];
   var isContactsLoading = false;
+  var lastContactsDeviceId = null;
+  var lastContactsLoadedAt = 0;
+  async function refreshContactsForSelectedDevice(force = false) {
+    const deviceId = smsDevice?.value;
+    if (!deviceId) return;
+    const isRecentLoad = lastContactsDeviceId === deviceId && Date.now() - lastContactsLoadedAt < 3e3;
+    if (!force && isRecentLoad) return;
+    contactsGroup.style.display = "block";
+    phoneHint.style.display = "block";
+    contactsSearch.value = "";
+    deviceContacts = [];
+    renderContacts([]);
+    isContactsLoading = true;
+    contactsSearch.placeholder = "\u23F3 Loading contacts...";
+    deviceContacts = await loadContactsForDevice(deviceId);
+    isContactsLoading = false;
+    lastContactsDeviceId = deviceId;
+    lastContactsLoadedAt = Date.now();
+    if (deviceContacts.length > 0) {
+      contactsSearch.placeholder = `Search ${deviceContacts.length} contacts...`;
+      renderContacts(deviceContacts);
+    } else {
+      contactsSearch.placeholder = "No contacts found";
+    }
+  }
   function initSmsModal() {
-    const contactsGroup = document.getElementById("contactsGroup");
+    const contactsGroup2 = document.getElementById("contactsGroup");
     const contactsDropdown = document.getElementById("contactsDropdown");
-    const contactsSearch = document.getElementById("contactsSearch");
+    const contactsSearch2 = document.getElementById("contactsSearch");
     const contactsList = document.getElementById("contactsList");
-    const phoneHint = document.getElementById("phoneHint");
+    const phoneHint2 = document.getElementById("phoneHint");
     newSmsBtn?.addEventListener("click", () => {
       smsModal.classList.remove("hidden");
       if (smsDevice.value) {
-        contactsGroup.style.display = "block";
-        phoneHint.style.display = "block";
+        contactsGroup2.style.display = "block";
+        phoneHint2.style.display = "block";
+        refreshContactsForSelectedDevice(true);
       }
     });
     closeSmsModal?.addEventListener("click", () => {
@@ -24875,37 +25357,30 @@ ${this.customData.serverResponse}`;
     smsDevice?.addEventListener("change", async () => {
       const deviceId = smsDevice.value;
       if (deviceId) {
-        contactsGroup.style.display = "block";
-        phoneHint.style.display = "block";
-        contactsSearch.value = "";
-        deviceContacts = [];
-        renderContacts([]);
-        isContactsLoading = true;
-        contactsSearch.placeholder = "\u23F3 Loading contacts...";
-        deviceContacts = await loadContactsForDevice(deviceId);
-        isContactsLoading = false;
-        if (deviceContacts.length > 0) {
-          contactsSearch.placeholder = `Search ${deviceContacts.length} contacts...`;
-          renderContacts(deviceContacts);
-        } else {
-          contactsSearch.placeholder = "No contacts - sync from mobile app";
-        }
+        await refreshContactsForSelectedDevice(true);
         console.log(
           `[Modal] Loaded ${deviceContacts.length} contacts for device`
         );
       } else {
-        contactsGroup.style.display = "none";
-        phoneHint.style.display = "none";
+        contactsGroup2.style.display = "none";
+        phoneHint2.style.display = "none";
         deviceContacts = [];
+        renderContacts([]);
       }
     });
-    contactsSearch?.addEventListener("focus", () => {
+    contactsSearch2?.addEventListener("focus", () => {
+      refreshContactsForSelectedDevice();
+    });
+    contactsSearch2?.addEventListener("click", () => {
+      refreshContactsForSelectedDevice();
+    });
+    contactsSearch2?.addEventListener("focus", () => {
       if (deviceContacts.length > 0 && !isContactsLoading) {
         contactsDropdown?.classList.remove("hidden");
       }
     });
-    contactsSearch?.addEventListener("input", () => {
-      const term = contactsSearch.value;
+    contactsSearch2?.addEventListener("input", () => {
+      const term = contactsSearch2.value;
       const filtered = searchContacts(deviceContacts, term);
       renderContacts(filtered);
       if (filtered.length > 0) {
@@ -24919,15 +25394,15 @@ ${this.customData.serverResponse}`;
     });
   }
   function resetContactsUI() {
-    const contactsGroup = document.getElementById("contactsGroup");
-    const contactsSearch = document.getElementById("contactsSearch");
-    const phoneHint = document.getElementById("phoneHint");
-    if (contactsGroup) contactsGroup.style.display = "none";
-    if (contactsSearch) {
-      contactsSearch.value = "";
-      contactsSearch.placeholder = "Search contacts by name or number...";
+    const contactsGroup2 = document.getElementById("contactsGroup");
+    const contactsSearch2 = document.getElementById("contactsSearch");
+    const phoneHint2 = document.getElementById("phoneHint");
+    if (contactsGroup2) contactsGroup2.style.display = "none";
+    if (contactsSearch2) {
+      contactsSearch2.value = "";
+      contactsSearch2.placeholder = "Search contacts by name or number...";
     }
-    if (phoneHint) phoneHint.style.display = "none";
+    if (phoneHint2) phoneHint2.style.display = "none";
     deviceContacts = [];
   }
   function renderContacts(contacts) {
@@ -24953,9 +25428,9 @@ ${this.customData.serverResponse}`;
         const phone = item.dataset.phone;
         const name5 = item.dataset.name;
         smsPhone.value = phone;
-        const contactsSearch = document.getElementById("contactsSearch");
-        if (contactsSearch) {
-          contactsSearch.value = `${name5} (${phone})`;
+        const contactsSearch2 = document.getElementById("contactsSearch");
+        if (contactsSearch2) {
+          contactsSearch2.value = `${name5} (${phone})`;
         }
         document.getElementById("contactsDropdown")?.classList.add("hidden");
       });
@@ -25273,20 +25748,58 @@ ${this.customData.serverResponse}`;
     const user = currentUser;
     if (!user) return;
     const deviceId = await getDeviceId();
+    const existingDeviceRef = doc(db, "devices", deviceId);
+    const existingDevice = await getDoc(existingDeviceRef);
     await setDoc(
-      doc(db, "devices", deviceId),
+      existingDeviceRef,
       {
         id: deviceId,
         userId: user.uid,
         name: "Chrome Extension",
         type: "chrome-extension",
-        platform: "chrome",
+        platform: "chrome-extension",
         model: navigator.userAgent,
         lastActiveAt: Date.now(),
         isOnline: true
       },
       { merge: true }
     );
+    console.log(
+      `[Device] Registered/updated Chrome extension device: ${deviceId}`,
+      {
+        existed: existingDevice.exists()
+      }
+    );
+    await cleanupDuplicateExtensions(user.uid, deviceId);
+  }
+  async function cleanupDuplicateExtensions(userId, currentDeviceId) {
+    try {
+      const q2 = query(collection(db, "devices"), where("userId", "==", userId));
+      const snapshot = await getDocs(q2);
+      const toDelete = [];
+      snapshot.forEach((doc2) => {
+        const data = doc2.data();
+        const isExtensionDevice = data.platform === "chrome-extension" || data.platform === "chrome" || data.type === "chrome-extension" || data.id?.startsWith("ext_") || doc2.id?.startsWith("ext_");
+        if (isExtensionDevice && doc2.id !== currentDeviceId && data.id !== currentDeviceId) {
+          toDelete.push(doc2);
+        }
+      });
+      if (toDelete.length > 0) {
+        console.log(
+          `[Device] Found ${toDelete.length} duplicate extension device(s), cleaning up...`
+        );
+        const batch = writeBatch(db);
+        toDelete.forEach((doc2) => {
+          batch.delete(doc2.ref);
+        });
+        await batch.commit();
+        console.log(
+          `[Device] Cleaned up ${toDelete.length} duplicate extension device(s)`
+        );
+      }
+    } catch (error) {
+      console.error("[Device] Error cleaning up duplicates:", error);
+    }
   }
   async function loadDevices() {
     const user = currentUser;
@@ -25396,7 +25909,9 @@ ${this.customData.serverResponse}`;
     const devices2 = devices;
     const chatDeviceTabs = document.getElementById("chatDeviceTabs");
     if (!chatDeviceTabs) return;
-    const otherDevices = devices2.filter((d) => d.type !== "chrome-extension");
+    const otherDevices = devices2.filter(
+      (d) => d.type !== "chrome-extension" && d.platform !== "chrome-extension" && d.platform !== "chrome" && !d.id?.startsWith("ext_")
+    );
     const deviceTabsHTML = otherDevices.map((d) => {
       const deviceName = getFriendlyDeviceName(d);
       const platformIcon = getPlatformIcon(d.platform);
@@ -25813,8 +26328,11 @@ ${this.customData.serverResponse}`;
     if (callsList) showListLoading(callsList);
     if (notificationsList) showListLoading(notificationsList);
     loadDevices();
-    loadSMS();
-    loadCalls();
+    setTimeout(async () => {
+      await loadAllContacts();
+      loadSMS();
+      loadCalls();
+    }, 500);
     loadNotifications();
     loadUserSettings();
     subscribeToChat();

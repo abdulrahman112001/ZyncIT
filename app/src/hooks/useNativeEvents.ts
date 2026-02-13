@@ -5,6 +5,7 @@ import {
   PermissionsAndroid,
   Alert,
   DeviceEventEmitter,
+  AppState,
 } from 'react-native';
 import { useSMSStore } from '../store/smsStore';
 import { useCallStore } from '../store/callStore';
@@ -38,6 +39,27 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
   const { syncContactsToFirebase } = useContactStore();
   const pushListenerUnsubscribe = useRef<(() => void) | null>(null);
   const fcmTokenListenerUnsubscribe = useRef<(() => void) | null>(null);
+  const lastContactSyncRef = useRef<number>(0);
+
+  // Re-sync contacts when app comes to foreground (max once per 5 minutes)
+  useEffect(() => {
+    if (!user || !currentDevice) return;
+
+    const handleAppState = (nextAppState: string) => {
+      if (nextAppState === 'active') {
+        const now = Date.now();
+        const FIVE_MINUTES = 5 * 60 * 1000;
+        if (now - lastContactSyncRef.current > FIVE_MINUTES) {
+          lastContactSyncRef.current = now;
+          console.log('[Contacts] App foregrounded - re-syncing contacts');
+          syncContactsToFirebase();
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppState);
+    return () => subscription.remove();
+  }, [user, currentDevice, syncContactsToFirebase]);
 
   // تسجيل الجهاز عند تحميل المستخدم
   useEffect(() => {

@@ -32,6 +32,10 @@ export let allNotifications = {};
 export let cachedChatMessages = [];
 export let currentReplyTo = null;
 
+// Contacts Data - cached contacts from all devices
+export let allContacts = {}; // { deviceId: [contacts] }
+export let phoneToContactMap = {}; // { normalizedPhone: contactName }
+
 // State setters
 export function setCurrentUser(user) {
   currentUser = user;
@@ -124,6 +128,14 @@ export function setCurrentReplyTo(reply) {
   currentReplyTo = reply;
 }
 
+export function setAllContacts(contacts) {
+  allContacts = contacts;
+}
+
+export function setPhoneToContactMap(map) {
+  phoneToContactMap = map;
+}
+
 /**
  * Reset all state (on logout)
  */
@@ -140,4 +152,6 @@ export function resetState() {
   allNotifications = {};
   cachedChatMessages = [];
   currentReplyTo = null;
+  allContacts = {};
+  phoneToContactMap = {};
 }

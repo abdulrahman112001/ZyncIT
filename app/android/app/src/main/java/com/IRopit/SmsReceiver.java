@@ -23,6 +23,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SmsReceiver extends BroadcastReceiver {
     private static final String TAG = "SmsReceiver";
@@ -31,6 +32,34 @@ public class SmsReceiver extends BroadcastReceiver {
     // Set لتتبع الرسائل التي تم معالجتها لتجنب التكرار
     private static final Set<String> processedMessages = new HashSet<>();
     private static final long MESSAGE_EXPIRY_MS = 5000; // 5 ثوان
+    
+    // Track recently captured SMS so NotificationService can avoid duplicates
+    private static final ConcurrentHashMap<String, Long> recentlyCapturedSms = new ConcurrentHashMap<>();
+    private static final long DEDUP_WINDOW_MS = 30000; // 30 seconds
+    
+    /**
+     * Check if an SMS from this sender was recently captured by SmsReceiver.
+     * Used by NotificationService to avoid duplicate processing.
+     */
+    public static boolean wasRecentlyCaptured(String sender, long timestamp) {
+        if (sender == null) return false;
+        String normalizedSender = sender.replaceAll("[^0-9+]", "");
+        // Check by sender (any recent SMS from this sender)
+        Long capturedTime = recentlyCapturedSms.get(normalizedSender);
+        if (capturedTime != null && Math.abs(capturedTime - timestamp) < DEDUP_WINDOW_MS) {
+            return true;
+        }
+        // Also check last 4 digits (for format differences)
+        if (normalizedSender.length() >= 4) {
+            String last4 = normalizedSender.substring(normalizedSender.length() - 4);
+            for (java.util.Map.Entry<String, Long> entry : recentlyCapturedSms.entrySet()) {
+                if (entry.getKey().endsWith(last4) && Math.abs(entry.getValue() - timestamp) < DEDUP_WINDOW_MS) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
     
     // تنظيف الرسائل القديمة من الـ Set
     private static class MessageCleanupTask implements Runnable {
@@ -134,6 +163,68 @@ public class SmsReceiver extends BroadcastReceiver {
             }
             
             ContentResolver resolver = context.getContentResolver();
+            
+            // Try with original number first
+            String name = lookupContactByPhone(resolver, phoneNumber);
+            if (name != null && !name.isEmpty()) {
+                return name;
+            }
+            
+            // Clean the phone number - remove spaces, dashes, etc.
+            String cleanNumber = phoneNumber.replaceAll("[^\\d+]", "");
+            
+            // Try with clean number
+            if (!cleanNumber.equals(phoneNumber)) {
+                name = lookupContactByPhone(resolver, cleanNumber);
+                if (name != null && !name.isEmpty()) {
+                    return name;
+                }
+            }
+            
+            // Try without country code (if starts with +)
+            if (cleanNumber.startsWith("+")) {
+                // Remove + and country code (assume 1-3 digits)
+                String withoutPlus = cleanNumber.substring(1);
+                
+                // Try removing common country codes
+                String[] prefixes = {"971", "966", "965", "974", "973", "968", "20", "1", "44", "91"};
+                for (String prefix : prefixes) {
+                    if (withoutPlus.startsWith(prefix)) {
+                        String localNumber = withoutPlus.substring(prefix.length());
+                        // Add leading 0 for local format
+                        name = lookupContactByPhone(resolver, "0" + localNumber);
+                        if (name != null && !name.isEmpty()) {
+                            Log.d(TAG, "Found contact with local format: 0" + localNumber);
+                            return name;
+                        }
+                        // Try without leading 0
+                        name = lookupContactByPhone(resolver, localNumber);
+                        if (name != null && !name.isEmpty()) {
+                            return name;
+                        }
+                    }
+                }
+            }
+            
+            // Try adding country code if number starts with 0
+            if (cleanNumber.startsWith("0")) {
+                String withoutZero = cleanNumber.substring(1);
+                // Try UAE format
+                name = lookupContactByPhone(resolver, "+971" + withoutZero);
+                if (name != null && !name.isEmpty()) {
+                    return name;
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting contact name", e);
+        }
+
+        return "";
+    }
+    
+    private String lookupContactByPhone(ContentResolver resolver, String phoneNumber) {
+        try {
             Uri uri = Uri.withAppendedPath(
                 ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
                 Uri.encode(phoneNumber)
@@ -154,10 +245,9 @@ public class SmsReceiver extends BroadcastReceiver {
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error getting contact name", e);
+            Log.e(TAG, "Error looking up contact: " + phoneNumber, e);
         }
-
-        return "";
+        return null;
     }
     
     private void sendSmsEvent(Context context, String sender, String message, long timestamp, String contactName) {

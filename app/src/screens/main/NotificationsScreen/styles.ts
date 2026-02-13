@@ -157,8 +157,8 @@ export const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   checkboxSelected: {
-    backgroundColor: '#0A84FF',
-    borderColor: '#0A84FF',
+    backgroundColor: '#D5C19E',
+    borderColor: '#D5C19E',
   },
   avatar: {
     width: 56,
@@ -175,7 +175,7 @@ export const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#D5C19E',
     borderRadius: 12,
     minWidth: 22,
     height: 22,
@@ -264,7 +264,7 @@ export const styles = StyleSheet.create({
     lineHeight: 22,
   },
   enableButton: {
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#D5C19E',
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 12,

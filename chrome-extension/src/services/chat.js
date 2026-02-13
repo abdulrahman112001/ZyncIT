@@ -65,7 +65,25 @@ export function subscribeToChat() {
  * @param {Array} messages - Array of chat messages
  */
 export function renderChatMessages(messages) {
-  if (messages.length === 0) {
+  // Check if "All" tab is selected
+  const selectedTab =
+    document.querySelector(".device-tab.active")?.dataset.device || "all";
+  const showDeviceName = selectedTab === "all";
+
+  // Filter messages by selected device
+  let filteredMessages = messages;
+  if (selectedTab !== "all") {
+    filteredMessages = messages.filter((msg) => {
+      // Show messages sent TO this device, FROM this device, or broadcast to all devices
+      return (
+        msg.senderDeviceId === selectedTab ||
+        msg.receiverDeviceId === selectedTab ||
+        !msg.receiverDeviceId // broadcast messages (sent to "All") should appear in every device tab
+      );
+    });
+  }
+
+  if (filteredMessages.length === 0) {
     chatMessages.innerHTML = `
       <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -79,12 +97,7 @@ export function renderChatMessages(messages) {
     return;
   }
 
-  // Check if "All" tab is selected
-  const selectedTab =
-    document.querySelector(".device-tab.active")?.dataset.device || "all";
-  const showDeviceName = selectedTab === "all";
-
-  chatMessages.innerHTML = messages
+  chatMessages.innerHTML = filteredMessages
     .map((msg) => {
       let content = "";
 

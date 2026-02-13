@@ -1,8 +1,8 @@
 // Light Theme Colors
 export const LIGHT_COLORS = {
-  primary: '#6366F1',
-  primaryDark: '#4F46E5',
-  primaryLight: '#A5B4FC',
+  primary: '#D5C19E',
+  primaryDark: '#B8A07A',
+  primaryLight: '#E8DCC6',
   secondary: '#10B981',
   background: '#F9FAFB',
   surface: '#FFFFFF',
@@ -21,14 +21,14 @@ export const LIGHT_COLORS = {
   black: '#000000',
   transparent: 'transparent',
   card: '#FFFFFF',
-  notification: '#6366F1',
+  notification: '#D5C19E',
 };
 
 // Dark Theme Colors
 export const DARK_COLORS = {
-  primary: '#818CF8',
-  primaryDark: '#6366F1',
-  primaryLight: '#C7D2FE',
+  primary: '#E0D0B3',
+  primaryDark: '#D5C19E',
+  primaryLight: '#EBE1CF',
   secondary: '#34D399',
   background: '#111827',
   surface: '#1F2937',
@@ -47,7 +47,7 @@ export const DARK_COLORS = {
   black: '#000000',
   transparent: 'transparent',
   card: '#1F2937',
-  notification: '#818CF8',
+  notification: '#E0D0B3',
 };
 
 // Default to light colors for backward compatibility

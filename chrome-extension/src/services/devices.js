@@ -36,20 +36,81 @@ export async function registerDevice() {
 
   const deviceId = await getDeviceId();
 
+  // Check if device already exists to avoid duplicates
+  const existingDeviceRef = doc(db, "devices", deviceId);
+  const existingDevice = await getDoc(existingDeviceRef);
+
   await setDoc(
-    doc(db, "devices", deviceId),
+    existingDeviceRef,
     {
       id: deviceId,
       userId: user.uid,
       name: "Chrome Extension",
       type: "chrome-extension",
-      platform: "chrome",
+      platform: "chrome-extension",
       model: navigator.userAgent,
       lastActiveAt: Date.now(),
       isOnline: true,
     },
     { merge: true },
   );
+
+  console.log(
+    `[Device] Registered/updated Chrome extension device: ${deviceId}`,
+    {
+      existed: existingDevice.exists(),
+    },
+  );
+
+  // Clean up any duplicate extension devices (devices with same userId and type but different IDs)
+  await cleanupDuplicateExtensions(user.uid, deviceId);
+}
+
+/**
+ * Clean up duplicate Chrome extension devices
+ * Keep only the current device ID
+ */
+async function cleanupDuplicateExtensions(userId, currentDeviceId) {
+  try {
+    const q = query(collection(db, "devices"), where("userId", "==", userId));
+
+    const snapshot = await getDocs(q);
+    const toDelete = [];
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const isExtensionDevice =
+        data.platform === "chrome-extension" ||
+        data.platform === "chrome" ||
+        data.type === "chrome-extension" ||
+        data.id?.startsWith("ext_") ||
+        doc.id?.startsWith("ext_");
+
+      if (
+        isExtensionDevice &&
+        doc.id !== currentDeviceId &&
+        data.id !== currentDeviceId
+      ) {
+        toDelete.push(doc);
+      }
+    });
+
+    if (toDelete.length > 0) {
+      console.log(
+        `[Device] Found ${toDelete.length} duplicate extension device(s), cleaning up...`,
+      );
+      const batch = writeBatch(db);
+      toDelete.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      console.log(
+        `[Device] Cleaned up ${toDelete.length} duplicate extension device(s)`,
+      );
+    }
+  } catch (error) {
+    console.error("[Device] Error cleaning up duplicates:", error);
+  }
 }
 
 /**
@@ -217,7 +278,13 @@ export function updateChatDeviceTabs() {
   if (!chatDeviceTabs) return;
 
   // Show all devices except chrome extensions
-  const otherDevices = devices.filter((d) => d.type !== "chrome-extension");
+  const otherDevices = devices.filter(
+    (d) =>
+      d.type !== "chrome-extension" &&
+      d.platform !== "chrome-extension" &&
+      d.platform !== "chrome" &&
+      !d.id?.startsWith("ext_"),
+  );
 
   const deviceTabsHTML = otherDevices
     .map((d) => {

@@ -153,6 +153,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       sound: 'default',
       vibration: true,
     });
+
+    // FCM default channel (fallback for push notifications)
+    await notifee.createChannel({
+      id: 'chat_notifications',
+      name: 'Chat Notifications',
+      description: 'Push notification channel for chat messages',
+      importance: AndroidImportance.HIGH,
+      visibility: AndroidVisibility.PUBLIC,
+      sound: 'default',
+      vibration: true,
+    });
   }, []);
 
   // Initialize notifications

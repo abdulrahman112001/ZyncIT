@@ -10,18 +10,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  logoBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 22,
     marginBottom: 16,
-  },
-  logoText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   appName: {
     fontSize: 24,

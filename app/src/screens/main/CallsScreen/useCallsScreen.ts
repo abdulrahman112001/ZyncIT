@@ -24,12 +24,19 @@ export const useCallsScreen = () => {
     deleteCallsByPhoneNumbers,
   } = useCallStore();
   const { requestPermissions } = useNativeEvents();
-  const { isRTL, isDarkMode } = useTheme();
+  const { isRTL, isDarkMode, colors } = useTheme();
 
   // Local state
   const [searchQuery, setSearchQuery] = useState('');
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedCalls, setSelectedCalls] = useState<string[]>([]);
+  const [showDeleteSheet, setShowDeleteSheet] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<
+    'single' | 'selected' | 'all' | null
+  >(null);
+  const [singleDeleteItem, setSingleDeleteItem] = useState<GroupedCall | null>(
+    null,
+  );
 
   // Theme colors
   const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
@@ -110,9 +117,45 @@ export const useCallsScreen = () => {
     [navigation],
   );
 
-  const handleDelete = useCallback((_group: GroupedCall) => {
-    // Placeholder for future delete implementation
+  const handleDelete = useCallback((group: GroupedCall) => {
+    setSingleDeleteItem(group);
+    setDeleteTarget('single');
+    setShowDeleteSheet(true);
   }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (deleteTarget === 'single' && singleDeleteItem) {
+      await deleteCallsByPhoneNumbers([singleDeleteItem.phoneNumber]);
+      AlertService.showOperationComplete(
+        isRTL,
+        isRTL ? 'تم حذف المكالمة' : 'Call deleted',
+      );
+    } else if (deleteTarget === 'selected') {
+      await deleteCallsByPhoneNumbers(selectedCalls);
+      setSelectedCalls([]);
+      setIsSelectMode(false);
+      AlertService.showOperationComplete(
+        isRTL,
+        isRTL ? 'تم حذف المكالمات المحددة' : 'Selected calls deleted',
+      );
+    } else if (deleteTarget === 'all') {
+      await clearAllCalls();
+      AlertService.showOperationComplete(
+        isRTL,
+        isRTL ? 'تم حذف كل المكالمات' : 'All calls deleted',
+      );
+    }
+    setShowDeleteSheet(false);
+    setDeleteTarget(null);
+    setSingleDeleteItem(null);
+  }, [
+    deleteTarget,
+    singleDeleteItem,
+    selectedCalls,
+    deleteCallsByPhoneNumbers,
+    clearAllCalls,
+    isRTL,
+  ]);
 
   const toggleSelectCall = useCallback((phoneNumber: string) => {
     setSelectedCalls(prev =>
@@ -132,22 +175,9 @@ export const useCallsScreen = () => {
 
   const handleDeleteSelected = useCallback(() => {
     if (selectedCalls.length === 0) return;
-
-    AlertService.confirmDeleteSelected(
-      selectedCalls.length,
-      async () => {
-        await deleteCallsByPhoneNumbers(selectedCalls);
-        setSelectedCalls([]);
-        setIsSelectMode(false);
-        AlertService.showOperationComplete(
-          isRTL,
-          isRTL ? 'تم حذف المكالمات المحددة' : 'Selected calls deleted',
-        );
-      },
-      isRTL,
-      'calls',
-    );
-  }, [selectedCalls, deleteCallsByPhoneNumbers, isRTL]);
+    setDeleteTarget('selected');
+    setShowDeleteSheet(true);
+  }, [selectedCalls.length]);
 
   const handleDeleteAllCalls = useCallback(() => {
     if (groupedCalls.length === 0) {
@@ -157,23 +187,9 @@ export const useCallsScreen = () => {
       );
       return;
     }
-
-    AlertService.confirmDelete({
-      title: isRTL ? 'حذف كل المكالمات' : 'Delete All Calls',
-      message: isRTL
-        ? 'هل أنت متأكد من حذف كل سجل المكالمات؟'
-        : 'Are you sure you want to delete all call logs?',
-      confirmText: isRTL ? 'حذف الكل' : 'Delete All',
-      onConfirm: async () => {
-        await clearAllCalls();
-        AlertService.showOperationComplete(
-          isRTL,
-          isRTL ? 'تم حذف كل المكالمات' : 'All calls deleted',
-        );
-      },
-      isRTL,
-    });
-  }, [groupedCalls.length, clearAllCalls, isRTL]);
+    setDeleteTarget('all');
+    setShowDeleteSheet(true);
+  }, [groupedCalls.length, isRTL]);
 
   const cancelSelectMode = useCallback(() => {
     setIsSelectMode(false);
@@ -196,6 +212,7 @@ export const useCallsScreen = () => {
     // Theme
     isRTL,
     isDarkMode,
+    colors,
     bgColor,
     textColor,
     secondaryTextColor,
@@ -213,5 +230,12 @@ export const useCallsScreen = () => {
     cancelSelectMode,
     enterSelectMode,
     loadCalls,
+
+    // Delete sheet state
+    showDeleteSheet,
+    setShowDeleteSheet,
+    deleteTarget,
+    singleDeleteItem,
+    confirmDelete,
   };
 };

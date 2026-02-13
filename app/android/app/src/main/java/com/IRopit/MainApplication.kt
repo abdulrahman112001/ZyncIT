@@ -19,6 +19,7 @@ class MainApplication : Application(), ReactApplication {
           add(CallLogPackage())
           add(SmsPackage())
           add(UserCredentialsPackage())
+          add(FilePickerPackage())
         },
     )
   }

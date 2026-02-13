@@ -6,6 +6,7 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -73,11 +74,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   ]);
 
   const handleGoogleLogin = useCallback(async () => {
+    console.log('[LOGIN] handleGoogleLogin button pressed');
     clearErrors();
     startLoading();
     try {
       await signInWithGoogle();
+      console.log('[LOGIN] signInWithGoogle completed successfully');
     } catch (e: any) {
+      console.log('[LOGIN] signInWithGoogle error:', e?.message || e);
       setGeneralError(e.message || t('googleSignInFailed'));
     }
     stopLoading();
@@ -98,7 +102,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <View style={[styles.logoBox, { backgroundColor: colors.primary }]}>
-              <Icon name="sync" size={50} color="#FFFFFF" />
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={{ width: 60, height: 60 }}
+                resizeMode="contain"
+              />
             </View>
             <Text style={[styles.appName, { color: colors.text }]}>iRopit</Text>
             <Text style={[styles.tagline, { color: colors.textSecondary }]}>
@@ -208,6 +216,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Version */}
+          <Text
+            style={{
+              textAlign: 'center',
+              color: colors.textSecondary,
+              fontSize: 11,
+              marginTop: 16,
+              opacity: 0.6,
+            }}
+          >
+            v1.1.0-notif-fix
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

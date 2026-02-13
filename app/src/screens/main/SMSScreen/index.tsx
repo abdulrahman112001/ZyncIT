@@ -155,7 +155,7 @@ const SMSScreen = () => {
           backgroundColor={bgColor}
         />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0A84FF" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
             {isRTL ? 'جاري التحميل...' : 'Loading...'}
           </Text>

@@ -5,10 +5,14 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.service.notification.NotificationListenerService;
 import android.telephony.SmsManager;
 import android.util.Log;
 
@@ -28,11 +32,14 @@ public class SmsRequestService extends Service {
     private static final String TAG = "SmsRequestService";
     private static final String CHANNEL_ID = "sms_request_channel";
     private static final int NOTIFICATION_ID = 2001;
+    private static final long WATCHDOG_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
     private FirebaseFirestore db;
     private ListenerRegistration smsRequestListener;
     private String userId;
     private String deviceId;
+    private Handler watchdogHandler;
+    private Runnable watchdogRunnable;
 
     @Override
     public void onCreate() {
@@ -63,7 +70,51 @@ public class SmsRequestService extends Service {
         // Start listening for SMS requests
         startListening();
 
+        // Start watchdog to keep NotificationListenerService alive (MIUI fix)
+        startNotificationServiceWatchdog();
+
         return START_STICKY;
+    }
+
+    /**
+     * Watchdog: periodically checks if NotificationListenerService is still connected.
+     * On MIUI/Xiaomi, the system often unbinds the listener silently.
+     * This watchdog detects that and forces a rebind.
+     */
+    private void startNotificationServiceWatchdog() {
+        if (watchdogHandler != null) return;
+        
+        watchdogHandler = new Handler(Looper.getMainLooper());
+        watchdogRunnable = new Runnable() {
+            @Override
+            public void run() {
+                boolean isConnected = NotificationService.isConnected();
+                if (!isConnected) {
+                    Log.w(TAG, "⚠️ WATCHDOG: NotificationService is NOT connected! Attempting rebind...");
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            ComponentName componentName = new ComponentName(
+                                getPackageName(),
+                                NotificationService.class.getName()
+                            );
+                            NotificationListenerService.requestRebind(componentName);
+                            Log.i(TAG, "✅ WATCHDOG: Rebind requested for NotificationService");
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "❌ WATCHDOG: Rebind failed: " + e.getMessage());
+                    }
+                } else {
+                    Log.d(TAG, "✅ WATCHDOG: NotificationService is connected and healthy");
+                }
+                
+                // Schedule next check
+                watchdogHandler.postDelayed(this, WATCHDOG_INTERVAL_MS);
+            }
+        };
+        
+        // First check after 30 seconds, then every 5 minutes
+        watchdogHandler.postDelayed(watchdogRunnable, 30000);
+        Log.i(TAG, "🔄 Notification service watchdog started (interval: " + (WATCHDOG_INTERVAL_MS / 1000) + "s)");
     }
 
     private void startListening() {
@@ -186,7 +237,7 @@ public class SmsRequestService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("IRopit")
             .setContentText("Syncing SMS in background")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -201,6 +252,13 @@ public class SmsRequestService extends Service {
         if (smsRequestListener != null) {
             smsRequestListener.remove();
             smsRequestListener = null;
+        }
+        
+        // Stop watchdog
+        if (watchdogHandler != null && watchdogRunnable != null) {
+            watchdogHandler.removeCallbacks(watchdogRunnable);
+            watchdogHandler = null;
+            watchdogRunnable = null;
         }
     }
 

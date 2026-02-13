@@ -23,6 +23,8 @@ interface PermissionStatus {
   notificationListener: boolean;
   notificationListenerConnected: boolean;
   contacts: boolean;
+  notificationsMuted: boolean;
+  mutedChannels: string[];
 }
 
 interface ServiceStatusBannerProps {
@@ -36,6 +38,8 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
     notificationListener: false,
     notificationListenerConnected: false,
     contacts: false,
+    notificationsMuted: false,
+    mutedChannels: [],
   });
   const [currentIssueIndex, setCurrentIssueIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -50,6 +54,8 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
         notificationListener: false,
         notificationListenerConnected: false,
         contacts: false,
+        notificationsMuted: false,
+        mutedChannels: [],
       };
 
       // Check Notification Listener
@@ -68,6 +74,23 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
           PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
         );
         newPermissions.contacts = contacts;
+
+        // Check if app notifications are enabled
+        if (NotificationModule?.areNotificationsEnabled) {
+          try {
+            const enabled = await NotificationModule.areNotificationsEnabled();
+            newPermissions.notificationsMuted = !enabled;
+          } catch (e) {}
+        }
+
+        // Check if critical channels are blocked
+        if (NotificationModule?.getMutedChannels) {
+          try {
+            const mutedStr: string =
+              await NotificationModule.getMutedChannels();
+            newPermissions.mutedChannels = mutedStr ? mutedStr.split(',') : [];
+          } catch (e) {}
+        }
       }
 
       setPermissions(newPermissions);
@@ -76,7 +99,9 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
       const allGranted =
         newPermissions.notificationListener &&
         newPermissions.notificationListenerConnected &&
-        newPermissions.contacts;
+        newPermissions.contacts &&
+        !newPermissions.notificationsMuted &&
+        newPermissions.mutedChannels.length === 0;
 
       if (allGranted) {
         setModalVisible(false);
@@ -194,7 +219,62 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
       });
     }
 
-    // Priority 3: Contacts permissions (optional but helpful)
+    // Priority 3: App notifications muted
+    if (permissions.notificationsMuted) {
+      issues.push({
+        id: 'notifications_muted',
+        icon: 'volume-mute-outline',
+        title: 'إشعارات التطبيق مُعطّلة',
+        message:
+          'قمت بإيقاف إشعارات التطبيق من إعدادات الجهاز. لن تصلك أي إشعارات حتى يتم تفعيلها',
+        action: async () => {
+          try {
+            if (NotificationModule?.openAppNotificationSettings) {
+              await NotificationModule.openAppNotificationSettings();
+            } else {
+              Linking.openSettings();
+            }
+            setTimeout(checkAllPermissions, 2000);
+          } catch (e) {
+            Linking.openSettings();
+          }
+        },
+        actionText: 'تفعيل الإشعارات',
+        color: '#E74C3C',
+        priority: 3,
+      });
+    }
+
+    // Priority 4: Specific channels muted
+    if (
+      permissions.mutedChannels.length > 0 &&
+      !permissions.notificationsMuted
+    ) {
+      const channelNames = permissions.mutedChannels.join(' و ');
+      issues.push({
+        id: 'channels_muted',
+        icon: 'notifications-off-outline',
+        title: `إشعارات ${channelNames} مُعطّلة`,
+        message: `قمت بكتم إشعارات ${channelNames}. لن تصلك تنبيهات هذه الأنواع`,
+        action: async () => {
+          try {
+            if (NotificationModule?.openAppNotificationSettings) {
+              await NotificationModule.openAppNotificationSettings();
+            } else {
+              Linking.openSettings();
+            }
+            setTimeout(checkAllPermissions, 2000);
+          } catch (e) {
+            Linking.openSettings();
+          }
+        },
+        actionText: 'إعدادات الإشعارات',
+        color: '#F39C12',
+        priority: 4,
+      });
+    }
+
+    // Priority 5: Contacts permissions (optional but helpful)
     if (!permissions.contacts) {
       issues.push({
         id: 'contacts',
@@ -216,7 +296,7 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
         },
         actionText: 'منح الإذن',
         color: '#1ABC9C',
-        priority: 3,
+        priority: 5,
       });
     }
 
@@ -230,7 +310,8 @@ const ServiceStatusBanner: React.FC<ServiceStatusBannerProps> = ({
       issues.some(
         i =>
           i.id === 'notification_listener' ||
-          i.id === 'notification_disconnected',
+          i.id === 'notification_disconnected' ||
+          i.id === 'notifications_muted',
       )
     ) {
       setDismissed(false);

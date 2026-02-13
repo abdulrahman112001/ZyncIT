@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Alert, Keyboard } from 'react-native';
+import { Alert, Keyboard, NativeModules, Platform } from 'react-native';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuthStore } from '../../../store/authStore';
 import { useDeviceStore } from '../../../store/deviceStore';
@@ -13,6 +13,8 @@ import {
   encryptChatMessage,
   decryptChatMessage,
 } from '../../../services/cryptoService';
+
+const { FilePickerModule } = NativeModules;
 
 export const useChatScreen = () => {
   const { colors, isRTL, isDarkMode } = useTheme();
@@ -53,6 +55,31 @@ export const useChatScreen = () => {
   // Pick image from gallery
   const pickImage = useCallback(async () => {
     try {
+      Keyboard.dismiss();
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (Platform.OS === 'android' && FilePickerModule) {
+        // Use native module to avoid "activity is null" issue
+        try {
+          const result = await FilePickerModule.pickImage();
+          if (result?.uri) {
+            await sendFileMessage(
+              result.uri,
+              result.name || 'image.jpg',
+              'image',
+            );
+            return;
+          }
+        } catch (nativeError: any) {
+          if (nativeError?.code === 'CANCELLED') return;
+          console.log(
+            '[ChatScreen] Native picker failed, trying library:',
+            nativeError?.message,
+          );
+        }
+      }
+
+      // Fallback to library
       const result = await launchImageLibrary({
         mediaType: 'photo',
         quality: 0.8,
@@ -79,6 +106,9 @@ export const useChatScreen = () => {
   // Take photo with camera
   const takePhoto = useCallback(async () => {
     try {
+      Keyboard.dismiss();
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       const result = await launchCamera({
         mediaType: 'photo',
         quality: 0.8,
@@ -105,9 +135,47 @@ export const useChatScreen = () => {
   // Pick document from device
   const pickDocument = useCallback(async () => {
     try {
+      Keyboard.dismiss();
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (Platform.OS === 'android' && FilePickerModule) {
+        // Use native module to avoid "activity is null" issue
+        try {
+          const result = await FilePickerModule.pickFile();
+          if (result?.uri) {
+            // Detect if file is an image by MIME type or extension
+            const isImage =
+              result.type?.startsWith('image/') ||
+              /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif)$/i.test(
+                result.name || '',
+              );
+            await sendFileMessage(
+              result.uri,
+              result.name || 'document',
+              isImage ? 'image' : 'file',
+            );
+            return;
+          }
+        } catch (nativeError: any) {
+          if (nativeError?.code === 'CANCELLED') return;
+          console.log(
+            '[ChatScreen] Native picker failed, trying library:',
+            nativeError?.message,
+          );
+        }
+      }
+
+      // Fallback to library
       const document = await pickDocumentFromDevice();
       if (document) {
-        await sendFileMessage(document.uri, document.name, 'file');
+        const isImage =
+          document.type?.startsWith('image/') ||
+          /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif)$/i.test(document.name || '');
+        await sendFileMessage(
+          document.uri,
+          document.name,
+          isImage ? 'image' : 'file',
+        );
       }
     } catch (_error) {
       Alert.alert(
@@ -178,9 +246,17 @@ export const useChatScreen = () => {
             rawMsgs.push({ id: doc.id, ...data } as Message);
           });
           rawMsgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          // Filter messages: show only messages targeted to this device, from this device, or broadcast (no receiverDeviceId)
+          const filteredMsgs = rawMsgs.filter(msg => {
+            return (
+              !msg.receiverDeviceId || // broadcast to all
+              msg.receiverDeviceId === currentDevice.id || // targeted to this device
+              msg.senderDeviceId === currentDevice.id // sent from this device
+            );
+          });
           // Decrypt messages
           const decryptedMsgs = await Promise.all(
-            rawMsgs.map(msg => decryptChatMessage(msg, user.uid)),
+            filteredMsgs.map(msg => decryptChatMessage(msg, user.uid)),
           );
           setMessages(decryptedMsgs as Message[]);
           setIsLoading(false);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ActivityIndicator, Text } from 'react-native';
+import { View, ActivityIndicator, Text, Image } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { styles } from './styles';
 
@@ -9,9 +9,11 @@ const LoadingScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.logoContainer}>
-        <View style={[styles.logoBox, { backgroundColor: colors.primary }]}>
-          <Text style={styles.logoText}>Z</Text>
-        </View>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
         <Text style={[styles.appName, { color: colors.text }]}>IRopit</Text>
       </View>
       <ActivityIndicator

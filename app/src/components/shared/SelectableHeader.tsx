@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   headerButtonText: {
     fontSize: 17,
     fontWeight: '400',
-    color: '#0A84FF',
+    color: '#D5C19E',
   },
 });
 

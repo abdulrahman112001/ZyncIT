@@ -62,6 +62,16 @@ export const useOnboarding = () => {
       granted: false,
     },
     {
+      id: 'readSms',
+      name: 'Read SMS',
+      nameAr: 'قراءة الرسائل',
+      description: 'Read incoming SMS even when notifications are disabled',
+      descriptionAr: 'قراءة الرسائل الواردة حتى لو الإشعارات مغلقة',
+      icon: 'mail-open-outline',
+      required: true,
+      granted: false,
+    },
+    {
       id: 'contacts',
       name: 'Contacts',
       nameAr: 'جهات الاتصال',
@@ -150,6 +160,11 @@ export const useOnboarding = () => {
             )
           : Promise.resolve(true),
         PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.SEND_SMS),
+        // readSms: check both READ_SMS and RECEIVE_SMS
+        Promise.all([
+          PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS),
+          PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS),
+        ]).then(([read, receive]) => read && receive),
         PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CONTACTS),
       ]);
 
@@ -158,7 +173,7 @@ export const useOnboarding = () => {
       );
 
       // Check if required permissions are granted
-      const requiredGranted = checks[0] && checks[1] && checks[2]; // notificationListener, notifications, and sendSms are required
+      const requiredGranted = checks[0] && checks[1] && checks[2] && checks[3]; // notificationListener, notifications, sendSms, readSms are required
       const allGranted = checks.every(c => c);
 
       setAllPermissionsGranted(allGranted);
@@ -288,6 +303,29 @@ export const useOnboarding = () => {
         case 'sendSms':
           permission = PermissionsAndroid.PERMISSIONS.SEND_SMS;
           break;
+        case 'readSms':
+          // Request both READ_SMS and RECEIVE_SMS together
+          try {
+            const smsResults = await PermissionsAndroid.requestMultiple([
+              PermissionsAndroid.PERMISSIONS.READ_SMS,
+              PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+            ]);
+            const bothGranted =
+              smsResults[PermissionsAndroid.PERMISSIONS.READ_SMS] === PermissionsAndroid.RESULTS.GRANTED &&
+              smsResults[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] === PermissionsAndroid.RESULTS.GRANTED;
+            setPermissions(prev => {
+              const updated = prev.map(p =>
+                p.id === permissionId ? { ...p, granted: bothGranted } : p,
+              );
+              const allGrantedNow = updated.every(p => !p.required || p.granted);
+              setAllPermissionsGranted(allGrantedNow);
+              return updated;
+            });
+            triggerHaptic(bothGranted ? 'success' : 'warning');
+          } catch (e) {
+            console.error('Error requesting SMS permissions:', e);
+          }
+          return; // Skip the generic request below
         case 'contacts':
           permission = PermissionsAndroid.PERMISSIONS.READ_CONTACTS;
           break;

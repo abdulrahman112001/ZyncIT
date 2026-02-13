@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "723637478368-p06utrdgc5q57bvpe224g1n1kncrokes.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.IRopit",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
           "client_id": "723637478368-dq4ad954ot30p4bes5iuk5ba8bud1ecl.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -81,7 +81,6 @@ export const pickDocument =
     try {
       const [result] = await pick({
         type: [types.allFiles],
-        mode: 'open',
       });
 
       if (result) {

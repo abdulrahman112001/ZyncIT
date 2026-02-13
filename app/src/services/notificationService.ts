@@ -141,7 +141,7 @@ class NotificationServiceClass {
     const subscription = this.eventEmitter.addListener(
       'onNotificationReceived',
       (data: any) => {
-        const notification: AppNotification = {
+        const notification: AppNotification & { phoneNumber?: string } = {
           id: data.id,
           key: data.key,
           packageName: data.packageName,
@@ -151,7 +151,14 @@ class NotificationServiceClass {
           timestamp: data.timestamp || Date.now(),
           appName: data.appName || data.packageName,
           read: false,
+          phoneNumber: data.phoneNumber || '',
         };
+        console.log('[NotificationService] Received notification:', {
+          type: notification.type,
+          phoneNumber: notification.phoneNumber,
+          title: notification.title,
+          dataPhoneNumber: data.phoneNumber,
+        });
         callback(notification);
       },
     );

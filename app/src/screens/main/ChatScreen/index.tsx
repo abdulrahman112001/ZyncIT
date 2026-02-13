@@ -84,7 +84,7 @@ const ChatScreen = () => {
         <TouchableOpacity
           style={[
             styles.messageBubble,
-            { backgroundColor: isMyMessage ? '#0A84FF' : surfaceColor },
+            { backgroundColor: isMyMessage ? colors.primary : surfaceColor },
           ]}
           onLongPress={() => setReplyMessage(item)}
         >
@@ -167,7 +167,7 @@ const ChatScreen = () => {
   if (!user || !currentDevice) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: bgColor }]}>
-        <ActivityIndicator size="large" color="#0A84FF" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -203,7 +203,7 @@ const ChatScreen = () => {
 
       {isLoading && messages.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0A84FF" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
             {isRTL ? 'جاري التحميل...' : 'Loading...'}
           </Text>
@@ -228,7 +228,7 @@ const ChatScreen = () => {
       {replyTo && (
         <View style={[styles.replyPreview, { backgroundColor: surfaceColor }]}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.replyLabel, { color: '#0A84FF' }]}>
+            <Text style={[styles.replyLabel, { color: colors.primary }]}>
               {isRTL ? 'الرد على:' : 'Replying to:'}
             </Text>
             <Text
@@ -308,7 +308,7 @@ const ChatScreen = () => {
             style={[
               styles.sendButton,
               {
-                backgroundColor: '#0A84FF',
+                backgroundColor: colors.primary,
                 opacity: inputText.trim() ? 1 : 0.5,
               },
             ]}

@@ -23,6 +23,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
     isSMSType,
     isRTL,
     isDarkMode,
+    colors,
     bgColor,
     textColor,
     secondaryTextColor,
@@ -49,14 +50,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
         ]}
       >
         <TouchableOpacity onPress={goBack} style={styles.backButton}>
-          <Text
-            style={[
-              styles.backIcon,
-              { color: isDarkMode ? '#0A84FF' : '#007AFF' },
-            ]}
-          >
-            ‹
-          </Text>
+          <Text style={[styles.backIcon, { color: colors.primary }]}>‹</Text>
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -105,6 +99,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
               secondaryTextColor={secondaryTextColor}
               bubbleColor={bubbleColor}
               bgColor={bgColor}
+              primaryColor={colors.primary}
             />
           )}
           keyExtractor={item => item.id}

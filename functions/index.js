@@ -15,6 +15,77 @@ initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
 
+// Encryption helpers (must match client cryptoService)
+const ENCRYPTION_PREFIX = "ENC:";
+const SALT_LENGTH = 16;
+const IV_LENGTH = 12;
+
+function simpleHash(str) {
+  const hash = [];
+  for (let i = 0; i < 32; i++) {
+    let h = 0;
+    for (let j = 0; j < str.length; j++) {
+      h = (h * 31 + str.charCodeAt(j) + i) % 2147483647;
+    }
+    hash.push(Math.abs(h) % 256);
+  }
+  return hash;
+}
+
+function deriveKey(userId, salt) {
+  const combined =
+    userId +
+    Array.from(salt)
+      .map((b) => String.fromCharCode(b))
+      .join("");
+  const hash = simpleHash(combined);
+  return new Uint8Array(hash);
+}
+
+function xorDecrypt(data, key, iv) {
+  const result = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    const keyByte = key[i % key.length];
+    const ivByte = iv[i % iv.length];
+    const combinedKey = (keyByte + ivByte + i) % 256;
+    result[i] = (data[i] - combinedKey + 256) % 256;
+  }
+  return result;
+}
+
+function base64ToArray(base64) {
+  const buffer = Buffer.from(base64, "base64");
+  return new Uint8Array(buffer);
+}
+
+function bytesToString(bytes) {
+  return Buffer.from(bytes).toString("utf8");
+}
+
+function decryptString(encryptedData, userId) {
+  if (!encryptedData || !userId) return encryptedData;
+  if (typeof encryptedData !== "string") return encryptedData;
+  if (!encryptedData.startsWith(ENCRYPTION_PREFIX)) return encryptedData;
+
+  try {
+    const combined = base64ToArray(
+      encryptedData.slice(ENCRYPTION_PREFIX.length),
+    );
+
+    const salt = combined.slice(0, SALT_LENGTH);
+    const iv = combined.slice(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
+    const ciphertext = combined.slice(SALT_LENGTH + IV_LENGTH);
+
+    const key = deriveKey(userId, salt);
+    const decrypted = xorDecrypt(ciphertext, key, iv);
+
+    return bytesToString(decrypted);
+  } catch (error) {
+    console.error("[Crypto] Decryption error:", error);
+    return encryptedData;
+  }
+}
+
 /**
  * Cloud Function: Process push notification requests
  * Triggered when a new document is created in push_notifications collection
@@ -59,10 +130,16 @@ exports.sendPushNotification = onDocumentCreated(
       android: {
         priority: "high",
         notification: {
-          channelId: "chat_notifications",
+          channelId:
+            notification.data?.type === "sms"
+              ? "iropit_sms"
+              : notification.data?.type === "call"
+                ? "iropit_calls"
+                : "iropit_chat",
           priority: "high",
           defaultSound: true,
           defaultVibrateTimings: true,
+          icon: "ic_notification",
         },
       },
       apns: {
@@ -187,7 +264,8 @@ exports.onNewChatMessage = onDocumentCreated(
 
     const userId = message.senderId;
     const senderName = message.senderName || "Chrome Extension";
-    const content = message.content || "";
+    const rawContent = message.content || "";
+    const content = decryptString(rawContent, userId) || "";
 
     // Get all mobile devices for this user
     try {
@@ -211,6 +289,14 @@ exports.onNewChatMessage = onDocumentCreated(
           return;
         }
 
+        // If message targets a specific device, only send to that device
+        if (
+          message.receiverDeviceId &&
+          device.id !== message.receiverDeviceId
+        ) {
+          return;
+        }
+
         // Truncate message
         const truncatedContent =
           content.length > 100 ? content.substring(0, 100) + "..." : content;
@@ -219,7 +305,7 @@ exports.onNewChatMessage = onDocumentCreated(
           token: device.fcmToken,
           notification: {
             title: `💬 ${senderName}`,
-            body: truncatedContent,
+            body: truncatedContent || "New message",
           },
           data: {
             type: "chat",
@@ -230,9 +316,11 @@ exports.onNewChatMessage = onDocumentCreated(
           android: {
             priority: "high",
             notification: {
-              channelId: "chat_notifications",
+              channelId: "iropit_chat",
               priority: "high",
               defaultSound: true,
+              defaultVibrateTimings: true,
+              icon: "ic_notification",
             },
           },
         };
@@ -253,6 +341,167 @@ exports.onNewChatMessage = onDocumentCreated(
       return { success: true };
     } catch (error) {
       console.error("Error sending chat notifications:", error);
+      return { error: error.message };
+    }
+  },
+);
+
+/**
+ * Cloud Function: Listen for new SMS/Call/Notification saved from Android device
+ * Sends FCM push to ALL other devices (Extension + other phones)
+ * so they receive real-time updates even when not actively looking at the app
+ */
+exports.onNewDeviceNotification = onDocumentCreated(
+  "users/{userId}/devices/{deviceId}/notifications/{notificationId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return null;
+
+    const data = snap.data();
+    const { userId, deviceId, notificationId } = event.params;
+    const type = data.type || "other";
+
+    // Only process SMS, calls, and missed calls
+    if (!["sms", "call", "missed_call"].includes(type)) {
+      return null;
+    }
+
+    // Decrypt fields if encrypted
+    let title = decryptString(data.title, userId) || data.title || "";
+    let text = decryptString(data.text, userId) || data.text || "";
+    let body = decryptString(data.body, userId) || data.body || text;
+    let contactName =
+      decryptString(data.contactName, userId) || data.contactName || "";
+    let phoneNumber = data.phoneNumber || "";
+
+    // Build notification content based on type
+    let notifTitle, notifBody, channelId;
+
+    if (type === "sms") {
+      notifTitle = `💬 ${contactName || phoneNumber || "SMS"}`;
+      notifBody = body || text || "New message";
+      channelId = "iropit_sms";
+    } else if (type === "missed_call") {
+      notifTitle = `📞 Missed call`;
+      notifBody = contactName || phoneNumber || "Unknown";
+      channelId = "iropit_calls";
+    } else if (type === "call") {
+      notifTitle = `📞 Call`;
+      notifBody = contactName || phoneNumber || "Unknown";
+      channelId = "iropit_calls";
+    }
+
+    console.log(
+      `[onNewDeviceNotification] ${type} from device ${deviceId}: ${notifTitle} - ${notifBody}`,
+    );
+
+    try {
+      // Get ALL devices for this user
+      const devicesSnapshot = await db
+        .collection("devices")
+        .where("userId", "==", userId)
+        .get();
+
+      const sendPromises = [];
+
+      devicesSnapshot.forEach((doc) => {
+        const device = doc.data();
+
+        // Skip the source device (the one that saved this notification)
+        if (device.id === deviceId) {
+          return;
+        }
+
+        // Skip devices without FCM token
+        if (!device.fcmToken) {
+          console.log(
+            `[onNewDeviceNotification] Skipping device ${device.id} - no FCM token`,
+          );
+          return;
+        }
+
+        // Truncate body for notification
+        const truncatedBody =
+          notifBody.length > 150
+            ? notifBody.substring(0, 150) + "..."
+            : notifBody;
+
+        const fcmMessage = {
+          token: device.fcmToken,
+          notification: {
+            title: notifTitle,
+            body: truncatedBody,
+          },
+          data: {
+            type: type,
+            notificationId: notificationId,
+            sourceDeviceId: deviceId,
+            phoneNumber: phoneNumber || "",
+            contactName: contactName || "",
+            timestamp: (data.timestamp || Date.now()).toString(),
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+          android: {
+            priority: "high",
+            notification: {
+              channelId: channelId,
+              priority: "high",
+              defaultSound: true,
+              defaultVibrateTimings: true,
+              icon: "ic_notification",
+            },
+          },
+          webpush: {
+            notification: {
+              title: notifTitle,
+              body: truncatedBody,
+              icon: "/assets/icon128.png",
+              requireInteraction: type === "missed_call",
+            },
+          },
+        };
+
+        sendPromises.push(
+          messaging
+            .send(fcmMessage)
+            .then((response) => {
+              console.log(
+                `[onNewDeviceNotification] Sent to ${device.id} (${device.platform || "unknown"}): ${response}`,
+              );
+            })
+            .catch((error) => {
+              console.error(
+                `[onNewDeviceNotification] Failed to send to ${device.id}:`,
+                error.message,
+              );
+
+              // Clean up invalid tokens
+              if (
+                error.code === "messaging/invalid-registration-token" ||
+                error.code === "messaging/registration-token-not-registered"
+              ) {
+                doc.ref
+                  .update({ fcmToken: FieldValue.delete() })
+                  .catch(() => {});
+              }
+            }),
+        );
+      });
+
+      if (sendPromises.length > 0) {
+        await Promise.all(sendPromises);
+        console.log(
+          `[onNewDeviceNotification] ${type} notification sent to ${sendPromises.length} devices`,
+        );
+      } else {
+        console.log(
+          `[onNewDeviceNotification] No other devices to notify for user ${userId}`,
+        );
+      }
+
+      return { success: true, sentTo: sendPromises.length };
+    } catch (error) {
+      console.error("[onNewDeviceNotification] Error:", error);
       return { error: error.message };
     }
   },

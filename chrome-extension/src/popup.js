@@ -32,6 +32,7 @@ import {
   loadUserSettings,
   initSettingsListeners,
 } from "./services/settings.js";
+import { loadAllContacts } from "./services/contacts.js";
 
 // Import utilities
 import { applyTranslations } from "./utils/i18n.js";
@@ -43,10 +44,18 @@ function loadData() {
   if (callsList) showListLoading(callsList);
   if (notificationsList) showListLoading(notificationsList);
 
-  // Load all data - SMS now uses real-time listeners internally
+  // Load devices first, then contacts, then everything else
   loadDevices();
-  loadSMS(); // This now sets up real-time listeners automatically
-  loadCalls();
+
+  // Load contacts after a short delay to ensure devices are loaded
+  setTimeout(async () => {
+    await loadAllContacts();
+
+    // Now load SMS and calls which will use contact names
+    loadSMS(); // This now sets up real-time listeners automatically
+    loadCalls();
+  }, 500);
+
   loadNotifications();
   loadUserSettings();
   subscribeToChat();

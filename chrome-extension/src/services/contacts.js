@@ -3,8 +3,34 @@
  * Handles fetching contacts from Firebase for each device
  */
 
-import { db, collection, getDocs, query, orderBy } from "../config/firebase.js";
+import {
+  db,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  onSnapshot,
+} from "../config/firebase.js";
 import * as state from "../state/index.js";
+
+// Store unsubscribe functions for contacts listeners
+let contactsUnsubscribeFunctions = [];
+
+/**
+ * Normalize phone number for matching
+ */
+function normalizePhoneNumber(phone) {
+  if (!phone || !phone.trim()) return "";
+  let normalized = phone.replace(/[^\d+]/g, "").trim();
+  normalized = normalized.replace(/^\+/, "");
+  if (normalized.startsWith("20") && normalized.length > 10) {
+    normalized = normalized.substring(2);
+  }
+  if (!normalized.startsWith("0") && normalized.length === 10) {
+    normalized = "0" + normalized;
+  }
+  return normalized;
+}
 
 /**
  * Load contacts for a specific device from Firebase
@@ -53,28 +79,141 @@ export async function loadContactsForDevice(deviceId) {
 }
 
 /**
- * Get all contacts for all devices
+ * Get all contacts for all devices and build phone-to-contact map
+ * Uses real-time listeners so contacts update automatically when synced from phone
  * @returns {Promise<Object>} Object with deviceId as key and contacts array as value
  */
 export async function loadAllContacts() {
   const user = state.currentUser;
   if (!user) return {};
 
+  // Stop any previous listeners
+  stopContactsListeners();
+
   const allContacts = {};
+  const phoneMap = {};
 
   for (const device of state.devices) {
     if (
       device.platform !== "chrome" &&
       device.platform !== "chrome-extension"
     ) {
+      // Initial load
       const contacts = await loadContactsForDevice(device.id);
       if (contacts.length > 0) {
         allContacts[device.id] = contacts;
+        contacts.forEach((contact) => {
+          const phones = contact.phoneNumbers || [contact.phoneNumber];
+          phones.forEach((phone) => {
+            if (phone) {
+              const normalizedPhone = normalizePhoneNumber(phone);
+              if (normalizedPhone && !phoneMap[normalizedPhone]) {
+                phoneMap[normalizedPhone] = contact.name;
+              }
+            }
+          });
+        });
       }
+
+      // Set up real-time listener for this device's contacts
+      const contactsRef = collection(
+        db,
+        "users",
+        user.uid,
+        "devices",
+        device.id,
+        "contacts",
+      );
+      const q = query(contactsRef, orderBy("name", "asc"));
+
+      const unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          if (snapshot.empty) return;
+
+          const updatedContacts = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            updatedContacts.push({
+              id: docSnap.id,
+              name: data.name || "Unknown",
+              phoneNumber: data.phoneNumber || "",
+              phoneNumbers: data.phoneNumbers || [data.phoneNumber],
+            });
+          });
+
+          console.log(
+            `[Contacts] Real-time update: ${updatedContacts.length} contacts for device ${device.id}`,
+          );
+
+          // Update this device's contacts in state
+          const currentAllContacts = { ...state.allContacts };
+          currentAllContacts[device.id] = updatedContacts;
+          state.setAllContacts(currentAllContacts);
+
+          // Rebuild entire phone map from all devices
+          const newPhoneMap = {};
+          Object.values(currentAllContacts).forEach((deviceContacts) => {
+            deviceContacts.forEach((contact) => {
+              const phones = contact.phoneNumbers || [contact.phoneNumber];
+              phones.forEach((phone) => {
+                if (phone) {
+                  const normalized = normalizePhoneNumber(phone);
+                  if (normalized && !newPhoneMap[normalized]) {
+                    newPhoneMap[normalized] = contact.name;
+                  }
+                }
+              });
+            });
+          });
+          state.setPhoneToContactMap(newPhoneMap);
+          console.log(
+            `[Contacts] Updated phone map: ${Object.keys(newPhoneMap).length} entries`,
+          );
+        },
+        (error) => {
+          console.error(
+            `[Contacts] Listener error for device ${device.id}:`,
+            error,
+          );
+        },
+      );
+
+      contactsUnsubscribeFunctions.push(unsub);
     }
   }
 
+  // Update state
+  state.setAllContacts(allContacts);
+  state.setPhoneToContactMap(phoneMap);
+
+  console.log(
+    `[Contacts] Loaded contacts from ${Object.keys(allContacts).length} devices`,
+  );
+  console.log(
+    `[Contacts] Built phone map with ${Object.keys(phoneMap).length} entries`,
+  );
+
   return allContacts;
+}
+
+/**
+ * Stop all contacts real-time listeners
+ */
+export function stopContactsListeners() {
+  contactsUnsubscribeFunctions.forEach((unsub) => unsub());
+  contactsUnsubscribeFunctions = [];
+}
+
+/**
+ * Get contact name from phone number using cached map
+ * @param {string} phoneNumber - Phone number to lookup
+ * @returns {string} Contact name or empty string
+ */
+export function getContactName(phoneNumber) {
+  if (!phoneNumber) return "";
+  const normalized = normalizePhoneNumber(phoneNumber);
+  return state.phoneToContactMap[normalized] || "";
 }
 
 /**

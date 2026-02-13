@@ -160,6 +160,7 @@ function listenToUserNotifications() {
 
   const userNotificationsQuery = query(
     collection(db, "users", currentUser.uid, "notifications"),
+    orderBy("timestamp", "desc"),
     limit(50),
   );
 
@@ -260,7 +261,8 @@ function listenToDevice(deviceId, deviceName) {
       deviceId,
       "notifications",
     ),
-    limit(50), // Limit to recent notifications
+    orderBy("timestamp", "desc"),
+    limit(50), // Limit to most recent notifications
   );
 
   const unsub = onSnapshot(
@@ -449,12 +451,12 @@ function listenForCallsFromDevice(deviceId, deviceName) {
 function showNotification(data) {
   const appName = data.appName || data.packageName || "App";
   const title = data.title || data.contactName || "New Notification";
-  const message = data.content || data.text || data.body || "";
+  const message = data.body || data.text || data.content || "";
   const iconUrl = chrome.runtime.getURL("assets/icon128.png");
   const notificationType = data.type || "notification";
 
-  // Create unique notification ID to avoid duplicates
-  const notificationId = `zyncit_${data.id || Date.now()}`;
+  // Create unique notification ID using timestamp to avoid replacing previous notifications
+  const notificationId = `zyncit_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
   // Build notification options based on type
   let notificationOptions = {
@@ -469,22 +471,22 @@ function showNotification(data) {
 
   // Customize based on notification type
   if (notificationType === "sms") {
-    notificationOptions.title = `?? SMS: ${title}`;
+    notificationOptions.title = `SMS: ${title}`;
     notificationOptions.contextMessage = "New SMS message";
   } else if (
     notificationType === "whatsapp" ||
     data.packageName === "com.whatsapp"
   ) {
-    notificationOptions.title = `?? WhatsApp: ${title}`;
+    notificationOptions.title = `WhatsApp: ${title}`;
     notificationOptions.contextMessage = "WhatsApp message";
   } else if (data.packageName === "com.instagram.android") {
-    notificationOptions.title = `?? Instagram: ${title}`;
+    notificationOptions.title = `Instagram: ${title}`;
   } else if (data.packageName === "com.snapchat.android") {
-    notificationOptions.title = `?? Snapchat: ${title}`;
+    notificationOptions.title = `Snapchat: ${title}`;
   } else if (data.packageName === "com.facebook.orca") {
-    notificationOptions.title = `?? Messenger: ${title}`;
+    notificationOptions.title = `Messenger: ${title}`;
   } else if (data.packageName === "org.telegram.messenger") {
-    notificationOptions.title = `?? Telegram: ${title}`;
+    notificationOptions.title = `Telegram: ${title}`;
   }
 
   // Add device info if available

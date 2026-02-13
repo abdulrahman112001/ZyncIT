@@ -113,7 +113,7 @@ public class CallReceiver extends BroadcastReceiver {
     }
 
     private void fetchLastCallAndSendEvent(Context context, String savedNumber, boolean wasIncoming, long savedStartTime) {
-        String number = savedNumber;
+        String number = (savedNumber != null && !savedNumber.isEmpty()) ? savedNumber : "";
         String name = "";
         String type = wasIncoming ? "incoming" : "outgoing";
         int duration = (int) ((System.currentTimeMillis() - savedStartTime) / 1000);
@@ -148,16 +148,25 @@ public class CallReceiver extends BroadcastReceiver {
                             int logDuration = cursor.getInt(3);
                             long logDate = cursor.getLong(4);
 
-                            Log.d(TAG, "Call log: number=" + logNumber + ", name=" + logName + 
-                                       ", type=" + logType + ", duration=" + logDuration);
+                            Log.d(TAG, "=== CALL LOG DATA ===");
+                            Log.d(TAG, "logNumber: '" + logNumber + "' (null? " + (logNumber == null) + ", empty? " + (logNumber != null && logNumber.isEmpty()) + ")");
+                            Log.d(TAG, "logName: '" + logName + "'");
+                            Log.d(TAG, "logType: " + logType + ", logDuration: " + logDuration);
+                            Log.d(TAG, "savedNumber was: '" + savedNumber + "'");
+                            Log.d(TAG, "current number is: '" + number + "'");
 
                             // Only use call log data if it's recent (within last 30 seconds)
                             if (System.currentTimeMillis() - logDate < 30000) {
+                                // Always use number from call log as it's more reliable
                                 if (logNumber != null && !logNumber.isEmpty()) {
                                     number = logNumber;
+                                    Log.d(TAG, "✅ Using number from call log: " + number);
+                                } else {
+                                    Log.w(TAG, "⚠️ Call log number is empty/null, keeping: " + number);
                                 }
                                 if (logName != null && !logName.isEmpty()) {
                                     name = logName;
+                                    Log.d(TAG, "✅ Using name from call log: " + name);
                                 }
                                 duration = logDuration;
                                 
@@ -175,6 +184,8 @@ public class CallReceiver extends BroadcastReceiver {
                                         type = "rejected";
                                         break;
                                 }
+                            } else {
+                                Log.w(TAG, "Call log entry too old, ignoring");
                             }
                         }
                     } finally {
@@ -188,8 +199,14 @@ public class CallReceiver extends BroadcastReceiver {
             Log.e(TAG, "Error fetching call log", e);
         }
         
+        // Final check - if number is still empty, log warning
+        if (number == null || number.isEmpty()) {
+            Log.w(TAG, "WARNING: Phone number is empty! savedNumber=" + savedNumber);
+            number = "Unknown";
+        }
+        
         // If still no name, try to get from contacts
-        if ((name == null || name.isEmpty()) && number != null && !number.isEmpty()) {
+        if ((name == null || name.isEmpty()) && number != null && !number.isEmpty() && !number.equals("Unknown")) {
             name = getContactName(context, number);
         }
         
@@ -197,6 +214,8 @@ public class CallReceiver extends BroadcastReceiver {
         if (wasIncoming && duration < 3) {
             type = "missed";
         }
+
+        Log.d(TAG, "Final call data: number=" + number + ", name=" + name + ", type=" + type + ", duration=" + duration);
 
         sendEvent("onCallReceived", createCallMap(number, name, type, "ended", duration));
     }
@@ -214,6 +233,65 @@ public class CallReceiver extends BroadcastReceiver {
             }
             
             ContentResolver resolver = context.getContentResolver();
+            
+            // Try with original number first
+            String name = lookupContactByPhone(resolver, phoneNumber);
+            if (name != null && !name.isEmpty()) {
+                return name;
+            }
+            
+            // Clean the phone number - remove spaces, dashes, etc.
+            String cleanNumber = phoneNumber.replaceAll("[^\\d+]", "");
+            
+            // Try with clean number
+            if (!cleanNumber.equals(phoneNumber)) {
+                name = lookupContactByPhone(resolver, cleanNumber);
+                if (name != null && !name.isEmpty()) {
+                    return name;
+                }
+            }
+            
+            // Try without country code (if starts with +)
+            if (cleanNumber.startsWith("+")) {
+                String withoutPlus = cleanNumber.substring(1);
+                
+                // Try removing common country codes
+                String[] prefixes = {"971", "966", "965", "974", "973", "968", "20", "1", "44", "91"};
+                for (String prefix : prefixes) {
+                    if (withoutPlus.startsWith(prefix)) {
+                        String localNumber = withoutPlus.substring(prefix.length());
+                        // Add leading 0 for local format
+                        name = lookupContactByPhone(resolver, "0" + localNumber);
+                        if (name != null && !name.isEmpty()) {
+                            return name;
+                        }
+                        // Try without leading 0
+                        name = lookupContactByPhone(resolver, localNumber);
+                        if (name != null && !name.isEmpty()) {
+                            return name;
+                        }
+                    }
+                }
+            }
+            
+            // Try adding country code if number starts with 0
+            if (cleanNumber.startsWith("0")) {
+                String withoutZero = cleanNumber.substring(1);
+                name = lookupContactByPhone(resolver, "+971" + withoutZero);
+                if (name != null && !name.isEmpty()) {
+                    return name;
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting contact name", e);
+        }
+
+        return "";
+    }
+    
+    private String lookupContactByPhone(ContentResolver resolver, String phoneNumber) {
+        try {
             Uri uri = Uri.withAppendedPath(
                 ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
                 Uri.encode(phoneNumber)
@@ -234,10 +312,9 @@ public class CallReceiver extends BroadcastReceiver {
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error getting contact name", e);
+            Log.e(TAG, "Error looking up contact: " + phoneNumber, e);
         }
-
-        return "";
+        return null;
     }
 
     private WritableMap createCallMap(String phoneNumber, String contactName, String type, String status, int duration) {

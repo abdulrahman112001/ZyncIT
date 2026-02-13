@@ -9,6 +9,7 @@ import { LIGHT_COLORS, DARK_COLORS } from '../constants/theme';
 // ServiceStatusBanner removed - permissions are handled in onboarding
 
 import NotificationsScreen from '../screens/main/NotificationsScreen';
+import SMSNotificationsScreen from '../screens/main/SMSNotificationsScreen';
 import CallsScreen from '../screens/main/CallsScreen';
 import ChatScreen from '../screens/main/ChatScreen';
 import MenuNavigator from './MenuNavigator';
@@ -24,6 +25,13 @@ const MainNavigator = () => {
   const tabs = [
     {
       name: 'SMS' as const,
+      component: SMSNotificationsScreen,
+      titleAr: 'الرسائل',
+      titleEn: 'SMS',
+      icon: 'chatbubble',
+    },
+    {
+      name: 'Notifications' as const,
       component: NotificationsScreen,
       titleAr: 'الإشعارات',
       titleEn: 'Notifications',

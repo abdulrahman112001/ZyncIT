@@ -355,6 +355,7 @@ export const useConversationScreen = (
     // Theme
     isRTL,
     isDarkMode,
+    colors,
     bgColor,
     textColor,
     secondaryTextColor,

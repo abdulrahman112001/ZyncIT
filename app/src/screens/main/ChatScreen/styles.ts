@@ -140,7 +140,7 @@ export const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#D5C19E',
   },
   sendButtonText: {
     color: '#fff',

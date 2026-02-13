@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Permission } from '../types';
 
@@ -29,7 +29,12 @@ const PermissionsStep: React.FC<PermissionsStepProps> = ({
   onRequestPermission,
 }) => {
   return (
-    <View style={localStyles.container}>
+    <ScrollView
+      style={localStyles.container}
+      contentContainerStyle={localStyles.contentContainer}
+      showsVerticalScrollIndicator={false}
+      bounces={false}
+    >
       {/* Title Section */}
       <View style={localStyles.titleSection}>
         <Text style={[localStyles.title, { color: colors.text }]}>
@@ -143,22 +148,25 @@ const PermissionsStep: React.FC<PermissionsStepProps> = ({
             : 'You can change these permissions later in Settings'}
         </Text>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 const localStyles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 24,
     paddingTop: 20,
+    paddingBottom: 16,
   },
   titleSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     textAlign: 'center',
     marginBottom: 8,
@@ -170,34 +178,34 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   permissionsList: {
-    gap: 12,
+    gap: 10,
   },
   permissionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
+    padding: 12,
+    borderRadius: 14,
     borderWidth: 1.5,
   },
   iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   infoContainer: {
     flex: 1,
-    marginHorizontal: 14,
+    marginHorizontal: 12,
   },
   permissionName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   permissionDesc: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     opacity: 0.8,
   },
   grantedBadge: {
@@ -220,9 +228,9 @@ const localStyles = StyleSheet.create({
   infoNote: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    padding: 12,
     borderRadius: 12,
-    marginTop: 20,
+    marginTop: 14,
     gap: 10,
   },
   infoNoteText: {

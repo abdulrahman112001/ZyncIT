@@ -92,6 +92,8 @@ export const styles = StyleSheet.create({
   swipeContainer: {
     backgroundColor: '#000000',
     position: 'relative',
+    overflow: 'hidden',
+    marginBottom: 0,
   },
   actionsContainer: {
     position: 'absolute',
@@ -118,6 +120,7 @@ export const styles = StyleSheet.create({
   },
   callRow: {
     backgroundColor: '#000000',
+    elevation: 5,
   },
   rowContent: {
     flexDirection: 'row',
@@ -144,8 +147,8 @@ export const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   checkboxSelected: {
-    backgroundColor: '#0A84FF',
-    borderColor: '#0A84FF',
+    backgroundColor: '#D5C19E',
+    borderColor: '#D5C19E',
   },
   avatar: {
     width: 56,
@@ -213,6 +216,8 @@ export const styles = StyleSheet.create({
   phoneText: {
     color: '#8E8E93',
     fontSize: 15,
+    writingDirection: 'ltr',
+    textAlign: 'left',
   },
   separator: {
     height: 0.5,

@@ -142,15 +142,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signInWithGoogle: async () => {
+    console.log('[AUTH] signInWithGoogle started');
     set({ isLoading: true, error: null });
     try {
       // Check if your device supports Google Play
+      console.log('[AUTH] Checking Play Services...');
       await GoogleSignin.hasPlayServices({
         showPlayServicesUpdateDialog: true,
       });
+      console.log('[AUTH] Play Services OK, calling GoogleSignin.signIn()...');
 
       // Get the users ID token
       const signInResult = await GoogleSignin.signIn();
+      console.log('[AUTH] signIn returned:', JSON.stringify(signInResult));
       // Check if sign in was successful (v16.x returns { type: 'success', data: {...} })
       if (!signInResult || signInResult.type === 'cancelled') {
         throw new Error('Google Sign-In was cancelled');
@@ -223,6 +227,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Note: isLoading will be set to false by onAuthStateChanged listener
       // But add a fallback in case it doesn't fire
     } catch (error: any) {
+      console.log('[AUTH] signInWithGoogle ERROR:', error?.code || error?.message || error);
       // Handle specific Google Sign-In errors
       const errorMessage =
         error?.message || error?.code || 'Google Sign-In failed';

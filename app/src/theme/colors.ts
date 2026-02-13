@@ -6,10 +6,10 @@
 // Light Theme Colors
 export const LIGHT_COLORS = {
   // Primary brand colors
-  primary: '#6366F1',
-  primaryDark: '#4F46E5',
-  primaryLight: '#A5B4FC',
-  primarySoft: '#EEF2FF',
+  primary: '#D5C19E',
+  primaryDark: '#B8A07A',
+  primaryLight: '#E8DCC6',
+  primarySoft: '#F7F3EC',
 
   // Secondary colors
   secondary: '#10B981',
@@ -65,14 +65,14 @@ export const LIGHT_COLORS = {
   // Components
   card: '#FFFFFF',
   cardHover: '#F9FAFB',
-  notification: '#6366F1',
+  notification: '#D5C19E',
   skeleton: '#E5E7EB',
   skeletonHighlight: '#F3F4F6',
 
   // Input
   inputBackground: '#FFFFFF',
   inputBorder: '#D1D5DB',
-  inputFocus: '#6366F1',
+  inputFocus: '#D5C19E',
   inputPlaceholder: '#9CA3AF',
   inputDisabled: '#F3F4F6',
 } as const;
@@ -80,10 +80,10 @@ export const LIGHT_COLORS = {
 // Dark Theme Colors
 export const DARK_COLORS = {
   // Primary brand colors
-  primary: '#818CF8',
-  primaryDark: '#6366F1',
-  primaryLight: '#C7D2FE',
-  primarySoft: '#1E1B4B',
+  primary: '#E0D0B3',
+  primaryDark: '#D5C19E',
+  primaryLight: '#EBE1CF',
+  primarySoft: '#2D2820',
 
   // Secondary colors
   secondary: '#34D399',
@@ -139,14 +139,14 @@ export const DARK_COLORS = {
   // Components
   card: '#1F2937',
   cardHover: '#374151',
-  notification: '#818CF8',
+  notification: '#E0D0B3',
   skeleton: '#374151',
   skeletonHighlight: '#4B5563',
 
   // Input
   inputBackground: '#1F2937',
   inputBorder: '#4B5563',
-  inputFocus: '#818CF8',
+  inputFocus: '#E0D0B3',
   inputPlaceholder: '#6B7280',
   inputDisabled: '#374151',
 } as const;

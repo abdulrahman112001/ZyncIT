@@ -75,10 +75,11 @@ const SwipeableCallItem = ({
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
             onPress={() => {
+              resetSwipe();
               onDelete();
             }}
           >
-            <Text style={styles.actionIcon}>🗑️</Text>
+            <Ionicons name="trash" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       )}
@@ -89,6 +90,7 @@ const SwipeableCallItem = ({
           {
             backgroundColor: bgColor,
             transform: [{ translateX: isSelectMode ? 0 : translateX }],
+            width: '100%',
           },
         ]}
       >
@@ -124,7 +126,12 @@ const SwipeableCallItem = ({
             </View>
           )}
 
-          <View style={styles.avatarContainer}>
+          <View
+            style={[
+              styles.avatarContainer,
+              isRTL && { marginRight: 0, marginLeft: 12 },
+            ]}
+          >
             <View style={[styles.avatar, { backgroundColor: avatarBgColor }]}>
               <Text style={[styles.avatarText, { color: textColor }]}>
                 {getInitials(item.contactName || '', item.phoneNumber)}
@@ -134,12 +141,18 @@ const SwipeableCallItem = ({
 
           <View style={styles.callContent}>
             <View style={styles.topRow}>
-              <View style={styles.nameRow}>
+              <View
+                style={[
+                  styles.nameRow,
+                  // isRTL && { flexDirection: 'row-reverse' },
+                ]}
+              >
                 <Text
                   style={[
                     styles.callerName,
                     { color: textColor },
                     isMissed && styles.missedCallName,
+                    isRTL && { marginRight: 0, marginLeft: 4 },
                   ]}
                   numberOfLines={1}
                 >
@@ -162,10 +175,24 @@ const SwipeableCallItem = ({
                 ></Text>
               </View>
             </View>
-            <View style={styles.subtitleRow}>
-              <Text style={styles.typeIcon}>{typeInfo.icon}</Text>
-              <Text style={[styles.phoneText, { color: secondaryTextColor }]}>
-                {item.phoneNumber}
+            <View
+              style={[styles.subtitleRow, isRTL && { flexDirection: 'row' }]}
+            >
+              <Ionicons
+                name={typeInfo.icon}
+                size={14}
+                color={typeInfo.color}
+                style={isRTL ? { marginLeft: 6 } : { marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  styles.phoneText,
+                  { color: secondaryTextColor, writingDirection: 'ltr' },
+                ]}
+              >
+                {item.phoneNumber
+                  ? `\u200E${item.phoneNumber.replace(/[^\d\+\-\s\(\)]/g, '')}`
+                  : ''}
               </Text>
             </View>
           </View>

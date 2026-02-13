@@ -146,7 +146,7 @@ public class BackgroundSmsService extends Service {
         return new NotificationCompat.Builder(this, "sync_channel")
                 .setContentTitle("IRopit")
                 .setContentText("Syncing messages...")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setOngoing(true);
     }
 

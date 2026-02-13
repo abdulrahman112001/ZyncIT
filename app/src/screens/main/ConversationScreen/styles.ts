@@ -21,7 +21,7 @@ export const styles = StyleSheet.create({
     zIndex: 10,
   },
   backIcon: {
-    color: '#0A84FF',
+    color: '#D5C19E',
     fontSize: 40,
     fontWeight: '300',
   },
@@ -108,7 +108,7 @@ export const styles = StyleSheet.create({
     lineHeight: 22,
   },
   linkText: {
-    color: '#0A84FF',
+    color: '#D5C19E',
     textDecorationLine: 'underline',
   },
   inputContainer: {
@@ -142,7 +142,7 @@ export const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#D5C19E',
     justifyContent: 'center',
     alignItems: 'center',
   },

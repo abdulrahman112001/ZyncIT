@@ -138,7 +138,12 @@ public class FirebaseHelper {
         notification.put("bigText", bigText);
         notification.put("subText", subText);
         notification.put("type", type);
-        notification.put("timestamp", timestamp);
+        // For SMS: use current system time since Google Messages reuses postTime
+        if (type.equals("sms")) {
+            notification.put("timestamp", System.currentTimeMillis());
+        } else {
+            notification.put("timestamp", timestamp);
+        }
         notification.put("appName", appName);
         notification.put("isMissedCall", isMissedCall);
         notification.put("isNew", true);
@@ -146,6 +151,12 @@ public class FirebaseHelper {
         notification.put("read", false);
         if (appIcon != null) {
             notification.put("appIcon", appIcon);
+        }
+        // For SMS: also store text as "body" for compatibility with extension/app
+        if (type.equals("sms")) {
+            String messageBody = (bigText != null && !bigText.isEmpty()) ? bigText : text;
+            notification.put("body", messageBody);
+            notification.put("direction", "incoming");
         }
         // حفظ phoneNumber و contactName للـ SMS
         if (phoneNumber != null && !phoneNumber.isEmpty()) {
@@ -155,7 +166,16 @@ public class FirebaseHelper {
             notification.put("contactName", contactName);
         }
 
-        String docId = key.replaceAll("[^a-zA-Z0-9]", "_");
+        String docId;
+        if (type.equals("sms")) {
+            // For SMS: use current time (not postTime!) + phone to create unique docId per message
+            // Google Messages reuses the same notification AND the same postTime
+            // when updating a conversation, so we must use System.currentTimeMillis()
+            String sanitizedPhone = phoneNumber != null ? phoneNumber.replaceAll("[^0-9+]", "") : "unknown";
+            docId = "sms_" + System.currentTimeMillis() + "_" + sanitizedPhone;
+        } else {
+            docId = key.replaceAll("[^a-zA-Z0-9]", "_");
+        }
 
         db.collection("users")
                 .document(userId)

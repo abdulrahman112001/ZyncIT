@@ -14,6 +14,7 @@ import {
   ScreenTitle,
   SearchBar,
   EmptyState,
+  ConfirmDeleteBottomSheet,
 } from '../../../components/shared';
 import { styles } from './styles';
 import { GroupedCall } from './types';
@@ -37,6 +38,7 @@ const CallsScreen = () => {
     // Theme
     isRTL,
     isDarkMode,
+    colors,
     bgColor,
     textColor,
     secondaryTextColor,
@@ -53,6 +55,13 @@ const CallsScreen = () => {
     cancelSelectMode,
     enterSelectMode,
     loadCalls,
+
+    // Delete sheet state
+    showDeleteSheet,
+    setShowDeleteSheet,
+    deleteTarget,
+    singleDeleteItem,
+    confirmDelete,
   } = useCallsScreen();
 
   const renderItem = ({ item }: { item: GroupedCall }) => (
@@ -118,7 +127,7 @@ const CallsScreen = () => {
           isRTL={isRTL}
         />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0A84FF" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
             {isRTL ? 'جاري التحميل...' : 'Loading...'}
           </Text>
@@ -172,12 +181,68 @@ const CallsScreen = () => {
         keyExtractor={item => item.key}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={renderEmptyState}
+        removeClippedSubviews={false}
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
             onRefresh={loadCalls}
-            tintColor="#0A84FF"
+            tintColor={colors.primary}
           />
+        }
+      />
+
+      {/* Delete Confirmation Bottom Sheet */}
+      <ConfirmDeleteBottomSheet
+        visible={showDeleteSheet}
+        onClose={() => setShowDeleteSheet(false)}
+        onConfirm={confirmDelete}
+        title={
+          deleteTarget === 'all'
+            ? isRTL
+              ? 'حذف كل المكالمات'
+              : 'Delete All Calls'
+            : deleteTarget === 'selected'
+            ? isRTL
+              ? 'حذف المكالمات المحددة'
+              : 'Delete Selected Calls'
+            : isRTL
+            ? 'حذف المكالمة'
+            : 'Delete Call'
+        }
+        message={
+          deleteTarget === 'all'
+            ? isRTL
+              ? 'هل أنت متأكد من حذف كل سجل المكالمات؟'
+              : 'Are you sure you want to delete all call logs?'
+            : deleteTarget === 'selected'
+            ? isRTL
+              ? `هل أنت متأكد من حذف ${selectedCalls.length} مكالمة؟`
+              : `Are you sure you want to delete ${selectedCalls.length} calls?`
+            : isRTL
+            ? `هل أنت متأكد من حذف مكالمات ${
+                singleDeleteItem?.contactName || singleDeleteItem?.phoneNumber
+              }؟`
+            : `Are you sure you want to delete calls with ${
+                singleDeleteItem?.contactName || singleDeleteItem?.phoneNumber
+              }?`
+        }
+        confirmText={
+          deleteTarget === 'all'
+            ? isRTL
+              ? 'حذف الكل'
+              : 'Delete All'
+            : isRTL
+            ? 'حذف'
+            : 'Delete'
+        }
+        isDark={isDarkMode}
+        isRTL={isRTL}
+        itemCount={
+          deleteTarget === 'all'
+            ? groupedCalls.length
+            : deleteTarget === 'selected'
+            ? selectedCalls.length
+            : singleDeleteItem?.count || 1
         }
       />
     </View>

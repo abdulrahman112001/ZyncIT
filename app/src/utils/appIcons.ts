@@ -153,8 +153,8 @@ export const TYPE_ICONS: {
   telegram: { iconName: 'send', color: '#0088cc' },
   call: { iconName: 'call', color: '#4CAF50' },
   email: { iconName: 'mail', color: '#EA4335' },
-  social: { iconName: 'share-social', color: '#6366f1' },
-  other: { iconName: 'notifications', color: '#6366f1' },
+  social: { iconName: 'share-social', color: '#d5c19e' },
+  other: { iconName: 'notifications', color: '#d5c19e' },
 };
 
 /**
@@ -178,7 +178,7 @@ export function getAppIconInfo(
   }
 
   // Priority 3: Default
-  return { iconName: 'notifications', color: '#6366f1' };
+  return { iconName: 'notifications', color: '#d5c19e' };
 }
 
 /**

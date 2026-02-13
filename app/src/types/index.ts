@@ -118,6 +118,7 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   SMS: undefined;
+  Chat: undefined;
   Calls: undefined;
   Notifications: undefined;
   Menu: undefined;

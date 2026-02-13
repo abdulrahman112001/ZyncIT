@@ -45,7 +45,7 @@ const NotificationsScreen = () => {
     enterSelectMode,
     checkPermission,
     requestPermission,
-  } = useNotificationsScreen();
+  } = useNotificationsScreen('notifications-only');
 
   const renderItem = ({ item }: { item: GroupedNotification }) => (
     <SwipeableItem
@@ -82,7 +82,7 @@ const NotificationsScreen = () => {
             <Ionicons
               name="notifications-outline"
               size={64}
-              color="#0A84FF"
+              color={colors.primary}
               style={{ marginBottom: 16 }}
             />
           }
@@ -155,7 +155,7 @@ const NotificationsScreen = () => {
           <RefreshControl
             refreshing={isLoading}
             onRefresh={checkPermission}
-            tintColor="#0A84FF"
+            tintColor={colors.primary}
           />
         }
       />

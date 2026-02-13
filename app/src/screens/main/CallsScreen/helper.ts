@@ -43,14 +43,14 @@ export const getInitials = (name: string, phone: string) => {
 export const getCallTypeIndicator = (type: CallLog['type']) => {
   switch (type) {
     case 'incoming':
-      return { icon: '??', color: '#30D158' };
+      return { icon: 'arrow-down', color: '#30D158' };
     case 'outgoing':
-      return { icon: '??', color: '#0A84FF' };
+      return { icon: 'arrow-up', color: '#D5C19E' };
     case 'missed':
-      return { icon: '??', color: '#FF3B30' };
+      return { icon: 'close-circle', color: '#FF3B30' };
     case 'rejected':
-      return { icon: '?', color: '#FF3B30' };
+      return { icon: 'close', color: '#FF3B30' };
     default:
-      return { icon: '??', color: '#8E8E93' };
+      return { icon: 'call', color: '#8E8E93' };
   }
 };

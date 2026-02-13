@@ -26,6 +26,40 @@ import {
 import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
 import { decryptCall } from "./cryptoService.js";
+import { getContactName } from "./contacts.js";
+
+/**
+ * Normalize phone number for consistent grouping
+ * @param {string} phone - Raw phone number
+ * @returns {string}
+ */
+function normalizePhoneNumber(phone) {
+  if (!phone || !phone.trim()) return "";
+
+  let normalized = phone.replace(/[^\d+]/g, "").trim();
+  normalized = normalized.replace(/^\+/, "");
+
+  if (normalized.startsWith("20") && normalized.length > 10) {
+    normalized = normalized.substring(2);
+  }
+
+  if (!normalized.startsWith("0") && normalized.length === 10) {
+    normalized = "0" + normalized;
+  }
+
+  return normalized;
+}
+
+/**
+ * Check if a string looks like a phone number
+ * @param {string} value - Value to check
+ * @returns {boolean}
+ */
+function isPhoneNumberLike(value) {
+  if (!value || !value.trim) return false;
+  const digits = value.replace(/[\s\-().]/g, "");
+  return /\d{6,}/.test(digits);
+}
 
 /**
  * Mark all missed calls as viewed when entering calls tab
@@ -111,12 +145,76 @@ export async function loadCalls() {
           // Decrypt call data
           data = await decryptCall(data, user.uid);
 
+          // Detect call description titles that are NOT real contact names
+          const titleLower = (data.title || "").toLowerCase().trim();
+          const isTitleCallDescription =
+            titleLower === "call" ||
+            titleLower === "calling" ||
+            titleLower === "incoming call" ||
+            titleLower === "outgoing call" ||
+            titleLower === "missed call" ||
+            titleLower === "missed calls" ||
+            titleLower === "ongoing call" ||
+            titleLower === "on hold" ||
+            titleLower === "dialing" ||
+            titleLower === "ringing" ||
+            titleLower.includes("missed call") ||
+            titleLower === "مكالمة" ||
+            titleLower === "مكالمة فائتة" ||
+            titleLower === "مكالمات فائتة" ||
+            titleLower === "مكالمة واردة" ||
+            titleLower === "مكالمة صادرة" ||
+            titleLower === "اتصال" ||
+            /^\d{1,4}$/.test(titleLower);
+
+          // Clean contactName - remove call description words
+          let rawContactName = data.contactName || data.displayName || "";
+          const contactLower = rawContactName.toLowerCase().trim();
+          const isContactCallDescription =
+            contactLower === "call" ||
+            contactLower === "calling" ||
+            contactLower === "incoming call" ||
+            contactLower === "outgoing call" ||
+            contactLower === "missed call" ||
+            contactLower === "missed calls" ||
+            contactLower === "ongoing call" ||
+            contactLower === "مكالمة" ||
+            contactLower === "مكالمة فائتة" ||
+            contactLower === "مكالمات فائتة" ||
+            /^\d{1,4}$/.test(contactLower);
+
+          if (isContactCallDescription) {
+            rawContactName = "";
+          }
+
+          const resolvedPhone =
+            data.phoneNumber ||
+            data.number ||
+            data.address ||
+            (data.title &&
+            !isTitleCallDescription &&
+            isPhoneNumberLike(data.title)
+              ? data.title
+              : "") ||
+            "";
+          const resolvedContact =
+            rawContactName ||
+            (data.title &&
+            !isTitleCallDescription &&
+            !isPhoneNumberLike(data.title)
+              ? data.title
+              : "") ||
+            getContactName(resolvedPhone) ||
+            "";
+
           calls.push({
             ...data,
             id: firestoreId,
             deviceId: device.id,
             deviceName: device.name,
             docRef: docSnap.ref,
+            phoneNumber: resolvedPhone || data.phoneNumber || "",
+            contactName: resolvedContact,
           });
         }
         updateCallsList(device.id, calls);
@@ -189,10 +287,15 @@ export function renderCalls(calls) {
   // Group calls by phone number
   const grouped = {};
   normalizedCalls.forEach((call) => {
-    const key = call.phoneNumber || "Unknown";
+    const normalizedPhone = normalizePhoneNumber(call.phoneNumber || "");
+    const key = normalizedPhone
+      ? normalizedPhone
+      : call.contactName
+        ? `contact_${call.contactName}`
+        : "Unknown";
     if (!grouped[key]) {
       grouped[key] = {
-        phoneNumber: key,
+        phoneNumber: call.phoneNumber || "Unknown",
         contactName: call.contactName || "",
         calls: [],
         lastCall: call,

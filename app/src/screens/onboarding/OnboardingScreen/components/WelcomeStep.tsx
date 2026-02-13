@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { View, Text, Image } from 'react-native';
 import { styles } from '../styles';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const logoImage = require('../../../../assets/logo.png');
 
 interface WelcomeStepProps {
   colors: {
@@ -20,7 +22,11 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ colors, translate }) => {
           { backgroundColor: `${colors.primary}15` },
         ]}
       >
-        <Icon name="sync-circle" size={80} color={colors.primary} />
+        <Image
+          source={logoImage}
+          style={{ width: 120, height: 120 }}
+          resizeMode="contain"
+        />
       </View>
 
       <View style={styles.titleSection}>

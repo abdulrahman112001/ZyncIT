@@ -7,6 +7,12 @@ import android.text.TextUtils;
 import android.telephony.SmsManager;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.os.PowerManager;
+import android.net.Uri;
+import android.os.Build;
+import android.content.Context;
+import android.app.NotificationManager;
+import android.app.NotificationChannel;
 import android.service.notification.NotificationListenerService;
 import androidx.core.content.ContextCompat;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -208,6 +214,45 @@ public class NotificationModule extends ReactContextBaseJavaModule {
     }
 
     /**
+     * Check if battery optimization is disabled for this app
+     */
+    @ReactMethod
+    public void isBatteryOptimized(Promise promise) {
+        try {
+            PowerManager pm = (PowerManager) reactContext.getSystemService(Context.POWER_SERVICE);
+            boolean isIgnoring = pm.isIgnoringBatteryOptimizations(reactContext.getPackageName());
+            promise.resolve(!isIgnoring); // true = optimized (bad), false = exempt (good)
+        } catch (Exception e) {
+            promise.resolve(true);
+        }
+    }
+
+    /**
+     * Request battery optimization exemption directly (shows system dialog)
+     */
+    @ReactMethod
+    public void requestBatteryExemption(Promise promise) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) reactContext.getSystemService(Context.POWER_SERVICE);
+                if (!pm.isIgnoringBatteryOptimizations(reactContext.getPackageName())) {
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + reactContext.getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    reactContext.startActivity(intent);
+                    promise.resolve(true);
+                } else {
+                    promise.resolve(false); // Already exempt
+                }
+            } else {
+                promise.resolve(false);
+            }
+        } catch (Exception e) {
+            promise.reject("ERROR", e.getMessage());
+        }
+    }
+
+    /**
      * Check if the device is a Chinese ROM (MIUI, ColorOS, etc.) that blocks background services
      */
     @ReactMethod
@@ -221,6 +266,72 @@ public class NotificationModule extends ReactContextBaseJavaModule {
                          manufacturer.contains("huawei") ||
                          manufacturer.contains("honor");
         promise.resolve(isMiui);
+    }
+
+    /**
+     * Check if app notifications are enabled (user hasn't muted them in system settings)
+     */
+    @ReactMethod
+    public void areNotificationsEnabled(Promise promise) {
+        try {
+            NotificationManager nm = (NotificationManager) reactContext.getSystemService(Context.NOTIFICATION_SERVICE);
+            promise.resolve(nm.areNotificationsEnabled());
+        } catch (Exception e) {
+            promise.resolve(true);
+        }
+    }
+
+    /**
+     * Get list of muted/blocked notification channel names
+     * Returns comma-separated Arabic names of blocked channels
+     */
+    @ReactMethod
+    public void getMutedChannels(Promise promise) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationManager nm = (NotificationManager) reactContext.getSystemService(Context.NOTIFICATION_SERVICE);
+                StringBuilder muted = new StringBuilder();
+                String[][] channels = {
+                    {"iropit_sms", "\u0627\u0644\u0631\u0633\u0627\u0626\u0644"},
+                    {"iropit_calls", "\u0627\u0644\u0645\u0643\u0627\u0644\u0645\u0627\u062a"},
+                    {"iropit_chat", "\u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0627\u062a"}
+                };
+                for (String[] ch : channels) {
+                    NotificationChannel channel = nm.getNotificationChannel(ch[0]);
+                    if (channel != null && channel.getImportance() == NotificationManager.IMPORTANCE_NONE) {
+                        if (muted.length() > 0) muted.append(",");
+                        muted.append(ch[1]);
+                    }
+                }
+                promise.resolve(muted.toString());
+            } else {
+                promise.resolve("");
+            }
+        } catch (Exception e) {
+            promise.resolve("");
+        }
+    }
+
+    /**
+     * Open the app's notification settings page directly
+     */
+    @ReactMethod
+    public void openAppNotificationSettings(Promise promise) {
+        try {
+            Intent intent = new Intent();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                intent.putExtra(Settings.EXTRA_APP_PACKAGE, reactContext.getPackageName());
+            } else {
+                intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(Uri.parse("package:" + reactContext.getPackageName()));
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            reactContext.startActivity(intent);
+            promise.resolve(true);
+        } catch (Exception e) {
+            promise.reject("ERROR", e.getMessage());
+        }
     }
 }
 

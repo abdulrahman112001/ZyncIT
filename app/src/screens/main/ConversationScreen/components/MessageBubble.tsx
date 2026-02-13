@@ -13,6 +13,7 @@ interface MessageBubbleProps {
   secondaryTextColor: string;
   bubbleColor: string;
   bgColor: string;
+  primaryColor?: string;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -23,6 +24,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   secondaryTextColor,
   bubbleColor,
   bgColor,
+  primaryColor = '#D5C19E',
 }) => {
   const isSent = item.smsType === 'sent';
   const translateX = useRef(new Animated.Value(0)).current;
@@ -137,7 +139,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         <View
           style={[
             styles.bubble,
-            { backgroundColor: isSent ? '#0A84FF' : bubbleColor },
+            { backgroundColor: isSent ? primaryColor : bubbleColor },
             isSent && styles.bubbleSent,
           ]}
         >
