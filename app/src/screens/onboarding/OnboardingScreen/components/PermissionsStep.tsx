@@ -1,5 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Permission } from '../types';
 
@@ -118,7 +124,12 @@ const PermissionsStep: React.FC<PermissionsStepProps> = ({
                   onPress={() => onRequestPermission(permission.id)}
                   activeOpacity={0.8}
                 >
-                  <Text style={localStyles.grantButtonText}>
+                  <Text
+                    style={[
+                      localStyles.grantButtonText,
+                      { color: colors.text },
+                    ]}
+                  >
                     {translate('onboarding.permissions.grant')}
                   </Text>
                 </TouchableOpacity>
@@ -221,7 +232,6 @@ const localStyles = StyleSheet.create({
     borderRadius: 20,
   },
   grantButtonText: {
-    color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
   },

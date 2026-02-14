@@ -54,9 +54,9 @@ export const useNotificationsScreen = (
   );
 
   // Theme colors
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
-  const secondaryTextColor = isDarkMode ? '#8E8E93' : colors.textSecondary;
+  const bgColor = colors.background;
+  const textColor = colors.text;
+  const secondaryTextColor = colors.textSecondary;
 
   const groupedNotifications = useMemo(() => {
     const groups: { [key: string]: GroupedNotification } = {};

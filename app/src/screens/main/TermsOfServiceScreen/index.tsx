@@ -17,8 +17,8 @@ const TermsOfServiceScreen = ({ navigation }: TermsOfServiceScreenProps) => {
   const { colors, t, isDarkMode, isRTL } = useTheme();
 
   // Dynamic colors
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const bgColor = colors.background;
+  const textColor = colors.text;
 
   return (
     <SafeAreaView

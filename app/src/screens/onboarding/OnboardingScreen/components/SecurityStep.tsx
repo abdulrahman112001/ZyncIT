@@ -9,6 +9,8 @@ interface SecurityStepProps {
     textSecondary: string;
     primary: string;
     card: string;
+    success: string;
+    white: string;
   };
   translate?: (key: string) => string;
   isRTL?: boolean;
@@ -149,7 +151,7 @@ const SecurityStep: React.FC<SecurityStepProps> = ({
           <Animated.View
             style={[styles.securityLockIcon, { opacity: lockOpacity }]}
           >
-            <Icon name="lock-closed" size={40} color="#fff" />
+            <Icon name="lock-closed" size={40} color={colors.white} />
           </Animated.View>
           <Animated.View
             style={[styles.securityCheckIcon, { opacity: checkOpacity }]}
@@ -157,10 +159,10 @@ const SecurityStep: React.FC<SecurityStepProps> = ({
             <View
               style={[
                 styles.securityCheckBadge,
-                { backgroundColor: '#34C759' },
+                { backgroundColor: colors.success },
               ]}
             >
-              <Icon name="checkmark" size={16} color="#fff" />
+              <Icon name="checkmark" size={16} color={colors.white} />
             </View>
           </Animated.View>
         </View>

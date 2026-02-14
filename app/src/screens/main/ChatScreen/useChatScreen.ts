@@ -33,10 +33,10 @@ export const useChatScreen = () => {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Dynamic colors based on theme
-  const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
-  const textColor = isDarkMode ? '#FFFFFF' : '#000000';
-  const secondaryTextColor = isDarkMode ? '#8E8E93' : '#6C6C70';
-  const surfaceColor = isDarkMode ? '#1C1C1E' : '#F2F2F7';
+  const bgColor = colors.background;
+  const textColor = colors.text;
+  const secondaryTextColor = colors.textSecondary;
+  const surfaceColor = isDarkMode ? colors.surface : colors.surfaceSecondary;
 
   // Keyboard listener for Android
   useEffect(() => {

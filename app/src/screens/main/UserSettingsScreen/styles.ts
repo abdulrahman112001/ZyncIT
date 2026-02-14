@@ -1,6 +1,7 @@
-import { StyleSheet } from 'react-native';
+﻿import { StyleSheet } from 'react-native';
+import { ColorTheme } from '../../../theme/colors';
 
-export const styles = StyleSheet.create({
+export const createStyles = (colors: ColorTheme) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -46,7 +47,7 @@ export const styles = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.surfaceSecondary,
   },
   profileInfo: {
     flex: 1,
@@ -80,7 +81,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonText: {
-    color: '#fff',
+    color: colors.textInverse,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -115,8 +116,10 @@ export const styles = StyleSheet.create({
     marginVertical: 20,
   },
   logoutButtonText: {
-    color: '#fff',
+    color: colors.textInverse,
     fontSize: 16,
     fontWeight: '600',
   },
 });
+
+export const styles = createStyles(require('../../../theme/colors').LIGHT_COLORS);

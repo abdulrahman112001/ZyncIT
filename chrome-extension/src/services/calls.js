@@ -7,6 +7,7 @@ import {
   db,
   collection,
   doc,
+  getDocs,
   query,
   where,
   orderBy,
@@ -16,6 +17,7 @@ import {
 } from "../config/firebase.js";
 
 import { callsList } from "../ui/dom.js";
+import { showListLoading } from "../ui/toasts.js";
 import {
   formatTime,
   formatDuration,
@@ -27,6 +29,7 @@ import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
 import { decryptCall } from "./cryptoService.js";
 import { getContactName } from "./contacts.js";
+import { getCachedCalls, cacheCallsData } from "./cache.js";
 
 /**
  * Normalize phone number for consistent grouping
@@ -104,6 +107,97 @@ export async function markAllCallsAsViewed() {
   }
 }
 
+// Decryption cache for calls
+const callDecryptionCache = new Map();
+let callListenerUnsubs = [];
+let isSyncingCalls = false;
+
+/**
+ * Decrypt call with caching
+ */
+async function decryptCallCached(data, userId, docId) {
+  const cached = callDecryptionCache.get(docId);
+  if (cached && cached.timestamp === data.timestamp) {
+    return cached.data;
+  }
+  const decrypted = await decryptCall(data, userId);
+  callDecryptionCache.set(docId, {
+    data: decrypted,
+    timestamp: data.timestamp,
+  });
+  return decrypted;
+}
+
+/**
+ * Process a raw call document into a normalized call object
+ */
+function processCallDoc(data, firestoreId, deviceId, deviceName) {
+  const titleLower = (data.title || "").toLowerCase().trim();
+  const isTitleCallDescription =
+    titleLower === "call" ||
+    titleLower === "calling" ||
+    titleLower === "incoming call" ||
+    titleLower === "outgoing call" ||
+    titleLower === "missed call" ||
+    titleLower === "missed calls" ||
+    titleLower === "ongoing call" ||
+    titleLower === "on hold" ||
+    titleLower === "dialing" ||
+    titleLower === "ringing" ||
+    titleLower.includes("missed call") ||
+    titleLower === "مكالمة" ||
+    titleLower === "مكالمة فائتة" ||
+    titleLower === "مكالمات فائتة" ||
+    titleLower === "مكالمة واردة" ||
+    titleLower === "مكالمة صادرة" ||
+    titleLower === "اتصال" ||
+    /^\d{1,4}$/.test(titleLower);
+
+  let rawContactName = data.contactName || data.displayName || "";
+  const contactLower = rawContactName.toLowerCase().trim();
+  const isContactCallDescription =
+    contactLower === "call" ||
+    contactLower === "calling" ||
+    contactLower === "incoming call" ||
+    contactLower === "outgoing call" ||
+    contactLower === "missed call" ||
+    contactLower === "missed calls" ||
+    contactLower === "ongoing call" ||
+    contactLower === "مكالمة" ||
+    contactLower === "مكالمة فائتة" ||
+    contactLower === "مكالمات فائتة" ||
+    /^\d{1,4}$/.test(contactLower);
+
+  if (isContactCallDescription) {
+    rawContactName = "";
+  }
+
+  const resolvedPhone =
+    data.phoneNumber ||
+    data.number ||
+    data.address ||
+    (data.title && !isTitleCallDescription && isPhoneNumberLike(data.title)
+      ? data.title
+      : "") ||
+    "";
+  const resolvedContact =
+    rawContactName ||
+    (data.title && !isTitleCallDescription && !isPhoneNumberLike(data.title)
+      ? data.title
+      : "") ||
+    getContactName(resolvedPhone) ||
+    "";
+
+  return {
+    ...data,
+    id: firestoreId,
+    deviceId: deviceId,
+    deviceName: deviceName,
+    phoneNumber: resolvedPhone || data.phoneNumber || "",
+    contactName: resolvedContact,
+  };
+}
+
 /**
  * Load calls from Firebase
  */
@@ -111,12 +205,46 @@ export async function loadCalls() {
   const user = state.currentUser;
   if (!user) return;
 
+  // === STEP 1: Show cached calls instantly ===
+  let hasCachedData = false;
+  try {
+    const cached = await getCachedCalls();
+    if (cached && cached.allCalls && cached.allCalls.length > 0) {
+      console.log(
+        `[Calls] 📦 Showing ${cached.allCalls.length} cached calls instantly`,
+      );
+      hasCachedData = true;
+      if (cached.byDevice) {
+        for (const [deviceId, calls] of Object.entries(cached.byDevice)) {
+          state.setCallsByDevice(deviceId, calls);
+        }
+      }
+      state.setAllCallsData(cached.allCalls);
+      renderCalls(cached.allCalls.slice(0, 100));
+      updateTabBadges();
+    }
+  } catch (e) {
+    console.warn("[Calls] Cache load failed:", e);
+  }
+
+  // Show loading spinner only if no cached data
+  if (!hasCachedData && callsList) {
+    showListLoading(callsList);
+  }
+
+  // === STEP 2: Fetch fresh data from Firebase ===
+  isSyncingCalls = true;
+  updateCallsCountIndicator();
+  // Stop previous call listeners
+  callListenerUnsubs.forEach((unsub) => unsub());
+  callListenerUnsubs = [];
+  callDecryptionCache.clear();
+
   const devicesQuery = query(
     collection(db, "devices"),
     where("userId", "==", user.uid),
   );
 
-  const { getDocs } = await import("../config/firebase.js");
   const devicesSnapshot = await getDocs(devicesQuery);
   const devicesList = [];
   devicesSnapshot.forEach((doc) => {
@@ -127,105 +255,92 @@ export async function loadCalls() {
     });
   });
 
-  devicesList.forEach((device) => {
+  // Load all devices in parallel with getDocs (one-time, fast)
+  const loadPromises = devicesList.map(async (device) => {
     const q = query(
       collection(db, "users", user.uid, "devices", device.id, "calls"),
       orderBy("timestamp", "desc"),
-      limit(50),
+      limit(200),
     );
+
+    try {
+      const snapshot = await getDocs(q);
+      console.log(
+        `[Calls] Loaded ${snapshot.size} calls from device ${device.id}`,
+      );
+
+      const calls = await Promise.all(
+        snapshot.docs.map(async (docSnap) => {
+          let data = docSnap.data();
+          data = await decryptCallCached(data, user.uid, docSnap.id);
+          return processCallDoc(data, docSnap.id, device.id, device.name);
+        }),
+      );
+      updateCallsList(device.id, calls);
+    } catch (error) {
+      console.error(`❌ Calls load error for device ${device.id}:`, error);
+    }
+  });
+
+  await Promise.all(loadPromises);
+  console.log(
+    "[Calls] ✅ Initial load complete, starting realtime listeners...",
+  );
+
+  isSyncingCalls = false;
+  updateCallsCountIndicator();
+
+  // Start lightweight realtime listeners for new calls only
+  for (const device of devicesList) {
+    const q = query(
+      collection(db, "users", user.uid, "devices", device.id, "calls"),
+      orderBy("timestamp", "desc"),
+      limit(5),
+    );
+
+    let isInitialSnapshot = true;
 
     const unsub = onSnapshot(
       q,
       async (snapshot) => {
-        const calls = [];
-        for (const docSnap of snapshot.docs) {
-          let data = docSnap.data();
-          const firestoreId = docSnap.id;
-
-          // Decrypt call data
-          data = await decryptCall(data, user.uid);
-
-          // Detect call description titles that are NOT real contact names
-          const titleLower = (data.title || "").toLowerCase().trim();
-          const isTitleCallDescription =
-            titleLower === "call" ||
-            titleLower === "calling" ||
-            titleLower === "incoming call" ||
-            titleLower === "outgoing call" ||
-            titleLower === "missed call" ||
-            titleLower === "missed calls" ||
-            titleLower === "ongoing call" ||
-            titleLower === "on hold" ||
-            titleLower === "dialing" ||
-            titleLower === "ringing" ||
-            titleLower.includes("missed call") ||
-            titleLower === "مكالمة" ||
-            titleLower === "مكالمة فائتة" ||
-            titleLower === "مكالمات فائتة" ||
-            titleLower === "مكالمة واردة" ||
-            titleLower === "مكالمة صادرة" ||
-            titleLower === "اتصال" ||
-            /^\d{1,4}$/.test(titleLower);
-
-          // Clean contactName - remove call description words
-          let rawContactName = data.contactName || data.displayName || "";
-          const contactLower = rawContactName.toLowerCase().trim();
-          const isContactCallDescription =
-            contactLower === "call" ||
-            contactLower === "calling" ||
-            contactLower === "incoming call" ||
-            contactLower === "outgoing call" ||
-            contactLower === "missed call" ||
-            contactLower === "missed calls" ||
-            contactLower === "ongoing call" ||
-            contactLower === "مكالمة" ||
-            contactLower === "مكالمة فائتة" ||
-            contactLower === "مكالمات فائتة" ||
-            /^\d{1,4}$/.test(contactLower);
-
-          if (isContactCallDescription) {
-            rawContactName = "";
-          }
-
-          const resolvedPhone =
-            data.phoneNumber ||
-            data.number ||
-            data.address ||
-            (data.title &&
-            !isTitleCallDescription &&
-            isPhoneNumberLike(data.title)
-              ? data.title
-              : "") ||
-            "";
-          const resolvedContact =
-            rawContactName ||
-            (data.title &&
-            !isTitleCallDescription &&
-            !isPhoneNumberLike(data.title)
-              ? data.title
-              : "") ||
-            getContactName(resolvedPhone) ||
-            "";
-
-          calls.push({
-            ...data,
-            id: firestoreId,
-            deviceId: device.id,
-            deviceName: device.name,
-            docRef: docSnap.ref,
-            phoneNumber: resolvedPhone || data.phoneNumber || "",
-            contactName: resolvedContact,
-          });
+        if (isInitialSnapshot) {
+          isInitialSnapshot = false;
+          return;
         }
-        updateCallsList(device.id, calls);
+
+        for (const change of snapshot.docChanges()) {
+          if (change.type === "added" || change.type === "modified") {
+            let data = change.doc.data();
+            data = await decryptCallCached(data, user.uid, change.doc.id);
+            const call = processCallDoc(
+              data,
+              change.doc.id,
+              device.id,
+              device.name,
+            );
+
+            const currentCalls = state.allCallsByDevice[device.id] || [];
+            const existingIdx = currentCalls.findIndex((c) => c.id === call.id);
+            if (existingIdx >= 0) {
+              currentCalls[existingIdx] = call;
+            } else {
+              currentCalls.unshift(call);
+            }
+            updateCallsList(device.id, currentCalls);
+          }
+        }
       },
       (error) => {
-        console.error("Calls Error for device", device.id, ":", error);
+        console.error(
+          `❌ Calls realtime error for device ${device.id}:`,
+          error,
+        );
       },
     );
 
+    callListenerUnsubs.push(unsub);
     state.addUnsubscriber(unsub);
-  });
+  }
 }
 
 /**
@@ -254,7 +369,42 @@ function updateCallsList(deviceId, newCalls) {
   // Sort by timestamp descending
   merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
+  state.setAllCallsData(merged);
   renderCalls(merged.slice(0, 100));
+
+  // Save to cache in background
+  cacheCallsData(state.allCallsByDevice, merged).catch(() => {});
+
+  updateCallsCountIndicator();
+}
+
+/**
+ * Update calls count indicator with sync status
+ */
+function updateCallsCountIndicator() {
+  const total = state.allCallsData?.length || 0;
+  let indicator = document.getElementById("callsCountIndicator");
+
+  if (total === 0 && !isSyncingCalls) {
+    indicator?.remove();
+    return;
+  }
+
+  if (!indicator) {
+    const callsContainer = document.getElementById("callsList");
+    if (!callsContainer) return;
+    indicator = document.createElement("div");
+    indicator.id = "callsCountIndicator";
+    indicator.className = "sms-count-indicator";
+    callsContainer.appendChild(indicator);
+  }
+
+  if (isSyncingCalls) {
+    const countText = total > 0 ? `${total} calls` : "";
+    indicator.innerHTML = `<span>${countText}</span><span class="sync-badge"><span class="sync-spinner"></span> Syncing...</span>`;
+  } else {
+    indicator.innerHTML = `<span>${total} calls · All loaded</span>`;
+  }
 }
 
 /**
@@ -270,7 +420,19 @@ export function renderCalls(calls) {
 
   state.setAllCallsData(normalizedCalls);
 
-  if (normalizedCalls.length === 0) {
+  // Filter by selected device tab
+  const selectedTab =
+    document.querySelector("#callsDeviceTabs .device-tab.active")?.dataset
+      .device || "all";
+
+  let filteredCalls = normalizedCalls;
+  if (selectedTab !== "all") {
+    filteredCalls = normalizedCalls.filter(
+      (call) => call.deviceId === selectedTab,
+    );
+  }
+
+  if (filteredCalls.length === 0) {
     callsList.innerHTML = `
       <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -286,7 +448,7 @@ export function renderCalls(calls) {
 
   // Group calls by phone number
   const grouped = {};
-  normalizedCalls.forEach((call) => {
+  filteredCalls.forEach((call) => {
     const normalizedPhone = normalizePhoneNumber(call.phoneNumber || "");
     const key = normalizedPhone
       ? normalizedPhone
@@ -335,7 +497,7 @@ export function renderCalls(calls) {
           group.lastCall.type
         }</div>
         ${
-          group.lastCall.deviceName
+          selectedTab === "all" && group.lastCall.deviceName
             ? `<div class="device-tag">${group.lastCall.deviceName}</div>`
             : ""
         }

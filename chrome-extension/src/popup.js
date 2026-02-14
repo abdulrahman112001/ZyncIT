@@ -33,6 +33,8 @@ import {
   initSettingsListeners,
 } from "./services/settings.js";
 import { loadAllContacts } from "./services/contacts.js";
+import { initTheme } from "./services/theme.js";
+import { clearCache } from "./services/cache.js";
 
 // Import utilities
 import { applyTranslations } from "./utils/i18n.js";
@@ -40,20 +42,19 @@ import { applyTranslations } from "./utils/i18n.js";
 function loadData() {
   cleanupSubscriptions();
 
-  if (smsList) showListLoading(smsList);
-  if (callsList) showListLoading(callsList);
+  // Only show loading for notifications which aren't cached
   if (notificationsList) showListLoading(notificationsList);
 
-  // Load devices first, then contacts, then everything else
+  // Load SMS and Calls IMMEDIATELY - cache shows instantly, Firebase refreshes in background
+  loadSMS();
+  loadCalls();
+
+  // Load devices, contacts, and other data in parallel
   loadDevices();
 
-  // Load contacts after a short delay to ensure devices are loaded
+  // Load contacts after devices are loaded
   setTimeout(async () => {
     await loadAllContacts();
-
-    // Now load SMS and calls which will use contact names
-    loadSMS(); // This now sets up real-time listeners automatically
-    loadCalls();
   }, 500);
 
   loadNotifications();
@@ -65,7 +66,8 @@ function cleanupSubscriptions() {
   state.clearUnsubscribers();
   stopPolling();
   stopSMSListener();
-  state.clearAllSMS();
+  // Don't clear SMS/calls data here - loadSMS/loadCalls will show cached data first
+  // state.clearAllSMS(); // Removed to preserve cache
   state.clearAllNotifications();
   state.setDevices([]);
 }
@@ -104,6 +106,9 @@ function init() {
   // Show loading overlay while checking auth
   showLoadingOverlay();
 
+  // Initialize theme (before any rendering)
+  initTheme();
+
   // Apply translations
   applyTranslations();
 
@@ -122,13 +127,15 @@ function init() {
   initAuthObserver(
     // On login
     async (user) => {
-      await registerDevice();
+      // Don't await registerDevice - load data immediately for instant cache display
+      registerDevice();
       loadData();
     },
     // On logout
     () => {
       cleanupSubscriptions();
       state.resetState();
+      clearCache(); // Clear local cache on logout
     },
   );
 

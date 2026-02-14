@@ -45,11 +45,11 @@ const SwipeableItem: React.FC<SwipeableItemProps> = ({
   };
 
   // Dynamic styles based on theme
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const avatarBgColor = isDarkMode ? '#3A3A3C' : '#E5E7EB';
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
-  const secondaryTextColor = isDarkMode ? '#8E8E93' : colors.textSecondary;
-  const separatorColor = isDarkMode ? '#38383A' : colors.border;
+  const bgColor = colors.background;
+  const avatarBgColor = colors.surfaceSecondary;
+  const textColor = colors.text;
+  const secondaryTextColor = colors.textSecondary;
+  const separatorColor = colors.border;
 
   return (
     <View style={[styles.swipeContainer, { backgroundColor: bgColor }]}>

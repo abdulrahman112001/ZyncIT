@@ -11,8 +11,8 @@ export const useMenuScreen = (navigation: any) => {
   const { colors, t, isDarkMode, isRTL } = useTheme();
 
   // Dynamic colors for iOS-like design
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const bgColor = colors.background;
+  const textColor = colors.text;
 
   const saveAndSync = useCallback(
     async (key: string, value: any) => {
@@ -132,7 +132,7 @@ export const useMenuScreen = (navigation: any) => {
           title: isRTL ? 'تسجيل الخروج' : 'Logout',
           subtitle: '',
           danger: false,
-          iconColor: '#FF9500',
+          iconColor: colors.warning,
           onPress: handleLogout,
         },
         {

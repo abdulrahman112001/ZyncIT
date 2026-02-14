@@ -5,7 +5,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { MainTabParamList } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSettingsStore } from '../store/settingsStore';
-import { LIGHT_COLORS, DARK_COLORS } from '../constants/theme';
+import { LIGHT_COLORS, DARK_COLORS } from '../theme/colors';
 // ServiceStatusBanner removed - permissions are handled in onboarding
 
 import NotificationsScreen from '../screens/main/NotificationsScreen';
@@ -23,12 +23,26 @@ const MainNavigator = () => {
 
   // Define tabs in order - will be reversed for LTR
   const tabs = [
+     {
+      name: 'Chat' as const,
+      component: ChatScreen,
+      titleAr: 'المحادثات',
+      titleEn: 'Messages',
+      icon: 'chatbubbles',
+    },
     {
       name: 'SMS' as const,
       component: SMSNotificationsScreen,
       titleAr: 'الرسائل',
       titleEn: 'SMS',
       icon: 'chatbubble',
+    },
+     {
+      name: 'Calls' as const,
+      component: CallsScreen,
+      titleAr: 'المكالمات',
+      titleEn: 'Calls',
+      icon: 'call',
     },
     {
       name: 'Notifications' as const,
@@ -37,20 +51,8 @@ const MainNavigator = () => {
       titleEn: 'Notifications',
       icon: 'notifications',
     },
-    {
-      name: 'Chat' as const,
-      component: ChatScreen,
-      titleAr: 'المحادثات',
-      titleEn: 'Messages',
-      icon: 'chatbubbles',
-    },
-    {
-      name: 'Calls' as const,
-      component: CallsScreen,
-      titleAr: 'المكالمات',
-      titleEn: 'Calls',
-      icon: 'call',
-    },
+   
+   
     {
       name: 'Menu' as const,
       component: MenuNavigator,

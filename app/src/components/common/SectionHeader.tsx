@@ -74,7 +74,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
           activeOpacity={0.7}
         >
           {actionText && (
-            <Text style={[styles.actionText, { color: colors.primary }]}>
+            <Text style={[styles.actionText, { color: colors.primaryText }]}>
               {actionText}
             </Text>
           )}

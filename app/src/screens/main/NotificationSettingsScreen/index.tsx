@@ -26,8 +26,8 @@ const NotificationSettingsScreen = ({
   const [isLoading, setIsLoading] = useState(false);
 
   // Dynamic colors
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const bgColor = colors.background;
+  const textColor = colors.text;
 
   useEffect(() => {
     if (user?.uid) {
@@ -103,9 +103,9 @@ const NotificationSettingsScreen = ({
                 handleToggleSetting('enableSmsNotifications', value)
               }
               disabled={isLoading}
-              trackColor={{ false: '#ccc', true: colors.primary }}
+              trackColor={{ false: colors.borderDark, true: colors.primary }}
               thumbColor={
-                settings.enableSmsNotifications ? colors.success : '#f4f3f4'
+                settings.enableSmsNotifications ? colors.success : colors.surfaceTertiary
               }
             />
           </View>
@@ -130,8 +130,8 @@ const NotificationSettingsScreen = ({
                 handleToggleSetting('smsSoundEnabled', value)
               }
               disabled={isLoading || !settings.enableSmsNotifications}
-              trackColor={{ false: '#ccc', true: colors.primary }}
-              thumbColor={settings.smsSoundEnabled ? colors.success : '#f4f3f4'}
+              trackColor={{ false: colors.borderDark, true: colors.primary }}
+              thumbColor={settings.smsSoundEnabled ? colors.success : colors.surfaceTertiary}
             />
           </View>
 
@@ -155,9 +155,9 @@ const NotificationSettingsScreen = ({
                 handleToggleSetting('smsVibrationEnabled', value)
               }
               disabled={isLoading || !settings.enableSmsNotifications}
-              trackColor={{ false: '#ccc', true: colors.primary }}
+              trackColor={{ false: colors.borderDark, true: colors.primary }}
               thumbColor={
-                settings.smsVibrationEnabled ? colors.success : '#f4f3f4'
+                settings.smsVibrationEnabled ? colors.success : colors.surfaceTertiary
               }
             />
           </View>
@@ -188,9 +188,9 @@ const NotificationSettingsScreen = ({
                 handleToggleSetting('enableCallNotifications', value)
               }
               disabled={isLoading}
-              trackColor={{ false: '#ccc', true: colors.primary }}
+              trackColor={{ false: colors.borderDark, true: colors.primary }}
               thumbColor={
-                settings.enableCallNotifications ? colors.success : '#f4f3f4'
+                settings.enableCallNotifications ? colors.success : colors.surfaceTertiary
               }
             />
           </View>
@@ -215,9 +215,9 @@ const NotificationSettingsScreen = ({
                 handleToggleSetting('callSoundEnabled', value)
               }
               disabled={isLoading || !settings.enableCallNotifications}
-              trackColor={{ false: '#ccc', true: colors.primary }}
+              trackColor={{ false: colors.borderDark, true: colors.primary }}
               thumbColor={
-                settings.callSoundEnabled ? colors.success : '#f4f3f4'
+                settings.callSoundEnabled ? colors.success : colors.surfaceTertiary
               }
             />
           </View>
@@ -248,9 +248,9 @@ const NotificationSettingsScreen = ({
                 handleToggleSetting('doNotDisturbEnabled', value)
               }
               disabled={isLoading}
-              trackColor={{ false: '#ccc', true: colors.primary }}
+              trackColor={{ false: colors.borderDark, true: colors.primary }}
               thumbColor={
-                settings.doNotDisturbEnabled ? colors.success : '#f4f3f4'
+                settings.doNotDisturbEnabled ? colors.success : colors.surfaceTertiary
               }
             />
           </View>

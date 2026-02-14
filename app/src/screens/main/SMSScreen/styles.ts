@@ -1,6 +1,7 @@
-import { StyleSheet } from 'react-native';
+﻿import { StyleSheet } from 'react-native';
+import { ColorTheme } from '../../../theme/colors';
 
-export const styles = StyleSheet.create({
+export const createStyles = (colors: ColorTheme) => StyleSheet.create({
   container: { flex: 1 },
   headerActions: {
     flexDirection: 'row',
@@ -8,7 +9,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: colors.borderLight,
   },
   actionButton: {
     flexDirection: 'row',
@@ -29,7 +30,7 @@ export const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -65,7 +66,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   unreadBadgeText: {
-    color: '#fff',
+    color: colors.textInverse,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -93,15 +94,15 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
-  fabIcon: { fontSize: 28, color: '#fff', fontWeight: 'bold' },
+  fabIcon: { fontSize: 28, color: colors.textInverse, fontWeight: 'bold' },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -141,7 +142,7 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
   },
   sendButtonDisabled: { opacity: 0.6 },
-  sendButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  sendButtonText: { color: colors.textInverse, fontSize: 16, fontWeight: '600' },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -152,3 +153,5 @@ export const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
+export const styles = createStyles(require('../../../theme/colors').LIGHT_COLORS);

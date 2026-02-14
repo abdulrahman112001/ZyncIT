@@ -251,6 +251,17 @@ public class SmsReceiver extends BroadcastReceiver {
     }
     
     private void sendSmsEvent(Context context, String sender, String message, long timestamp, String contactName) {
+        // Track this SMS so NotificationService can skip it (avoid duplicate Firestore writes)
+        if (sender != null) {
+            String normalizedSender = sender.replaceAll("[^0-9+]", "");
+            recentlyCapturedSms.put(normalizedSender, timestamp);
+            Log.d(TAG, "Tracked SMS from " + normalizedSender + " at " + timestamp + " for dedup");
+            
+            // Clean old entries (older than DEDUP_WINDOW_MS)
+            long cutoff = System.currentTimeMillis() - DEDUP_WINDOW_MS;
+            recentlyCapturedSms.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+        }
+
         // Always try to save to Firebase using background service
         try {
             Intent backgroundIntent = new Intent(context, BackgroundSmsService.class);

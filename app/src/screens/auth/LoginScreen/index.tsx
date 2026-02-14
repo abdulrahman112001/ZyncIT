@@ -174,7 +174,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             {/* Forgot Password */}
             <TouchableOpacity style={styles.forgotPasswordContainer}>
               <Text
-                style={[styles.forgotPasswordText, { color: colors.primary }]}
+                style={[
+                  styles.forgotPasswordText,
+                  { color: colors.primaryText },
+                ]}
               >
                 {t('forgotPassword')}
               </Text>
@@ -211,7 +214,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               {t('noAccount')}
             </Text>
             <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-              <Text style={[styles.signUpLink, { color: colors.primary }]}>
+              <Text style={[styles.signUpLink, { color: colors.primaryText }]}>
                 {t('signUp')}
               </Text>
             </TouchableOpacity>

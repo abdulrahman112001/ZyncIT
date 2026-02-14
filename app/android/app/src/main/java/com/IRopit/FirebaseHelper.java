@@ -168,11 +168,16 @@ public class FirebaseHelper {
 
         String docId;
         if (type.equals("sms")) {
-            // For SMS: use current time (not postTime!) + phone to create unique docId per message
-            // Google Messages reuses the same notification AND the same postTime
-            // when updating a conversation, so we must use System.currentTimeMillis()
-            String sanitizedPhone = phoneNumber != null ? phoneNumber.replaceAll("[^0-9+]", "") : "unknown";
-            docId = "sms_" + System.currentTimeMillis() + "_" + sanitizedPhone;
+            // For SMS: use deterministic docId that matches across both services
+            // Use ONLY the message body hash (most reliable match between services)
+            // Both NotificationService and BackgroundSmsService see the same body text
+            // but may have different sender formats and timestamps
+            String messageBody = (bigText != null && !bigText.isEmpty()) ? bigText : text;
+            String bodyForHash = (messageBody != null ? messageBody : "").trim();
+            int bodyHash = Math.abs(bodyForHash.hashCode());
+            // Use body hash + day-bucket (not exact timestamp) to allow same-body msgs on different days
+            long dayBucket = System.currentTimeMillis() / (24 * 60 * 60 * 1000);
+            docId = "sms_" + deviceId + "_" + dayBucket + "_" + bodyHash;
         } else {
             docId = key.replaceAll("[^a-zA-Z0-9]", "_");
         }

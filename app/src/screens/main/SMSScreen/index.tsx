@@ -10,9 +10,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   ActivityIndicator,
-  StatusBar,
 } from 'react-native';
 import { EmptyState } from '../../../components/shared';
+import { Container, AnimatedListItem } from '../../../components';
 import { styles } from './styles';
 import { formatTime } from './helper';
 import { Conversation } from './types';
@@ -43,70 +43,86 @@ const SMSScreen = () => {
     handleDeleteAll,
   } = useSMSScreen();
 
-  const renderConversation = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity
-      style={[styles.messageItem, { backgroundColor: colors.surface }]}
-    >
-      <View style={styles.avatarContainer}>
-        <View
-          style={[
-            styles.avatar,
-            {
-              backgroundColor:
-                item.unreadCount > 0 ? colors.primary : colors.primaryLight,
-            },
-          ]}
-        >
-          <Text
+  const renderConversation = ({
+    item,
+    index,
+  }: {
+    item: Conversation;
+    index: number;
+  }) => (
+    <AnimatedListItem index={index}>
+      <TouchableOpacity
+        style={[styles.messageItem, { backgroundColor: colors.surface }]}
+      >
+        <View style={styles.avatarContainer}>
+          <View
             style={[
-              styles.avatarText,
-              { color: item.unreadCount > 0 ? '#fff' : colors.primary },
+              styles.avatar,
+              {
+                backgroundColor:
+                  item.unreadCount > 0 ? colors.primary : colors.primaryLight,
+              },
             ]}
           >
-            {(item.contactName || item.phoneNumber || '?')
-              .charAt(0)
-              .toUpperCase()}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.messageContent}>
-        <View style={styles.messageHeader}>
-          <Text
-            style={[
-              styles.senderName,
-              { color: colors.text },
-              item.unreadCount > 0 && styles.unreadText,
-            ]}
-            numberOfLines={1}
-          >
-            {item.contactName || item.phoneNumber || 'Unknown'}
-          </Text>
-          <Text style={[styles.messageTime, { color: colors.textSecondary }]}>
-            {formatTime(item.lastMessage.timestamp)}
-          </Text>
-        </View>
-        <View style={styles.messagePreview}>
-          <Text
-            style={[
-              styles.messageBody,
-              { color: colors.textSecondary },
-              item.unreadCount > 0 && styles.unreadText,
-            ]}
-            numberOfLines={2}
-          >
-            {item.lastMessage.type === 'sent' && '↩ '}
-            {item.lastMessage.body}
-          </Text>
-          {item.unreadCount > 0 && (
-            <View
-              style={[styles.unreadBadge, { backgroundColor: colors.primary }]}
+            <Text
+              style={[
+                styles.avatarText,
+                {
+                  color:
+                    item.unreadCount > 0
+                      ? colors.textInverse
+                      : colors.primaryText,
+                },
+              ]}
             >
-              <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
-            </View>
-          )}
+              {(item.contactName || item.phoneNumber || '?')
+                .charAt(0)
+                .toUpperCase()}
+            </Text>
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
+        <View style={styles.messageContent}>
+          <View style={styles.messageHeader}>
+            <Text
+              style={[
+                styles.senderName,
+                { color: colors.text },
+                item.unreadCount > 0 && styles.unreadText,
+              ]}
+              numberOfLines={1}
+            >
+              {item.contactName || item.phoneNumber || 'Unknown'}
+            </Text>
+            <Text style={[styles.messageTime, { color: colors.textSecondary }]}>
+              {formatTime(item.lastMessage.timestamp)}
+            </Text>
+          </View>
+          <View style={styles.messagePreview}>
+            <Text
+              style={[
+                styles.messageBody,
+                { color: colors.textSecondary },
+                item.unreadCount > 0 && styles.unreadText,
+              ]}
+              numberOfLines={2}
+            >
+              {item.lastMessage.type === 'sent' && '↩ '}
+              {item.lastMessage.body}
+            </Text>
+            {item.unreadCount > 0 && (
+              <View
+                style={[
+                  styles.unreadBadge,
+                  { backgroundColor: colors.primary },
+                ]}
+              >
+                <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    </AnimatedListItem>
   );
 
   const renderEmptyComponent = () => (
@@ -132,12 +148,12 @@ const SMSScreen = () => {
         style={[styles.actionButton, { backgroundColor: colors.primaryLight }]}
         onPress={handleMarkAllAsRead}
       >
-        <Text style={[styles.actionButtonText, { color: colors.primary }]}>
+        <Text style={[styles.actionButtonText, { color: colors.primaryText }]}>
           {isRTL ? '✓ تعليم الكل كمقروء' : '✓ Mark All Read'}
         </Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[styles.actionButton, { backgroundColor: '#ffebee' }]}
+        style={[styles.actionButton, { backgroundColor: colors.errorLight }]}
         onPress={handleDeleteAll}
       >
         <Text style={[styles.actionButtonText, { color: colors.error }]}>
@@ -149,27 +165,27 @@ const SMSScreen = () => {
 
   if (initialLoading && conversations.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: bgColor }]}>
-        <StatusBar
-          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-          backgroundColor={bgColor}
-        />
+      <Container
+        isDark={isDarkMode}
+        noPaddingHorizontal
+        backgroundColor={bgColor}
+      >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
             {isRTL ? 'جاري التحميل...' : 'Loading...'}
           </Text>
         </View>
-      </View>
+      </Container>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
+    >
       {conversations.length > 0 && renderHeader()}
       <FlatList
         data={conversations}
@@ -272,7 +288,7 @@ const SMSScreen = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </Container>
   );
 };
 

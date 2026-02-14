@@ -19,7 +19,12 @@ import {
 
 import { chatMessages, chatInput, sendChatBtn } from "../ui/dom.js";
 import { showToast, showLoadingOverlay, hideLoading } from "../ui/toasts.js";
-import { formatTime, getDeviceId } from "../utils/helpers.js";
+import {
+  formatTime,
+  getDeviceId,
+  escapeHtml,
+  sanitizeUrl,
+} from "../utils/helpers.js";
 import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
 import { encryptChatMessage, decryptChatMessage } from "./cryptoService.js";
@@ -67,7 +72,8 @@ export function subscribeToChat() {
 export function renderChatMessages(messages) {
   // Check if "All" tab is selected
   const selectedTab =
-    document.querySelector(".device-tab.active")?.dataset.device || "all";
+    document.querySelector("#chatDeviceTabs .device-tab.active")?.dataset
+      .device || "all";
   const showDeviceName = selectedTab === "all";
 
   // Filter messages by selected device
@@ -103,16 +109,21 @@ export function renderChatMessages(messages) {
 
       // Image
       if (msg.type === "image" && msg.fileUrl) {
-        content = `
-          <a href="${msg.fileUrl}" target="_blank" class="chat-image-link">
-            <img src="${msg.fileUrl}" alt="Image" class="chat-image" />
+        const safeUrl = sanitizeUrl(msg.fileUrl);
+        content = safeUrl
+          ? `
+          <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="chat-image-link">
+            <img src="${safeUrl}" alt="Image" class="chat-image" />
           </a>
-        `;
+        `
+          : `<div class="chat-file-link"><span>Invalid image URL</span></div>`;
       }
       // File
       else if (msg.type === "file" && msg.fileUrl) {
-        content = `
-          <a href="${msg.fileUrl}" target="_blank" class="chat-file-link">
+        const safeUrl = sanitizeUrl(msg.fileUrl);
+        content = safeUrl
+          ? `
+          <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="chat-file-link">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
@@ -120,25 +131,27 @@ export function renderChatMessages(messages) {
               <line x1="16" y1="17" x2="8" y2="17"/>
               <polyline points="10 9 9 9 8 9"/>
             </svg>
-            <span>${msg.fileName || "File"}</span>
+            <span>${escapeHtml(msg.fileName || "File")}</span>
           </a>
-        `;
+        `
+          : `<div class="chat-file-link"><span>Invalid file URL</span></div>`;
       }
       // Text
       else {
-        content = `<div>${msg.content}</div>`;
+        content = `<div>${escapeHtml(msg.content)}</div>`;
       }
 
       // Get device name from devices list
       const senderDevice = state.devices.find(
         (d) => d.id === msg.senderDeviceId,
       );
-      const deviceName =
+      const deviceName = escapeHtml(
         senderDevice?.nickname ||
-        senderDevice?.name ||
-        senderDevice?.model ||
-        msg.senderPlatform ||
-        "";
+          senderDevice?.name ||
+          senderDevice?.model ||
+          msg.senderPlatform ||
+          "",
+      );
 
       // Determine if message is sent from this extension
       const isSentFromExtension =
@@ -147,9 +160,9 @@ export function renderChatMessages(messages) {
 
       return `
         <div class="chat-message ${isSentFromExtension ? "sent" : "received"}" 
-             data-msg-id="${msg.id}" 
-             data-msg-content="${(msg.content || "").replace(/"/g, "&quot;")}" 
-             data-msg-sender="${msg.senderId}">
+             data-msg-id="${escapeHtml(msg.id)}" 
+             data-msg-content="${escapeHtml(msg.content || "")}" 
+             data-msg-sender="${escapeHtml(msg.senderId)}">
           ${
             showDeviceName && deviceName
               ? `<div class="chat-message-device">${deviceName}</div>`
@@ -157,9 +170,8 @@ export function renderChatMessages(messages) {
           }
           ${
             msg.replyTo
-              ? `<div class="chat-reply-preview">↩ ${msg.replyTo.content.substring(
-                  0,
-                  50,
+              ? `<div class="chat-reply-preview">↩ ${escapeHtml(
+                  msg.replyTo.content.substring(0, 50),
                 )}${msg.replyTo.content.length > 50 ? "..." : ""}</div>`
               : ""
           }
@@ -189,7 +201,8 @@ export async function sendChatMessage() {
 
   const deviceId = await getDeviceId();
   const selectedDeviceTab =
-    document.querySelector(".device-tab.active")?.dataset.device || "all";
+    document.querySelector("#chatDeviceTabs .device-tab.active")?.dataset
+      .device || "all";
 
   let messageData = {
     senderId: user.uid,
@@ -288,7 +301,7 @@ function showFilePreview(file) {
       previewBody.innerHTML = `
         <img src="${e.target.result}" alt="Preview" class="file-preview-image" />
         <div class="file-preview-info">
-          <span class="file-preview-name">${file.name}</span>
+          <span class="file-preview-name">${escapeHtml(file.name)}</span>
           <span class="file-preview-size">${formatFileSize(file.size)}</span>
         </div>
       `;
@@ -306,9 +319,9 @@ function showFilePreview(file) {
         </svg>
       </div>
       <div class="file-preview-info">
-        <span class="file-preview-name">${file.name}</span>
+        <span class="file-preview-name">${escapeHtml(file.name)}</span>
         <span class="file-preview-size">${formatFileSize(file.size)}</span>
-        <span class="file-preview-type">${ext || "FILE"}</span>
+        <span class="file-preview-type">${escapeHtml(ext || "FILE")}</span>
       </div>
     `;
   }
@@ -409,7 +422,8 @@ async function sendFileFromPreview() {
     const result = await uploadFileToStorage(file);
     const deviceId = await getDeviceId();
     const selectedDeviceTab =
-      document.querySelector(".device-tab.active")?.dataset.device || "all";
+      document.querySelector("#chatDeviceTabs .device-tab.active")?.dataset
+        .device || "all";
 
     const contentText =
       result.fileType === "image" ? "📷 Image" : `📎 ${result.fileName}`;
@@ -485,7 +499,7 @@ export function setReplyTo(element) {
   }
 
   replyPreview.innerHTML = `
-    <span class="reply-text">↩ ${msgContent.substring(0, 40)}${
+    <span class="reply-text">↩ ${escapeHtml(msgContent.substring(0, 40))}${
       msgContent.length > 40 ? "..." : ""
     }</span>
     <button class="reply-close" onclick="window.clearReply()">×</button>

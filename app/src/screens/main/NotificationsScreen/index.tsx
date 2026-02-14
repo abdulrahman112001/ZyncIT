@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, FlatList, RefreshControl, StatusBar } from 'react-native';
+import { View, FlatList, RefreshControl } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { Container, AnimatedListItem } from '../../../components';
 
 import {
   SelectableHeader,
@@ -47,19 +48,27 @@ const NotificationsScreen = () => {
     requestPermission,
   } = useNotificationsScreen('notifications-only');
 
-  const renderItem = ({ item }: { item: GroupedNotification }) => (
-    <SwipeableItem
-      item={item}
-      onPress={() => handlePress(item)}
-      onDelete={() => handleDelete(item)}
-      onMute={() => handleMute(item)}
-      isRTL={isRTL}
-      colors={colors}
-      isDarkMode={isDarkMode}
-      isSelectMode={isSelectMode}
-      isSelected={selectedNotifications.includes(item.key)}
-      onToggleSelect={() => toggleSelectNotification(item.key)}
-    />
+  const renderItem = ({
+    item,
+    index,
+  }: {
+    item: GroupedNotification;
+    index: number;
+  }) => (
+    <AnimatedListItem index={index}>
+      <SwipeableItem
+        item={item}
+        onPress={() => handlePress(item)}
+        onDelete={() => handleDelete(item)}
+        onMute={() => handleMute(item)}
+        isRTL={isRTL}
+        colors={colors}
+        isDarkMode={isDarkMode}
+        isSelectMode={isSelectMode}
+        isSelected={selectedNotifications.includes(item.key)}
+        onToggleSelect={() => toggleSelectNotification(item.key)}
+      />
+    </AnimatedListItem>
   );
 
   const renderEmptyState = () => {
@@ -108,12 +117,11 @@ const NotificationsScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
-
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
+    >
       {/* Header with Select/Cancel buttons */}
       <SelectableHeader
         isSelectMode={isSelectMode}
@@ -159,7 +167,7 @@ const NotificationsScreen = () => {
           />
         }
       />
-    </View>
+    </Container>
   );
 };
 

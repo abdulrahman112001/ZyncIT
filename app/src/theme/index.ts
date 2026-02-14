@@ -60,7 +60,7 @@ export {
 } from './animations';
 
 // Legacy exports for backward compatibility
-export { COLORS as FONTS } from './colors';
+export { FONT_FAMILY as FONTS } from './typography';
 
 // Theme hook helper type
 export interface Theme {

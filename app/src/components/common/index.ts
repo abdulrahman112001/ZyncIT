@@ -42,3 +42,5 @@ export type { SwipeableRowProps, SwipeAction } from './SwipeableRow';
 
 export { default as RefreshableList } from './RefreshableList';
 export type { RefreshableListProps } from './RefreshableList';
+
+export { default as AnimatedListItem } from './AnimatedListItem';

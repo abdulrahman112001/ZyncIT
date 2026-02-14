@@ -3,7 +3,6 @@ import {
   View,
   FlatList,
   RefreshControl,
-  StatusBar,
   ActivityIndicator,
   Text,
   TouchableOpacity,
@@ -16,6 +15,7 @@ import {
   EmptyState,
   ConfirmDeleteBottomSheet,
 } from '../../../components/shared';
+import { Container, AnimatedListItem } from '../../../components';
 import { styles } from './styles';
 import { GroupedCall } from './types';
 import SwipeableCallItem from './components/SwipeableCallItem';
@@ -64,21 +64,29 @@ const CallsScreen = () => {
     confirmDelete,
   } = useCallsScreen();
 
-  const renderItem = ({ item }: { item: GroupedCall }) => (
-    <SwipeableCallItem
-      item={item}
-      onPress={() => handlePress(item)}
-      onDelete={() => handleDelete(item)}
-      isRTL={isRTL}
-      isDarkMode={isDarkMode}
-      textColor={textColor}
-      secondaryTextColor={secondaryTextColor}
-      bgColor={bgColor}
-      avatarBgColor={avatarBgColor}
-      isSelectMode={isSelectMode}
-      isSelected={selectedCalls.includes(item.phoneNumber)}
-      onToggleSelect={() => toggleSelectCall(item.phoneNumber)}
-    />
+  const renderItem = ({
+    item,
+    index,
+  }: {
+    item: GroupedCall;
+    index: number;
+  }) => (
+    <AnimatedListItem index={index}>
+      <SwipeableCallItem
+        item={item}
+        onPress={() => handlePress(item)}
+        onDelete={() => handleDelete(item)}
+        isRTL={isRTL}
+        isDarkMode={isDarkMode}
+        textColor={textColor}
+        secondaryTextColor={secondaryTextColor}
+        bgColor={bgColor}
+        avatarBgColor={avatarBgColor}
+        isSelectMode={isSelectMode}
+        isSelected={selectedCalls.includes(item.phoneNumber)}
+        onToggleSelect={() => toggleSelectCall(item.phoneNumber)}
+      />
+    </AnimatedListItem>
   );
 
   const renderDeleteAllButton = () => (
@@ -86,7 +94,7 @@ const CallsScreen = () => {
       onPress={handleDeleteAllCalls}
       style={styles.deleteAllButton}
     >
-      <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+      <Ionicons name="trash-outline" size={22} color={colors.error} />
     </TouchableOpacity>
   );
 
@@ -106,11 +114,11 @@ const CallsScreen = () => {
   // Show loading indicator on initial load
   if (isLoading && calls.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: bgColor }]}>
-        <StatusBar
-          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-          backgroundColor={bgColor}
-        />
+      <Container
+        isDark={isDarkMode}
+        noPaddingHorizontal
+        backgroundColor={bgColor}
+      >
         <SelectableHeader
           isSelectMode={isSelectMode}
           selectedCount={selectedCalls.length}
@@ -132,17 +140,16 @@ const CallsScreen = () => {
             {isRTL ? 'جاري التحميل...' : 'Loading...'}
           </Text>
         </View>
-      </View>
+      </Container>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
-
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
+    >
       {/* Header with Select/Cancel buttons */}
       <SelectableHeader
         isSelectMode={isSelectMode}
@@ -245,7 +252,7 @@ const CallsScreen = () => {
             : singleDeleteItem?.count || 1
         }
       />
-    </View>
+    </Container>
   );
 };
 

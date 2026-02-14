@@ -24,6 +24,7 @@ import {
   getDeviceId,
   getPlatformIcon,
   getFriendlyDeviceName,
+  escapeHtml,
 } from "../utils/helpers.js";
 import * as state from "../state/index.js";
 
@@ -177,21 +178,21 @@ export function renderDevices() {
       </div>
       <div class="list-item-content">
         <div class="list-item-title device-name-display">
-          <span class="device-nickname">${getFriendlyDeviceName(device)}</span>
-          <button class="edit-name-btn" data-device-doc-id="${
-            device.docId
-          }" title="Edit name">
+          <span class="device-nickname">${escapeHtml(getFriendlyDeviceName(device))}</span>
+          <button class="edit-name-btn" data-device-doc-id="${escapeHtml(
+            device.docId,
+          )}" title="Edit name">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
           </button>
         </div>
         <div class="list-item-subtitle">
-          ${device.model || device.platform || "Phone"} • ${
-            device.platform || ""
-          } • ${device.isOnline ? "Online" : "Offline"}
+          ${escapeHtml(device.model || device.platform || "Phone")} • ${escapeHtml(
+            device.platform || "",
+          )} • ${device.isOnline ? "Online" : "Offline"}
         </div>
-        <div class="device-id-info">${device.id}</div>
+        <div class="device-id-info">${escapeHtml(device.id)}</div>
       </div>
       <div class="device-actions">
         <span class="list-item-time">${formatTime(
@@ -256,7 +257,7 @@ export function updateDeviceSelects() {
   const smsOptions = mobileDevices
     .map((d) => {
       const deviceName = getFriendlyDeviceName(d);
-      return `<option value="${d.id}">${deviceName}</option>`;
+      return `<option value="${escapeHtml(d.id)}">${escapeHtml(deviceName)}</option>`;
     })
     .join("");
 
@@ -265,8 +266,10 @@ export function updateDeviceSelects() {
       '<option value="">Select device...</option>' + smsOptions;
   }
 
-  // Update chat device tabs
+  // Update device tabs for all tabs
   updateChatDeviceTabs();
+  updateSmsDeviceTabs();
+  updateCallsDeviceTabs();
 }
 
 /**
@@ -291,9 +294,9 @@ export function updateChatDeviceTabs() {
       const deviceName = getFriendlyDeviceName(d);
       const platformIcon = getPlatformIcon(d.platform);
       return `
-        <button class="device-tab" data-device="${d.id}">
+        <button class="device-tab" data-device="${escapeHtml(d.id)}">
           ${platformIcon}
-          <span>${deviceName}</span>
+          <span>${escapeHtml(deviceName)}</span>
         </button>
       `;
     })
@@ -324,6 +327,141 @@ export function updateChatDeviceTabs() {
       const chatModule = await import("./chat.js");
       if (state.cachedChatMessages.length > 0) {
         chatModule.renderChatMessages(state.cachedChatMessages);
+      }
+    });
+  });
+}
+
+/**
+ * Update SMS device tabs (filter SMS by device)
+ */
+export function updateSmsDeviceTabs() {
+  const devices = state.devices;
+  const smsDeviceTabs = document.getElementById("smsDeviceTabs");
+  if (!smsDeviceTabs) return;
+
+  // Show only mobile devices (same filter as SMS device select)
+  const mobileDevices = devices.filter(
+    (d) =>
+      d.type === "mobile" ||
+      d.type === "phone" ||
+      d.platform === "android" ||
+      d.platform === "ios" ||
+      d.platform === "Android",
+  );
+
+  // Remember currently selected tab
+  const currentSelected =
+    smsDeviceTabs.querySelector(".device-tab.active")?.dataset.device || "all";
+
+  const deviceTabsHTML = mobileDevices
+    .map((d) => {
+      const deviceName = getFriendlyDeviceName(d);
+      const platformIcon = getPlatformIcon(d.platform);
+      const isActive = currentSelected === d.id ? " active" : "";
+      return `
+        <button class="device-tab${isActive}" data-device="${escapeHtml(d.id)}">
+          ${platformIcon}
+          <span>${escapeHtml(deviceName)}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  const allActive = currentSelected === "all" ? " active" : "";
+
+  smsDeviceTabs.innerHTML = `
+    <button class="device-tab${allActive || (!mobileDevices.some((d) => d.id === currentSelected) ? " active" : "")}" data-device="all">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+        <path d="M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      <span>All</span>
+    </button>
+    ${deviceTabsHTML}
+  `;
+
+  // Add click handlers to tabs
+  smsDeviceTabs.querySelectorAll(".device-tab").forEach((tab) => {
+    tab.addEventListener("click", async () => {
+      smsDeviceTabs
+        .querySelectorAll(".device-tab")
+        .forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      // Re-render SMS to apply device filter
+      const smsModule = await import("./sms.js");
+      if (state.allSMSMessages && state.allSMSMessages.length > 0) {
+        smsModule.renderSMS(state.allSMSMessages);
+      }
+    });
+  });
+}
+
+/**
+ * Update Calls device tabs (filter calls by device)
+ */
+export function updateCallsDeviceTabs() {
+  const devices = state.devices;
+  const callsDeviceTabs = document.getElementById("callsDeviceTabs");
+  if (!callsDeviceTabs) return;
+
+  // Show only mobile devices
+  const mobileDevices = devices.filter(
+    (d) =>
+      d.type === "mobile" ||
+      d.type === "phone" ||
+      d.platform === "android" ||
+      d.platform === "ios" ||
+      d.platform === "Android",
+  );
+
+  // Remember currently selected tab
+  const currentSelected =
+    callsDeviceTabs.querySelector(".device-tab.active")?.dataset.device ||
+    "all";
+
+  const deviceTabsHTML = mobileDevices
+    .map((d) => {
+      const deviceName = getFriendlyDeviceName(d);
+      const platformIcon = getPlatformIcon(d.platform);
+      const isActive = currentSelected === d.id ? " active" : "";
+      return `
+        <button class="device-tab${isActive}" data-device="${escapeHtml(d.id)}">
+          ${platformIcon}
+          <span>${escapeHtml(deviceName)}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  const allActive = currentSelected === "all" ? " active" : "";
+
+  callsDeviceTabs.innerHTML = `
+    <button class="device-tab${allActive || (!mobileDevices.some((d) => d.id === currentSelected) ? " active" : "")}" data-device="all">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+        <path d="M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      <span>All</span>
+    </button>
+    ${deviceTabsHTML}
+  `;
+
+  // Add click handlers to tabs
+  callsDeviceTabs.querySelectorAll(".device-tab").forEach((tab) => {
+    tab.addEventListener("click", async () => {
+      callsDeviceTabs
+        .querySelectorAll(".device-tab")
+        .forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      // Re-render calls to apply device filter
+      const callsModule = await import("./calls.js");
+      if (state.allCallsData && state.allCallsData.length > 0) {
+        callsModule.renderCalls(state.allCallsData);
       }
     });
   });
@@ -388,20 +526,20 @@ export function showEditDeviceNameModal(device) {
         <div class="device-info-preview">
           <div class="info-row">
             <span class="info-label">Device ID:</span>
-            <span class="info-value">${device.id}</span>
+            <span class="info-value">${escapeHtml(device.id)}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Model:</span>
-            <span class="info-value">${device.model || "Unknown"}</span>
+            <span class="info-value">${escapeHtml(device.model || "Unknown")}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Platform:</span>
-            <span class="info-value">${device.platform || "Unknown"}</span>
+            <span class="info-value">${escapeHtml(device.platform || "Unknown")}</span>
           </div>
         </div>
         <div class="form-group">
           <label for="deviceNickname">Nickname</label>
-          <input type="text" id="deviceNickname" value="${currentName}" placeholder="Enter device nickname..." />
+          <input type="text" id="deviceNickname" value="${escapeHtml(currentName)}" placeholder="Enter device nickname..." />
         </div>
       </div>
       <div class="modal-footer">

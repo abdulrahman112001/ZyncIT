@@ -4,6 +4,7 @@ import { View, Text, Animated, PanResponder, Linking } from 'react-native';
 import { AppNotification } from '../../../../services/notificationService';
 import { styles } from '../styles';
 import { formatTime } from '../helper';
+import { LIGHT_COLORS } from '../../../../theme/colors';
 
 interface MessageBubbleProps {
   item: AppNotification;
@@ -14,6 +15,7 @@ interface MessageBubbleProps {
   bubbleColor: string;
   bgColor: string;
   primaryColor?: string;
+  textInverseColor?: string;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -24,7 +26,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   secondaryTextColor,
   bubbleColor,
   bgColor,
-  primaryColor = '#D5C19E',
+  primaryColor = LIGHT_COLORS.primary,
+  textInverseColor = LIGHT_COLORS.textInverse,
 }) => {
   const isSent = item.smsType === 'sent';
   const translateX = useRef(new Animated.Value(0)).current;
@@ -146,7 +149,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           <Text
             style={[
               styles.bubbleText,
-              { color: isSent ? '#FFFFFF' : textColor },
+              { color: isSent ? textInverseColor : textColor },
             ]}
           >
             {renderTextWithLinks(item.text)}

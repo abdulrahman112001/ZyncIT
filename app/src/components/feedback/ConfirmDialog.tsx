@@ -87,7 +87,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       default:
         return {
           icon: icon || 'information-circle',
-          color: colors.primary,
+          color: colors.primaryText,
           bgColor: `${colors.primary}15`,
         };
     }

@@ -243,7 +243,9 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 {t('hasAccount')}{' '}
               </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={[styles.signInLink, { color: colors.primary }]}>
+                <Text
+                  style={[styles.signInLink, { color: colors.primaryText }]}
+                >
                   {t('signIn')}
                 </Text>
               </TouchableOpacity>

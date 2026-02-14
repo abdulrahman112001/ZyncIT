@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import { AuthStackParamList } from '../types';
-import { COLORS } from '../constants/theme';
+import { COLORS } from '../theme/colors';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 

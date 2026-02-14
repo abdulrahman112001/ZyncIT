@@ -25,7 +25,7 @@ import {
   setCurrentScreen,
   showGlobalNotification,
 } from './contexts/InAppNotificationContext';
-import { LIGHT_COLORS, DARK_COLORS } from './constants/theme';
+import { LIGHT_COLORS, DARK_COLORS } from './theme/colors';
 import { useNativeEvents } from './hooks/useNativeEvents';
 import { checkOnboardingComplete } from './screens/onboarding/OnboardingScreen/useOnboarding';
 // ServiceStatusBanner is now only in MainNavigator

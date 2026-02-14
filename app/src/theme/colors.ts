@@ -10,6 +10,7 @@ export const LIGHT_COLORS = {
   primaryDark: '#B8A07A',
   primaryLight: '#E8DCC6',
   primarySoft: '#F7F3EC',
+  primaryText: '#8B7355',
 
   // Secondary colors
   secondary: '#10B981',
@@ -84,6 +85,7 @@ export const DARK_COLORS = {
   primaryDark: '#D5C19E',
   primaryLight: '#EBE1CF',
   primarySoft: '#2D2820',
+  primaryText: '#E0D0B3',
 
   // Secondary colors
   secondary: '#34D399',

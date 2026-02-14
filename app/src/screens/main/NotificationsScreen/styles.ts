@@ -1,8 +1,9 @@
-import { StyleSheet } from 'react-native';
+﻿import { StyleSheet } from 'react-native';
+import { ColorTheme } from '../../../theme/colors';
 
 export const ACTION_WIDTH = 75;
 
-export const styles = StyleSheet.create({
+export const createStyles = (colors: ColorTheme) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -53,7 +54,7 @@ export const styles = StyleSheet.create({
     padding: 8,
   },
   deleteSelectedText: {
-    color: '#FF3B30',
+    color: colors.error,
     fontSize: 14,
     marginLeft: 4,
     fontWeight: '600',
@@ -111,10 +112,10 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   muteButton: {
-    backgroundColor: '#5856D6',
+    backgroundColor: colors.info,
   },
   deleteButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.error,
   },
   actionIcon: {
     fontSize: 24,
@@ -151,14 +152,14 @@ export const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#8E8E93',
+    borderColor: colors.textTertiary,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: colors.transparent,
   },
   checkboxSelected: {
-    backgroundColor: '#D5C19E',
-    borderColor: '#D5C19E',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   avatar: {
     width: 56,
@@ -175,7 +176,7 @@ export const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#D5C19E',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     minWidth: 22,
     height: 22,
@@ -183,10 +184,10 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 6,
     borderWidth: 2,
-    borderColor: '#000000',
+    borderColor: colors.background,
   },
   unreadText: {
-    color: '#FFFFFF',
+    color: colors.textInverse,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -264,14 +265,16 @@ export const styles = StyleSheet.create({
     lineHeight: 22,
   },
   enableButton: {
-    backgroundColor: '#D5C19E',
+    backgroundColor: colors.primary,
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 12,
   },
   enableButtonText: {
-    color: '#FFFFFF',
+    color: colors.textInverse,
     fontSize: 17,
     fontWeight: '600',
   },
 });
+
+export const styles = createStyles(require('../../../theme/colors').LIGHT_COLORS);

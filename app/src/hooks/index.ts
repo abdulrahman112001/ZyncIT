@@ -1,5 +1,14 @@
 export { useNativeEvents, default } from './useNativeEvents';
 
+// Animation Hooks
+export {
+  useAnimatedMount,
+  useFadeSlideIn,
+  useScaleIn,
+  useListItemAnimation,
+  useAnimatedValue,
+} from './useAnimation';
+
 // Generic Hooks - from organized modules
 export {
   useAsync,

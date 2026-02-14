@@ -221,11 +221,14 @@ export async function decryptFields(data, userId, fields) {
 
   const decrypted = { ...data };
 
-  for (const field of fields) {
-    if (decrypted[field] && typeof decrypted[field] === "string") {
+  // Decrypt all fields in parallel for better performance
+  const decryptPromises = fields
+    .filter((field) => decrypted[field] && typeof decrypted[field] === "string")
+    .map(async (field) => {
       decrypted[field] = await decrypt(decrypted[field], userId);
-    }
-  }
+    });
+
+  await Promise.all(decryptPromises);
 
   return decrypted;
 }

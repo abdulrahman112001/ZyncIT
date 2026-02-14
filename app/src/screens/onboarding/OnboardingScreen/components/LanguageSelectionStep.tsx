@@ -13,6 +13,7 @@ interface LanguageSelectionStepProps {
     primary: string;
     phoneBorder: string;
     phoneScreen: string;
+    black: string;
   };
   translate: (key: string) => string;
   onSelectLanguage: (lang: 'ar' | 'en') => void;
@@ -65,6 +66,7 @@ const LanguageSelectionStep: React.FC<LanguageSelectionStepProps> = ({
                   backgroundColor: colors.surface,
                   borderColor: isSelected ? colors.primary : colors.border,
                   borderWidth: isSelected ? 2.5 : 1.5,
+                  shadowColor: colors.black,
                 },
               ]}
               onPress={() => onSelectLanguage(lang.code)}
@@ -149,7 +151,6 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 16,
     elevation: 2,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,

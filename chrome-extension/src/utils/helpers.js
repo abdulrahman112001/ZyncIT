@@ -3,6 +3,36 @@
  */
 
 /**
+ * Escape HTML special characters to prevent XSS
+ * @param {string} str - Raw string to escape
+ * @returns {string} HTML-safe string
+ */
+export function escapeHtml(str) {
+  if (!str) return "";
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/**
+ * Sanitize a URL - only allow http/https protocols
+ * @param {string} url - URL to sanitize
+ * @returns {string} Sanitized URL or empty string
+ */
+export function sanitizeUrl(url) {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return url;
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Get friendly device name (prefer nickname, then human-readable name)
  * @param {Object} device - Device object with nickname, name, model, platform, id
  * @returns {string} Human-readable device name

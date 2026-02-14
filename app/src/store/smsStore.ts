@@ -284,10 +284,26 @@ export const useSMSStore = create<SMSState>()(
                 ...firebaseMessages,
               ];
 
-              mergedMessages.sort(
+              // Content-based dedup: remove duplicate SMS written by different services
+              // (NotificationService vs BackgroundSmsService create different docIds for same SMS)
+              const seenContent = new Set<string>();
+              const dedupedMessages = mergedMessages.filter(m => {
+                const phone = normalizePhoneNumber(
+                  m.phoneNumber || m.sender || '',
+                );
+                const body = (m.body || m.text || '').trim().substring(0, 100);
+                // Round timestamp to 60-second window
+                const timeWindow = Math.floor((m.timestamp || 0) / 60000);
+                const contentKey = `${phone}_${timeWindow}_${body}`;
+                if (seenContent.has(contentKey)) return false;
+                seenContent.add(contentKey);
+                return true;
+              });
+
+              dedupedMessages.sort(
                 (a, b) => (b.timestamp || 0) - (a.timestamp || 0),
               );
-              set({ messages: mergedMessages, isLoading: false });
+              set({ messages: dedupedMessages, isLoading: false });
             },
             error => {
               set({ error: error.message, isLoading: false });

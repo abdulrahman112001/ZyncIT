@@ -3,14 +3,12 @@ import {
   View,
   Text,
   Alert,
-  StatusBar,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuthStore } from '../../../store/authStore';
-import { Button, Input, IconButton } from '../../../components';
+import { Button, Input, IconButton, Container } from '../../../components';
 import { useLoading, useToggle } from '../../../hooks';
 import auth from '@react-native-firebase/auth';
 
@@ -28,8 +26,8 @@ const ChangePasswordScreen = ({ navigation }: ChangePasswordScreenProps) => {
   const [showNewPassword, toggleNewPassword] = useToggle(false);
   const [showConfirmPassword, toggleConfirmPassword] = useToggle(false);
 
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const bgColor = colors.background;
+  const textColor = colors.text;
 
   const handleChangePassword = useCallback(async () => {
     // Validation
@@ -92,15 +90,12 @@ const ChangePasswordScreen = ({ navigation }: ChangePasswordScreenProps) => {
   ]);
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: bgColor }]}
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
       edges={['top', 'left', 'right']}
     >
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
-
       {/* Header */}
       <View style={styles.headerRow}>
         <IconButton
@@ -175,7 +170,7 @@ const ChangePasswordScreen = ({ navigation }: ChangePasswordScreenProps) => {
           style={styles.buttonSpacing}
         />
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Container>
   );
 };
 

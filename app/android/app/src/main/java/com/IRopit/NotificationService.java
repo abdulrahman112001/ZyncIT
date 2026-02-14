@@ -532,6 +532,19 @@ public class NotificationService extends NotificationListenerService {
         boolean isMissedCall = isMissedCallNotification(packageName, title, text);
         String appIcon = getAppIconBase64(packageName);
 
+        // Skip SMS notifications already captured by SmsReceiver/BackgroundSmsService
+        // This prevents duplicate Firestore documents since BackgroundSmsService 
+        // already saved this SMS with a deterministic docId
+        if (type.equals("sms") && extractedPhoneNumber != null) {
+            if (SmsReceiver.wasRecentlyCaptured(extractedPhoneNumber, postTime)) {
+                Log.i(TAG, "📱 SMS already captured by SmsReceiver, skipping to avoid duplicate: " + extractedPhoneNumber);
+                // Still update tracking to prevent re-processing
+                lastNotificationTime.put(key, now);
+                lastSmsContent.put(key, text);
+                return;
+            }
+        }
+
         // Update tracking
         lastNotificationTime.put(key, now);
         processedKeys.add(key);

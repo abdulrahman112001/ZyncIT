@@ -1,5 +1,6 @@
 import { StyleSheet } from 'react-native';
-import { COLORS, FONTS, SPACING, RADIUS } from '../../../constants/theme';
+import { COLORS } from '../../../theme/colors';
+import { SPACING, RADIUS } from '../../../theme/spacing';
 
 export const styles = StyleSheet.create({
   container: {
@@ -13,7 +14,7 @@ export const styles = StyleSheet.create({
     marginBottom: 40,
   },
   email: {
-    fontFamily: FONTS.medium,
+    fontWeight: '500',
     fontSize: 18,
     color: COLORS.text,
     marginTop: SPACING.md,
@@ -27,7 +28,7 @@ export const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
   },
   signOutText: {
-    fontFamily: FONTS.medium,
+    fontWeight: '500',
     fontSize: 16,
     color: COLORS.error,
     marginLeft: SPACING.sm,

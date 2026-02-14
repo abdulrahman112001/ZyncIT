@@ -18,6 +18,7 @@ export {
   SectionHeader,
   SwipeableRow,
   RefreshableList,
+  AnimatedListItem,
 } from './common';
 
 export type {

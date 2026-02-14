@@ -22500,39 +22500,6 @@ ${this.customData.serverResponse}`;
   });
 
   // src/config/firebase.js
-  var firebase_exports = {};
-  __export(firebase_exports, {
-    GoogleAuthProvider: () => GoogleAuthProvider,
-    addDoc: () => addDoc,
-    app: () => app,
-    auth: () => auth,
-    collection: () => collection,
-    createUserWithEmailAndPassword: () => createUserWithEmailAndPassword,
-    db: () => db,
-    deleteDoc: () => deleteDoc,
-    doc: () => doc,
-    getDoc: () => getDoc,
-    getDocs: () => getDocs,
-    getDownloadURL: () => getDownloadURL,
-    limit: () => limit,
-    onAuthStateChanged: () => onAuthStateChanged,
-    onSnapshot: () => onSnapshot,
-    orderBy: () => orderBy,
-    query: () => query,
-    ref: () => ref,
-    setDoc: () => setDoc,
-    signInWithCredential: () => signInWithCredential,
-    signInWithEmailAndPassword: () => signInWithEmailAndPassword,
-    signOut: () => signOut,
-    startAfter: () => startAfter,
-    storage: () => storage,
-    updateDoc: () => updateDoc,
-    updatePassword: () => updatePassword,
-    updateProfile: () => updateProfile,
-    uploadBytes: () => uploadBytes,
-    where: () => where,
-    writeBatch: () => writeBatch
-  });
   var app, auth, db, storage;
   var init_firebase = __esm({
     "src/config/firebase.js"() {
@@ -22570,6 +22537,9 @@ ${this.customData.serverResponse}`;
   function clearUnsubscribers() {
     unsubscribers.forEach((unsub) => unsub());
     unsubscribers = [];
+  }
+  function setPollingInterval(interval) {
+    pollingInterval = interval;
   }
   function clearPollingInterval() {
     if (pollingInterval) {
@@ -22657,7 +22627,7 @@ ${this.customData.serverResponse}`;
   });
 
   // src/ui/dom.js
-  var authContainer, mainContainer, loginForm, signupForm, loadingOverlay, toastContainer, loginEmail, loginPassword, loginBtn, googleLoginBtn, showSignup, signupName, signupEmail, signupPassword, signupBtn, googleSignupBtn, showLogin, logoutBtn, userAvatarChat, userNameChat, userEmailChat, logoutBtnChat, tabs, tabContents, smsModal, newSmsBtn, closeSmsModal, cancelSmsBtn, sendSmsBtn, smsDevice, smsPhone, smsMessage, charCount, chatInput, sendChatBtn, chatMessages, markAllReadBtn, deleteAllSmsBtn, settingsBtn, settingsModal, closeSettingsBtn, smsList, callsList, devicesList, notificationsList;
+  var authContainer, mainContainer, loginForm, signupForm, loadingOverlay, toastContainer, loginEmail, loginPassword, loginBtn, googleLoginBtn, showSignup, signupName, signupEmail, signupPassword, signupBtn, googleSignupBtn, showLogin, logoutBtn, userAvatarChat, userNameChat, userEmailChat, logoutBtnChat, tabs, tabContents, smsModal, newSmsBtn, closeSmsModal, cancelSmsBtn, sendSmsBtn, smsDevice, smsPhone, smsMessage, charCount, chatInput, sendChatBtn, chatMessages, markAllReadBtn, deleteAllSmsBtn, settingsBtn, settingsModal, closeSettingsBtn, smsList, callsList, devicesList, notificationsList, themeToggleBtn, themeIconLight, themeIconDark;
   var init_dom = __esm({
     "src/ui/dom.js"() {
       authContainer = document.getElementById("authContainer");
@@ -22705,6 +22675,9 @@ ${this.customData.serverResponse}`;
       callsList = document.getElementById("callsList");
       devicesList = document.getElementById("devicesList");
       notificationsList = document.getElementById("notificationsList");
+      themeToggleBtn = document.getElementById("themeToggleBtn");
+      themeIconLight = document.getElementById("themeIconLight");
+      themeIconDark = document.getElementById("themeIconDark");
     }
   });
 
@@ -22739,6 +22712,24 @@ ${this.customData.serverResponse}`;
   });
 
   // src/utils/helpers.js
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+  function sanitizeUrl(url) {
+    if (!url) return "";
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return url;
+      }
+      return "";
+    } catch {
+      return "";
+    }
+  }
   function getFriendlyDeviceName(device) {
     if (!device) return "Device";
     if (device.nickname) return device.nickname;
@@ -23008,11 +22999,10 @@ ${this.customData.serverResponse}`;
   async function decryptFields(data, userId, fields) {
     if (!data || !userId) return data;
     const decrypted = { ...data };
-    for (const field of fields) {
-      if (decrypted[field] && typeof decrypted[field] === "string") {
-        decrypted[field] = await decrypt(decrypted[field], userId);
-      }
-    }
+    const decryptPromises = fields.filter((field) => decrypted[field] && typeof decrypted[field] === "string").map(async (field) => {
+      decrypted[field] = await decrypt(decrypted[field], userId);
+    });
+    await Promise.all(decryptPromises);
     return decrypted;
   }
   async function encryptChatMessage(message, userId) {
@@ -23051,404 +23041,7 @@ ${this.customData.serverResponse}`;
     }
   });
 
-  // src/services/chat.js
-  var chat_exports = {};
-  __export(chat_exports, {
-    clearReply: () => clearReply,
-    initChatListeners: () => initChatListeners,
-    renderChatMessages: () => renderChatMessages,
-    sendChatMessage: () => sendChatMessage,
-    setReplyTo: () => setReplyTo,
-    subscribeToChat: () => subscribeToChat
-  });
-  function subscribeToChat() {
-    const user = currentUser;
-    if (!user) return;
-    const q2 = query(
-      collection(db, "chats"),
-      where("participants", "array-contains", user.uid),
-      limit(100)
-    );
-    const unsub = onSnapshot(q2, async (snapshot) => {
-      const rawMessages = [];
-      snapshot.forEach((doc2) => {
-        const data = doc2.data();
-        rawMessages.push({ id: doc2.id, ...data });
-      });
-      rawMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-      const messages = await Promise.all(
-        rawMessages.map((msg) => decryptChatMessage(msg, user.uid))
-      );
-      setCachedChatMessages(messages);
-      renderChatMessages(messages);
-    });
-    addUnsubscriber(unsub);
-  }
-  function renderChatMessages(messages) {
-    const selectedTab = document.querySelector(".device-tab.active")?.dataset.device || "all";
-    const showDeviceName = selectedTab === "all";
-    let filteredMessages = messages;
-    if (selectedTab !== "all") {
-      filteredMessages = messages.filter((msg) => {
-        return msg.senderDeviceId === selectedTab || msg.receiverDeviceId === selectedTab || !msg.receiverDeviceId;
-      });
-    }
-    if (filteredMessages.length === 0) {
-      chatMessages.innerHTML = `
-      <div class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-          <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>
-        </svg>
-        <p>Start a conversation</p>
-        <span>Chat with your other devices</span>
-      </div>
-    `;
-      updateTabBadges();
-      return;
-    }
-    chatMessages.innerHTML = filteredMessages.map((msg) => {
-      let content = "";
-      if (msg.type === "image" && msg.fileUrl) {
-        content = `
-          <a href="${msg.fileUrl}" target="_blank" class="chat-image-link">
-            <img src="${msg.fileUrl}" alt="Image" class="chat-image" />
-          </a>
-        `;
-      } else if (msg.type === "file" && msg.fileUrl) {
-        content = `
-          <a href="${msg.fileUrl}" target="_blank" class="chat-file-link">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <span>${msg.fileName || "File"}</span>
-          </a>
-        `;
-      } else {
-        content = `<div>${msg.content}</div>`;
-      }
-      const senderDevice = devices.find(
-        (d) => d.id === msg.senderDeviceId
-      );
-      const deviceName = senderDevice?.nickname || senderDevice?.name || senderDevice?.model || msg.senderPlatform || "";
-      const isSentFromExtension = msg.senderPlatform === "chrome-extension" || msg.senderDeviceId && msg.senderDeviceId.startsWith("ext_");
-      return `
-        <div class="chat-message ${isSentFromExtension ? "sent" : "received"}" 
-             data-msg-id="${msg.id}" 
-             data-msg-content="${(msg.content || "").replace(/"/g, "&quot;")}" 
-             data-msg-sender="${msg.senderId}">
-          ${showDeviceName && deviceName ? `<div class="chat-message-device">${deviceName}</div>` : ""}
-          ${msg.replyTo ? `<div class="chat-reply-preview">\u21A9 ${msg.replyTo.content.substring(
-        0,
-        50
-      )}${msg.replyTo.content.length > 50 ? "..." : ""}</div>` : ""}
-          ${content}
-          <div class="chat-message-time">${formatTime(msg.timestamp)}</div>
-        </div>
-      `;
-    }).join("");
-    chatMessages.querySelectorAll(".chat-message").forEach((el) => {
-      el.addEventListener("click", () => setReplyTo(el));
-    });
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    updateTabBadges();
-  }
-  async function sendChatMessage() {
-    const content = chatInput.value.trim();
-    const user = currentUser;
-    if (!content || !user) return;
-    const deviceId = await getDeviceId();
-    const selectedDeviceTab = document.querySelector(".device-tab.active")?.dataset.device || "all";
-    let messageData = {
-      senderId: user.uid,
-      senderDeviceId: deviceId,
-      senderName: user.displayName || "User",
-      senderPlatform: "chrome-extension",
-      receiverId: user.uid,
-      receiverDeviceId: selectedDeviceTab === "all" ? null : selectedDeviceTab,
-      content,
-      type: "text",
-      read: false,
-      timestamp: Date.now(),
-      participants: [user.uid]
-    };
-    if (currentReplyTo) {
-      messageData.replyTo = {
-        id: currentReplyTo.id,
-        content: currentReplyTo.content,
-        senderId: currentReplyTo.senderId
-      };
-    }
-    try {
-      messageData = await encryptChatMessage(messageData, user.uid);
-      await addDoc(collection(db, "chats"), messageData);
-      chatInput.value = "";
-      clearReply();
-    } catch (error) {
-      console.error("Failed to send message:", error);
-      showToast("Failed to send message", "error");
-    }
-  }
-  function formatFileSize(bytes) {
-    if (bytes === 0) return "0 Bytes";
-    const k2 = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k2));
-    return parseFloat((bytes / Math.pow(k2, i)).toFixed(2)) + " " + sizes[i];
-  }
-  function getFileExtension(fileName) {
-    return fileName.split(".").pop()?.toLowerCase() || "";
-  }
-  function showFilePreview(file) {
-    pendingFile = file;
-    const modal = document.getElementById("filePreviewModal");
-    const previewBody = document.getElementById("filePreviewBody");
-    const progressContainer = document.getElementById("uploadProgressContainer");
-    const sendBtn = document.getElementById("sendFileBtn");
-    progressContainer.classList.add("hidden");
-    document.getElementById("uploadProgressFill").style.width = "0%";
-    document.getElementById("uploadProgressText").textContent = "0%";
-    sendBtn.disabled = false;
-    sendBtn.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <line x1="22" y1="2" x2="11" y2="13"></line>
-      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-    </svg>
-    Send
-  `;
-    const isImage = file.type.startsWith("image/");
-    const ext = getFileExtension(file.name);
-    if (isImage) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        previewBody.innerHTML = `
-        <img src="${e.target.result}" alt="Preview" class="file-preview-image" />
-        <div class="file-preview-info">
-          <span class="file-preview-name">${file.name}</span>
-          <span class="file-preview-size">${formatFileSize(file.size)}</span>
-        </div>
-      `;
-      };
-      reader.readAsDataURL(file);
-    } else {
-      previewBody.innerHTML = `
-      <div class="file-preview-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-        </svg>
-      </div>
-      <div class="file-preview-info">
-        <span class="file-preview-name">${file.name}</span>
-        <span class="file-preview-size">${formatFileSize(file.size)}</span>
-        <span class="file-preview-type">${ext || "FILE"}</span>
-      </div>
-    `;
-    }
-    modal.classList.remove("hidden");
-  }
-  function hideFilePreview() {
-    const modal = document.getElementById("filePreviewModal");
-    modal.classList.add("hidden");
-    pendingFile = null;
-  }
-  function updateUploadProgress(progress) {
-    const progressFill = document.getElementById("uploadProgressFill");
-    const progressText = document.getElementById("uploadProgressText");
-    const progressContainer = document.getElementById("uploadProgressContainer");
-    progressContainer.classList.remove("hidden");
-    progressFill.style.width = `${progress}%`;
-    progressText.textContent = `${Math.round(progress)}%`;
-  }
-  async function uploadFileToStorage(file) {
-    const user = currentUser;
-    const timestamp = Date.now();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const storagePath = `chat_files/${user.uid}/${timestamp}_${sanitizedName}`;
-    const storageRef = ref(storage, storagePath);
-    const fileSize = file.size;
-    const isLargeFile = fileSize > 500 * 1024;
-    if (isLargeFile) {
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += Math.random() * 15;
-        if (progress > 90) progress = 90;
-        updateUploadProgress(progress);
-      }, 200);
-      await uploadBytes(storageRef, file);
-      clearInterval(progressInterval);
-      updateUploadProgress(100);
-    } else {
-      updateUploadProgress(30);
-      await uploadBytes(storageRef, file);
-      updateUploadProgress(100);
-    }
-    const downloadUrl = await getDownloadURL(storageRef);
-    return {
-      url: downloadUrl,
-      fileName: file.name,
-      fileType: file.type.startsWith("image/") ? "image" : "file"
-    };
-  }
-  async function sendFileFromPreview() {
-    if (!pendingFile) return;
-    const user = currentUser;
-    const file = pendingFile;
-    const sendBtn = document.getElementById("sendFileBtn");
-    if (!file || !user) return;
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = `
-    <svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
-      <path d="M12 2a10 10 0 0110 10" stroke-linecap="round"/>
-    </svg>
-    Uploading...
-  `;
-    try {
-      const result = await uploadFileToStorage(file);
-      const deviceId = await getDeviceId();
-      const selectedDeviceTab = document.querySelector(".device-tab.active")?.dataset.device || "all";
-      const contentText = result.fileType === "image" ? "\u{1F4F7} Image" : `\u{1F4CE} ${result.fileName}`;
-      let fileMessageData = {
-        senderId: user.uid,
-        senderDeviceId: deviceId,
-        senderName: user.displayName || "User",
-        senderPlatform: "chrome-extension",
-        receiverId: user.uid,
-        receiverDeviceId: selectedDeviceTab === "all" ? null : selectedDeviceTab,
-        content: contentText,
-        type: result.fileType,
-        fileUrl: result.url,
-        fileName: result.fileName,
-        read: false,
-        timestamp: Date.now(),
-        participants: [user.uid]
-      };
-      fileMessageData = await encryptChatMessage(fileMessageData, user.uid);
-      await addDoc(collection(db, "chats"), fileMessageData);
-      hideFilePreview();
-      showToast(
-        `${result.fileType === "image" ? "Image" : "File"} sent!`,
-        "success"
-      );
-    } catch (error) {
-      showToast("Failed to send file", "error");
-      console.error(error);
-      sendBtn.disabled = false;
-      sendBtn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="22" y1="2" x2="11" y2="13"></line>
-        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-      </svg>
-      Retry
-    `;
-    }
-  }
-  function setReplyTo(element) {
-    const msgId = element.dataset.msgId;
-    const msgContent = element.dataset.msgContent;
-    const msgSender = element.dataset.msgSender;
-    setCurrentReplyTo({
-      id: msgId,
-      content: msgContent,
-      senderId: msgSender
-    });
-    let replyPreview = document.getElementById("chatReplyPreview");
-    if (!replyPreview) {
-      replyPreview = document.createElement("div");
-      replyPreview.id = "chatReplyPreview";
-      replyPreview.className = "chat-reply-input-preview";
-      const chatInputContainer = chatInput.parentElement;
-      chatInputContainer.insertBefore(
-        replyPreview,
-        chatInputContainer.firstChild
-      );
-    }
-    replyPreview.innerHTML = `
-    <span class="reply-text">\u21A9 ${msgContent.substring(0, 40)}${msgContent.length > 40 ? "..." : ""}</span>
-    <button class="reply-close" onclick="window.clearReply()">\xD7</button>
-  `;
-    replyPreview.style.display = "flex";
-    chatInput.focus();
-  }
-  function clearReply() {
-    setCurrentReplyTo(null);
-    const replyPreview = document.getElementById("chatReplyPreview");
-    if (replyPreview) {
-      replyPreview.style.display = "none";
-    }
-  }
-  function initChatListeners() {
-    sendChatBtn?.addEventListener("click", sendChatMessage);
-    chatInput?.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendChatMessage();
-    });
-    document.getElementById("attachFileBtn")?.addEventListener("click", () => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "*/*";
-      input.onchange = (e) => {
-        const file = e.target.files?.[0];
-        if (file) showFilePreview(file);
-      };
-      input.click();
-    });
-    document.getElementById("attachImageBtn")?.addEventListener("click", () => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.onchange = (e) => {
-        const file = e.target.files?.[0];
-        if (file) showFilePreview(file);
-      };
-      input.click();
-    });
-    document.getElementById("closePreviewBtn")?.addEventListener("click", hideFilePreview);
-    document.getElementById("cancelFileBtn")?.addEventListener("click", hideFilePreview);
-    document.getElementById("sendFileBtn")?.addEventListener("click", sendFileFromPreview);
-    window.setReplyTo = setReplyTo;
-    window.clearReply = clearReply;
-  }
-  var pendingFile;
-  var init_chat = __esm({
-    "src/services/chat.js"() {
-      init_firebase();
-      init_dom();
-      init_toasts();
-      init_helpers();
-      init_state();
-      init_badges();
-      init_cryptoService();
-      pendingFile = null;
-    }
-  });
-
-  // src/popup.js
-  init_firebase();
-  init_state();
-  init_dom();
-  init_toasts();
-
-  // src/ui/tabs.js
-  init_dom();
-
-  // src/services/calls.js
-  init_firebase();
-  init_dom();
-  init_helpers();
-  init_state();
-  init_badges();
-  init_cryptoService();
-
   // src/services/contacts.js
-  init_firebase();
-  init_state();
-  var contactsUnsubscribeFunctions = [];
   function normalizePhoneNumber(phone) {
     if (!phone || !phone.trim()) return "";
     let normalized = phone.replace(/[^\d+]/g, "").trim();
@@ -23604,8 +23197,123 @@ ${this.customData.serverResponse}`;
       (contact) => contact.name.toLowerCase().includes(term) || contact.phoneNumber.includes(term) || contact.phoneNumbers && contact.phoneNumbers.some((p) => p.includes(term))
     );
   }
+  var contactsUnsubscribeFunctions;
+  var init_contacts = __esm({
+    "src/services/contacts.js"() {
+      init_firebase();
+      init_state();
+      contactsUnsubscribeFunctions = [];
+    }
+  });
+
+  // src/services/cache.js
+  function stripNonSerializable(items) {
+    return items.map((item) => {
+      const { docRef, ...rest } = item;
+      return rest;
+    });
+  }
+  async function cacheSMSData(smsByDevice, allMessages) {
+    try {
+      const cacheData = {
+        byDevice: {},
+        allMessages: stripNonSerializable(allMessages).slice(0, 500)
+      };
+      for (const [deviceId, msgs] of Object.entries(smsByDevice)) {
+        cacheData.byDevice[deviceId] = stripNonSerializable(msgs).slice(0, 500);
+      }
+      await chrome.storage.local.set({
+        [CACHE_KEYS.SMS]: cacheData,
+        [CACHE_KEYS.TIMESTAMP]: Date.now()
+      });
+      console.log(`[Cache] \u2705 Saved ${allMessages.length} SMS messages to cache`);
+    } catch (error) {
+      console.warn("[Cache] Failed to save SMS cache:", error);
+    }
+  }
+  async function cacheCallsData(callsByDevice, allCalls) {
+    try {
+      const cacheData = {
+        byDevice: {},
+        allCalls: stripNonSerializable(allCalls).slice(0, 500)
+      };
+      for (const [deviceId, calls] of Object.entries(callsByDevice)) {
+        cacheData.byDevice[deviceId] = stripNonSerializable(calls).slice(0, 500);
+      }
+      await chrome.storage.local.set({
+        [CACHE_KEYS.CALLS]: cacheData
+      });
+      console.log(`[Cache] \u2705 Saved ${allCalls.length} calls to cache`);
+    } catch (error) {
+      console.warn("[Cache] Failed to save calls cache:", error);
+    }
+  }
+  async function getCachedSMS() {
+    try {
+      const result = await chrome.storage.local.get([
+        CACHE_KEYS.SMS,
+        CACHE_KEYS.TIMESTAMP
+      ]);
+      const timestamp = result[CACHE_KEYS.TIMESTAMP];
+      const data = result[CACHE_KEYS.SMS];
+      if (!data || !timestamp) return null;
+      if (Date.now() - timestamp > MAX_CACHE_AGE_MS) {
+        console.log("[Cache] SMS cache expired, clearing...");
+        await chrome.storage.local.remove([CACHE_KEYS.SMS]);
+        return null;
+      }
+      console.log(
+        `[Cache] \u{1F4E6} Loaded ${data.allMessages?.length || 0} cached SMS messages`
+      );
+      return data;
+    } catch (error) {
+      console.warn("[Cache] Failed to load SMS cache:", error);
+      return null;
+    }
+  }
+  async function getCachedCalls() {
+    try {
+      const result = await chrome.storage.local.get([CACHE_KEYS.CALLS]);
+      const data = result[CACHE_KEYS.CALLS];
+      if (!data) return null;
+      console.log(`[Cache] \u{1F4E6} Loaded ${data.allCalls?.length || 0} cached calls`);
+      return data;
+    } catch (error) {
+      console.warn("[Cache] Failed to load calls cache:", error);
+      return null;
+    }
+  }
+  async function clearCache() {
+    try {
+      await chrome.storage.local.remove([
+        CACHE_KEYS.SMS,
+        CACHE_KEYS.CALLS,
+        CACHE_KEYS.TIMESTAMP
+      ]);
+      console.log("[Cache] \u{1F5D1}\uFE0F Cache cleared");
+    } catch (error) {
+      console.warn("[Cache] Failed to clear cache:", error);
+    }
+  }
+  var CACHE_KEYS, MAX_CACHE_AGE_MS;
+  var init_cache = __esm({
+    "src/services/cache.js"() {
+      CACHE_KEYS = {
+        SMS: "cached_sms_data",
+        CALLS: "cached_calls_data",
+        TIMESTAMP: "cache_timestamp"
+      };
+      MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1e3;
+    }
+  });
 
   // src/services/calls.js
+  var calls_exports = {};
+  __export(calls_exports, {
+    loadCalls: () => loadCalls,
+    markAllCallsAsViewed: () => markAllCallsAsViewed,
+    renderCalls: () => renderCalls
+  });
   function normalizePhoneNumber2(phone) {
     if (!phone || !phone.trim()) return "";
     let normalized = phone.replace(/[^\d+]/g, "").trim();
@@ -23656,15 +23364,74 @@ ${this.customData.serverResponse}`;
       console.error("Failed to mark calls as viewed:", error);
     }
   }
+  async function decryptCallCached(data, userId, docId) {
+    const cached = callDecryptionCache.get(docId);
+    if (cached && cached.timestamp === data.timestamp) {
+      return cached.data;
+    }
+    const decrypted = await decryptCall(data, userId);
+    callDecryptionCache.set(docId, {
+      data: decrypted,
+      timestamp: data.timestamp
+    });
+    return decrypted;
+  }
+  function processCallDoc(data, firestoreId, deviceId, deviceName) {
+    const titleLower = (data.title || "").toLowerCase().trim();
+    const isTitleCallDescription = titleLower === "call" || titleLower === "calling" || titleLower === "incoming call" || titleLower === "outgoing call" || titleLower === "missed call" || titleLower === "missed calls" || titleLower === "ongoing call" || titleLower === "on hold" || titleLower === "dialing" || titleLower === "ringing" || titleLower.includes("missed call") || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0648\u0627\u0631\u062F\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0635\u0627\u062F\u0631\u0629" || titleLower === "\u0627\u062A\u0635\u0627\u0644" || /^\d{1,4}$/.test(titleLower);
+    let rawContactName = data.contactName || data.displayName || "";
+    const contactLower = rawContactName.toLowerCase().trim();
+    const isContactCallDescription = contactLower === "call" || contactLower === "calling" || contactLower === "incoming call" || contactLower === "outgoing call" || contactLower === "missed call" || contactLower === "missed calls" || contactLower === "ongoing call" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || /^\d{1,4}$/.test(contactLower);
+    if (isContactCallDescription) {
+      rawContactName = "";
+    }
+    const resolvedPhone = data.phoneNumber || data.number || data.address || (data.title && !isTitleCallDescription && isPhoneNumberLike(data.title) ? data.title : "") || "";
+    const resolvedContact = rawContactName || (data.title && !isTitleCallDescription && !isPhoneNumberLike(data.title) ? data.title : "") || getContactName(resolvedPhone) || "";
+    return {
+      ...data,
+      id: firestoreId,
+      deviceId,
+      deviceName,
+      phoneNumber: resolvedPhone || data.phoneNumber || "",
+      contactName: resolvedContact
+    };
+  }
   async function loadCalls() {
     const user = currentUser;
     if (!user) return;
+    let hasCachedData = false;
+    try {
+      const cached = await getCachedCalls();
+      if (cached && cached.allCalls && cached.allCalls.length > 0) {
+        console.log(
+          `[Calls] \u{1F4E6} Showing ${cached.allCalls.length} cached calls instantly`
+        );
+        hasCachedData = true;
+        if (cached.byDevice) {
+          for (const [deviceId, calls] of Object.entries(cached.byDevice)) {
+            setCallsByDevice(deviceId, calls);
+          }
+        }
+        setAllCallsData(cached.allCalls);
+        renderCalls(cached.allCalls.slice(0, 100));
+        updateTabBadges();
+      }
+    } catch (e) {
+      console.warn("[Calls] Cache load failed:", e);
+    }
+    if (!hasCachedData && callsList) {
+      showListLoading(callsList);
+    }
+    isSyncingCalls = true;
+    updateCallsCountIndicator();
+    callListenerUnsubs.forEach((unsub) => unsub());
+    callListenerUnsubs = [];
+    callDecryptionCache.clear();
     const devicesQuery = query(
       collection(db, "devices"),
       where("userId", "==", user.uid)
     );
-    const { getDocs: getDocs2 } = await Promise.resolve().then(() => (init_firebase(), firebase_exports));
-    const devicesSnapshot = await getDocs2(devicesQuery);
+    const devicesSnapshot = await getDocs(devicesQuery);
     const devicesList2 = [];
     devicesSnapshot.forEach((doc2) => {
       const data = doc2.data();
@@ -23673,48 +23440,80 @@ ${this.customData.serverResponse}`;
         name: getFriendlyDeviceName(data)
       });
     });
-    devicesList2.forEach((device) => {
+    const loadPromises = devicesList2.map(async (device) => {
       const q2 = query(
         collection(db, "users", user.uid, "devices", device.id, "calls"),
         orderBy("timestamp", "desc"),
-        limit(50)
+        limit(200)
       );
+      try {
+        const snapshot = await getDocs(q2);
+        console.log(
+          `[Calls] Loaded ${snapshot.size} calls from device ${device.id}`
+        );
+        const calls = await Promise.all(
+          snapshot.docs.map(async (docSnap) => {
+            let data = docSnap.data();
+            data = await decryptCallCached(data, user.uid, docSnap.id);
+            return processCallDoc(data, docSnap.id, device.id, device.name);
+          })
+        );
+        updateCallsList(device.id, calls);
+      } catch (error) {
+        console.error(`\u274C Calls load error for device ${device.id}:`, error);
+      }
+    });
+    await Promise.all(loadPromises);
+    console.log(
+      "[Calls] \u2705 Initial load complete, starting realtime listeners..."
+    );
+    isSyncingCalls = false;
+    updateCallsCountIndicator();
+    for (const device of devicesList2) {
+      const q2 = query(
+        collection(db, "users", user.uid, "devices", device.id, "calls"),
+        orderBy("timestamp", "desc"),
+        limit(5)
+      );
+      let isInitialSnapshot = true;
       const unsub = onSnapshot(
         q2,
         async (snapshot) => {
-          const calls = [];
-          for (const docSnap of snapshot.docs) {
-            let data = docSnap.data();
-            const firestoreId = docSnap.id;
-            data = await decryptCall(data, user.uid);
-            const titleLower = (data.title || "").toLowerCase().trim();
-            const isTitleCallDescription = titleLower === "call" || titleLower === "calling" || titleLower === "incoming call" || titleLower === "outgoing call" || titleLower === "missed call" || titleLower === "missed calls" || titleLower === "ongoing call" || titleLower === "on hold" || titleLower === "dialing" || titleLower === "ringing" || titleLower.includes("missed call") || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0648\u0627\u0631\u062F\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0635\u0627\u062F\u0631\u0629" || titleLower === "\u0627\u062A\u0635\u0627\u0644" || /^\d{1,4}$/.test(titleLower);
-            let rawContactName = data.contactName || data.displayName || "";
-            const contactLower = rawContactName.toLowerCase().trim();
-            const isContactCallDescription = contactLower === "call" || contactLower === "calling" || contactLower === "incoming call" || contactLower === "outgoing call" || contactLower === "missed call" || contactLower === "missed calls" || contactLower === "ongoing call" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || /^\d{1,4}$/.test(contactLower);
-            if (isContactCallDescription) {
-              rawContactName = "";
-            }
-            const resolvedPhone = data.phoneNumber || data.number || data.address || (data.title && !isTitleCallDescription && isPhoneNumberLike(data.title) ? data.title : "") || "";
-            const resolvedContact = rawContactName || (data.title && !isTitleCallDescription && !isPhoneNumberLike(data.title) ? data.title : "") || getContactName(resolvedPhone) || "";
-            calls.push({
-              ...data,
-              id: firestoreId,
-              deviceId: device.id,
-              deviceName: device.name,
-              docRef: docSnap.ref,
-              phoneNumber: resolvedPhone || data.phoneNumber || "",
-              contactName: resolvedContact
-            });
+          if (isInitialSnapshot) {
+            isInitialSnapshot = false;
+            return;
           }
-          updateCallsList(device.id, calls);
+          for (const change of snapshot.docChanges()) {
+            if (change.type === "added" || change.type === "modified") {
+              let data = change.doc.data();
+              data = await decryptCallCached(data, user.uid, change.doc.id);
+              const call = processCallDoc(
+                data,
+                change.doc.id,
+                device.id,
+                device.name
+              );
+              const currentCalls = allCallsByDevice[device.id] || [];
+              const existingIdx = currentCalls.findIndex((c) => c.id === call.id);
+              if (existingIdx >= 0) {
+                currentCalls[existingIdx] = call;
+              } else {
+                currentCalls.unshift(call);
+              }
+              updateCallsList(device.id, currentCalls);
+            }
+          }
         },
         (error) => {
-          console.error("Calls Error for device", device.id, ":", error);
+          console.error(
+            `\u274C Calls realtime error for device ${device.id}:`,
+            error
+          );
         }
       );
+      callListenerUnsubs.push(unsub);
       addUnsubscriber(unsub);
-    });
+    }
   }
   function updateCallsList(deviceId, newCalls) {
     setCallsByDevice(deviceId, newCalls);
@@ -23729,7 +23528,33 @@ ${this.customData.serverResponse}`;
       return true;
     });
     merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    setAllCallsData(merged);
     renderCalls(merged.slice(0, 100));
+    cacheCallsData(allCallsByDevice, merged).catch(() => {
+    });
+    updateCallsCountIndicator();
+  }
+  function updateCallsCountIndicator() {
+    const total = allCallsData?.length || 0;
+    let indicator = document.getElementById("callsCountIndicator");
+    if (total === 0 && !isSyncingCalls) {
+      indicator?.remove();
+      return;
+    }
+    if (!indicator) {
+      const callsContainer = document.getElementById("callsList");
+      if (!callsContainer) return;
+      indicator = document.createElement("div");
+      indicator.id = "callsCountIndicator";
+      indicator.className = "sms-count-indicator";
+      callsContainer.appendChild(indicator);
+    }
+    if (isSyncingCalls) {
+      const countText = total > 0 ? `${total} calls` : "";
+      indicator.innerHTML = `<span>${countText}</span><span class="sync-badge"><span class="sync-spinner"></span> Syncing...</span>`;
+    } else {
+      indicator.innerHTML = `<span>${total} calls \xB7 All loaded</span>`;
+    }
   }
   function renderCalls(calls) {
     const normalizedCalls = calls.map((call) => ({
@@ -23737,7 +23562,14 @@ ${this.customData.serverResponse}`;
       viewed: call.viewed ?? false
     }));
     setAllCallsData(normalizedCalls);
-    if (normalizedCalls.length === 0) {
+    const selectedTab = document.querySelector("#callsDeviceTabs .device-tab.active")?.dataset.device || "all";
+    let filteredCalls = normalizedCalls;
+    if (selectedTab !== "all") {
+      filteredCalls = normalizedCalls.filter(
+        (call) => call.deviceId === selectedTab
+      );
+    }
+    if (filteredCalls.length === 0) {
       callsList.innerHTML = `
       <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -23751,7 +23583,7 @@ ${this.customData.serverResponse}`;
       return;
     }
     const grouped = {};
-    normalizedCalls.forEach((call) => {
+    filteredCalls.forEach((call) => {
       const normalizedPhone = normalizePhoneNumber2(call.phoneNumber || "");
       const key = normalizedPhone ? normalizedPhone : call.contactName ? `contact_${call.contactName}` : "Unknown";
       if (!grouped[key]) {
@@ -23785,7 +23617,7 @@ ${this.customData.serverResponse}`;
       <div class="list-item-content">
         <div class="list-item-title">${group.contactName || group.phoneNumber}</div>
         <div class="list-item-subtitle">${group.calls.length} calls \u2022 ${group.lastCall.type}</div>
-        ${group.lastCall.deviceName ? `<div class="device-tag">${group.lastCall.deviceName}</div>` : ""}
+        ${selectedTab === "all" && group.lastCall.deviceName ? `<div class="device-tag">${group.lastCall.deviceName}</div>` : ""}
       </div>
       <div class="list-item-meta">
         <span class="list-item-time">${formatTime(
@@ -23881,490 +23713,41 @@ ${this.customData.serverResponse}`;
       renderCalls(allCallsData);
     });
   }
-
-  // src/services/notifications.js
-  init_firebase();
-  init_dom();
-  init_helpers();
-
-  // src/utils/appIcons.js
-  var APP_ICONS = {
-    // Messaging Apps
-    "com.whatsapp": {
-      name: "WhatsApp",
-      color: "#25D366",
-      svg: `<svg viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`
-    },
-    "com.whatsapp.w4b": {
-      name: "WhatsApp Business",
-      color: "#25D366",
-      svg: `<svg viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`
-    },
-    "org.telegram.messenger": {
-      name: "Telegram",
-      color: "#0088cc",
-      svg: `<svg viewBox="0 0 24 24" fill="#0088cc"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>`
-    },
-    "com.facebook.orca": {
-      name: "Messenger",
-      color: "#0084FF",
-      svg: `<svg viewBox="0 0 24 24" fill="#0084FF"><path d="M12 0C5.373 0 0 4.974 0 11.111c0 3.498 1.744 6.614 4.469 8.654V24l4.088-2.242c1.092.301 2.246.464 3.443.464 6.627 0 12-4.974 12-11.111S18.627 0 12 0zm1.191 14.963l-3.055-3.26-5.963 3.26L10.732 8l3.131 3.259L19.752 8l-6.561 6.963z"/></svg>`
-    },
-    "com.instagram.android": {
-      name: "Instagram",
-      color: "#E4405F",
-      gradient: "linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)",
-      svg: `<svg viewBox="0 0 24 24" fill="#E4405F"><path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.757-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z"/></svg>`
-    },
-    "com.snapchat.android": {
-      name: "Snapchat",
-      color: "#FFFC00",
-      textColor: "#000",
-      svg: `<svg viewBox="0 0 24 24" fill="#FFFC00"><path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z"/></svg>`
-    },
-    "com.twitter.android": {
-      name: "X (Twitter)",
-      color: "#000000",
-      svg: `<svg viewBox="0 0 24 24" fill="#000000"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`
-    },
-    "com.x.android": {
-      name: "X",
-      color: "#000000",
-      svg: `<svg viewBox="0 0 24 24" fill="#000000"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`
-    },
-    "com.facebook.katana": {
-      name: "Facebook",
-      color: "#1877F2",
-      svg: `<svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`
-    },
-    "com.tiktok.android": {
-      name: "TikTok",
-      color: "#000000",
-      svg: `<svg viewBox="0 0 24 24" fill="#000000"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>`
-    },
-    "com.linkedin.android": {
-      name: "LinkedIn",
-      color: "#0A66C2",
-      svg: `<svg viewBox="0 0 24 24" fill="#0A66C2"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`
-    },
-    "com.discord": {
-      name: "Discord",
-      color: "#5865F2",
-      svg: `<svg viewBox="0 0 24 24" fill="#5865F2"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>`
-    },
-    "com.spotify.music": {
-      name: "Spotify",
-      color: "#1DB954",
-      svg: `<svg viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>`
-    },
-    "com.google.android.youtube": {
-      name: "YouTube",
-      color: "#FF0000",
-      svg: `<svg viewBox="0 0 24 24" fill="#FF0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`
-    },
-    "com.google.android.gm": {
-      name: "Gmail",
-      color: "#EA4335",
-      svg: `<svg viewBox="0 0 24 24" fill="#EA4335"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg>`
-    },
-    "com.microsoft.teams": {
-      name: "Teams",
-      color: "#6264A7",
-      svg: `<svg viewBox="0 0 24 24" fill="#6264A7"><path d="M20.625 8.03h-2.997V6.2a2.291 2.291 0 0 0-.792-1.725 2.576 2.576 0 0 0-1.792-.693h-6.09a2.576 2.576 0 0 0-1.79.693A2.291 2.291 0 0 0 6.37 6.2v6.25a2.291 2.291 0 0 0 .793 1.725 2.576 2.576 0 0 0 1.79.693h6.09a2.576 2.576 0 0 0 1.792-.693 2.291 2.291 0 0 0 .792-1.725v-.87h2.997a.687.687 0 0 0 .687-.687V8.717a.687.687 0 0 0-.687-.687zM12 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5z"/><path d="M19.5 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/><path d="M21.375 11.25h-3.75a.375.375 0 0 0-.375.375v5.625a2.25 2.25 0 0 1-2.25 2.25H9a.375.375 0 0 0-.375.375v.75c0 .621.504 1.125 1.125 1.125h11.625c.621 0 1.125-.504 1.125-1.125v-8.25c0-.621-.504-1.125-1.125-1.125z"/></svg>`
-    },
-    "com.slack": {
-      name: "Slack",
-      color: "#4A154B",
-      svg: `<svg viewBox="0 0 24 24" fill="#4A154B"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>`
-    },
-    // Default icon for unknown apps
-    default: {
-      name: "App",
-      color: "#d5c19e",
-      svg: `<svg viewBox="0 0 24 24" fill="#d5c19e"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`
+  var callDecryptionCache, callListenerUnsubs, isSyncingCalls;
+  var init_calls = __esm({
+    "src/services/calls.js"() {
+      init_firebase();
+      init_dom();
+      init_toasts();
+      init_helpers();
+      init_state();
+      init_badges();
+      init_cryptoService();
+      init_contacts();
+      init_cache();
+      callDecryptionCache = /* @__PURE__ */ new Map();
+      callListenerUnsubs = [];
+      isSyncingCalls = false;
     }
-  };
-  function getAppIcon2(packageName, firestoreIcon = null) {
-    if (firestoreIcon) {
-      return {
-        type: "image",
-        src: firestoreIcon,
-        name: APP_ICONS[packageName]?.name || packageName
-      };
-    }
-    const mapped = APP_ICONS[packageName];
-    if (mapped) {
-      return {
-        type: "svg",
-        svg: mapped.svg,
-        color: mapped.color,
-        name: mapped.name,
-        textColor: mapped.textColor
-      };
-    }
-    return {
-      type: "svg",
-      svg: APP_ICONS.default.svg,
-      color: APP_ICONS.default.color,
-      name: packageName
-    };
-  }
-  function renderAppIcon(packageName, firestoreIcon = null, size = 40) {
-    const icon = getAppIcon2(packageName, firestoreIcon);
-    if (icon.type === "image") {
-      return `<img src="${icon.src}" alt="${icon.name}" style="width:${size}px;height:${size}px;border-radius:8px;object-fit:cover;" />`;
-    }
-    return `
-    <div style="width:${size}px;height:${size}px;border-radius:8px;background:${icon.color};display:flex;align-items:center;justify-content:center;">
-      <div style="width:${size * 0.6}px;height:${size * 0.6}px;color:${icon.textColor || "#fff"};">
-        ${icon.svg.replace(
-      /fill="[^"]*"/,
-      `fill="${icon.textColor || "#fff"}"`
-    )}
-      </div>
-    </div>
-  `;
-  }
-
-  // src/services/notifications.js
-  init_state();
-  init_badges();
-  async function loadNotifications() {
-    const user = currentUser;
-    if (!user) return;
-    const userNotificationsQuery = query(
-      collection(db, "users", user.uid, "notifications"),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
-    const userNotifUnsub = onSnapshot(userNotificationsQuery, (snapshot) => {
-      const notifications = [];
-      snapshot.forEach((doc2) => {
-        const data = doc2.data();
-        const firestoreId = doc2.id;
-        notifications.push({
-          ...data,
-          id: firestoreId,
-          // Use Firestore ID, not data.id
-          deviceId: "user",
-          receivedAt: data.timestamp || data.createdAt?.toMillis?.() || Date.now()
-        });
-      });
-      updateNotificationsList("_user_notifications", notifications);
-    });
-    addUnsubscriber(userNotifUnsub);
-    const devicesQuery = query(
-      collection(db, "devices"),
-      where("userId", "==", user.uid)
-    );
-    const devicesSnapshot = await getDocs(devicesQuery);
-    const devicesList2 = [];
-    devicesSnapshot.forEach((doc2) => {
-      const data = doc2.data();
-      let friendlyName = data.nickname;
-      if (!friendlyName) {
-        if (data.name && /[a-zA-Z]/.test(data.name) && !/^[A-Z0-9]+$/.test(data.name)) {
-          friendlyName = data.name;
-        } else {
-          const platform = (data.platform || "").toLowerCase();
-          friendlyName = platform === "ios" ? "iPhone" : platform === "android" ? "Android" : "Device";
-        }
-      }
-      devicesList2.push({
-        id: data.id,
-        name: friendlyName
-      });
-    });
-    devicesList2.forEach((device) => {
-      const q2 = query(
-        collection(db, "users", user.uid, "devices", device.id, "notifications"),
-        limit(50)
-      );
-      const unsub = onSnapshot(
-        q2,
-        (snapshot) => {
-          const notifications = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            const firestoreId = docSnap.id;
-            console.log(`[Notifications] Loaded: id=${firestoreId}, read=${data.read}, title=${data.title?.substring(0, 20)}`);
-            notifications.push({
-              ...data,
-              id: firestoreId,
-              // Use Firestore ID, not data.id
-              deviceId: device.id,
-              deviceName: device.name
-            });
-          });
-          updateNotificationsList(device.id, notifications);
-        }
-        // (error) => {
-        //   console.error(
-        //     "❌ Error loading notifications for device",
-        //     device.id,
-        //     ":",
-        //     error,
-        //   );
-        // },
-      );
-      addUnsubscriber(unsub);
-    });
-  }
-  function updateNotificationsList(deviceId, newNotifications) {
-    setNotificationsData(deviceId, newNotifications);
-    let merged = [];
-    Object.values(allNotifications).forEach((notifs) => {
-      merged = merged.concat(notifs);
-    });
-    const seen = /* @__PURE__ */ new Set();
-    merged = merged.filter((n) => {
-      if (seen.has(n.id)) return false;
-      seen.add(n.id);
-      return true;
-    });
-    merged.sort((a, b) => {
-      const timeA = a.receivedAt || a.timestamp || 0;
-      const timeB = b.receivedAt || b.timestamp || 0;
-      return timeB - timeA;
-    });
-    renderNotifications(merged.slice(0, 100));
-    updateTabBadges();
-  }
-  function renderNotifications(notifications) {
-    if (notifications.length === 0) {
-      notificationsList.innerHTML = `
-      <div class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 01-3.46 0"/>
-        </svg>
-        <p>No notifications yet</p>
-        <span>Notifications from your phone will appear here</span>
-      </div>
-    `;
-      updateTabBadges();
-      return;
-    }
-    notificationsList.innerHTML = notifications.map(
-      (notif) => `
-    <div class="list-item notification-item notification-${notif.type || "other"} ${notif.read ? "" : "unread"}" data-notif-id="${notif.id}" data-device-id="${notif.deviceId}">
-      <div class="list-item-icon notification-icon">
-        ${renderAppIcon(notif.packageName, notif.appIcon, 40)}
-      </div>
-      <div class="list-item-content">
-        <div class="list-item-title">${notif.title || notif.appName || "Notification"}${notif.read ? "" : ' <span class="unread-dot">\u25CF</span>'}</div>
-        <div class="list-item-subtitle">${notif.text || ""}</div>
-        <div class="notification-app">
-          ${notif.appName || "Unknown App"}
-          ${notif.deviceName ? `<span class="notification-device">\u{1F4F1} ${notif.deviceName}</span>` : ""}
-        </div>
-      </div>
-      <span class="list-item-time">${formatTime(
-        notif.receivedAt || notif.timestamp
-      )}</span>
-    </div>
-  `
-    ).join("");
-    notificationsList.querySelectorAll(".notification-item").forEach((item) => {
-      item.addEventListener("click", async () => {
-        const notifId = item.dataset.notifId;
-        const deviceId = item.dataset.deviceId;
-        if (notifId && deviceId) {
-          await markNotificationAsRead(deviceId, notifId);
-          item.classList.remove("unread");
-          const unreadDot = item.querySelector(".unread-dot");
-          if (unreadDot) unreadDot.remove();
-        }
-      });
-    });
-    updateTabBadges();
-  }
-  async function markNotificationAsRead(deviceId, notifId) {
-    const user = currentUser;
-    if (!user) return;
-    if (!notifId || /^-?\d+$/.test(notifId)) {
-      Object.keys(allNotifications).forEach((key) => {
-        const updated = allNotifications[key].map(
-          (n) => n.id === notifId ? { ...n, read: true } : n
-        );
-        setNotificationsData(key, updated);
-      });
-      updateTabBadges();
-      return;
-    }
-    try {
-      if (deviceId && deviceId !== "user" && deviceId !== "_user_notifications") {
-        const notifRef = doc(
-          db,
-          "users",
-          user.uid,
-          "devices",
-          deviceId,
-          "notifications",
-          notifId
-        );
-        await updateDoc(notifRef, { read: true });
-      } else {
-        const notifRef = doc(db, "users", user.uid, "notifications", notifId);
-        await updateDoc(notifRef, { read: true });
-      }
-      Object.keys(allNotifications).forEach((key) => {
-        const updated = allNotifications[key].map(
-          (n) => n.id === notifId ? { ...n, read: true } : n
-        );
-        setNotificationsData(key, updated);
-      });
-      updateTabBadges();
-    } catch (error) {
-      Object.keys(allNotifications).forEach((key) => {
-        const updated = allNotifications[key].map(
-          (n) => n.id === notifId ? { ...n, read: true } : n
-        );
-        setNotificationsData(key, updated);
-      });
-      updateTabBadges();
-    }
-  }
-  async function markAllNotificationsAsRead() {
-    const user = currentUser;
-    if (!user) return;
-    let unreadNotifs = [];
-    Object.entries(allNotifications).forEach(([stateKey, notifs]) => {
-      notifs.forEach((n) => {
-        if (!n.read) {
-          const actualDeviceId = n.deviceId || stateKey;
-          unreadNotifs.push({ ...n, actualDeviceId });
-        }
-      });
-    });
-    console.log(`[Notifications] Found ${unreadNotifs.length} unread notifications to mark`);
-    if (unreadNotifs.length === 0) return;
-    Object.keys(allNotifications).forEach((key) => {
-      const updated = allNotifications[key].map((n) => ({
-        ...n,
-        read: true
-      }));
-      setNotificationsData(key, updated);
-    });
-    updateTabBadges();
-    let merged = [];
-    Object.values(allNotifications).forEach((notifs) => {
-      merged = merged.concat(notifs);
-    });
-    merged.sort((a, b) => {
-      const timeA = a.receivedAt || a.timestamp || 0;
-      const timeB = b.receivedAt || b.timestamp || 0;
-      return timeB - timeA;
-    });
-    renderNotifications(merged.slice(0, 100));
-    await updateFirestoreNotifications(user.uid, unreadNotifs);
-  }
-  async function updateFirestoreNotifications(userId, unreadNotifs) {
-    let successCount = 0;
-    let failCount = 0;
-    const promises = unreadNotifs.map(async (notif) => {
-      if (/^-?\d+$/.test(notif.id)) {
-        console.log(`[Notifications] Skipping numeric ID: ${notif.id}`);
-        return;
-      }
-      const deviceId = notif.actualDeviceId;
-      try {
-        if (deviceId && deviceId !== "user" && deviceId !== "_user_notifications") {
-          const notifRef = doc(
-            db,
-            "users",
-            userId,
-            "devices",
-            deviceId,
-            "notifications",
-            notif.id
-          );
-          await updateDoc(notifRef, { read: true });
-          successCount++;
-        } else {
-          const notifRef = doc(db, "users", userId, "notifications", notif.id);
-          await updateDoc(notifRef, { read: true });
-          successCount++;
-        }
-      } catch (e) {
-        failCount++;
-        console.warn(`[Notifications] Failed ${notif.id}: ${e.message}`);
-      }
-    });
-    await Promise.all(promises);
-    console.log(`[Notifications] Done: ${successCount} success, ${failCount} failed`);
-  }
-
-  // src/ui/tabs.js
-  function initTabs() {
-    tabs.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const tabName = tab.dataset.tab;
-        tabs.forEach((t) => t.classList.remove("active"));
-        tab.classList.add("active");
-        tabContents.forEach((content) => {
-          content.classList.remove("active");
-        });
-        document.getElementById(`${tabName}Tab`)?.classList.add("active");
-        if (tabName === "calls") {
-          markAllCallsAsViewed();
-        } else if (tabName === "notifications") {
-          markAllNotificationsAsRead();
-        }
-      });
-    });
-  }
-
-  // src/ui/modals.js
-  init_dom();
-  init_firebase();
-  init_toasts();
-  init_helpers();
-  init_state();
-
-  // src/services/sms.js
-  init_firebase();
+  });
 
   // src/config/constants.js
-  var COLLECTIONS = {
-    USERS: "users",
-    DEVICES: "devices",
-    SMS: "sms",
-    CALLS: "calls",
-    NOTIFICATIONS: "notifications",
-    SMS_REQUESTS: "sms_requests",
-    CHATS: "chats"
-  };
+  var COLLECTIONS;
+  var init_constants = __esm({
+    "src/config/constants.js"() {
+      COLLECTIONS = {
+        USERS: "users",
+        DEVICES: "devices",
+        SMS: "sms",
+        CALLS: "calls",
+        NOTIFICATIONS: "notifications",
+        SMS_REQUESTS: "sms_requests",
+        CHATS: "chats"
+      };
+    }
+  });
 
   // src/utils/errors.js
-  var ErrorCode3 = {
-    // Auth
-    AUTH_INVALID_CREDENTIALS: "AUTH_INVALID_CREDENTIALS",
-    AUTH_USER_NOT_FOUND: "AUTH_USER_NOT_FOUND",
-    AUTH_EMAIL_IN_USE: "AUTH_EMAIL_IN_USE",
-    AUTH_NETWORK_ERROR: "AUTH_NETWORK_ERROR",
-    AUTH_GOOGLE_CANCELLED: "AUTH_GOOGLE_CANCELLED",
-    // Firebase
-    FIREBASE_PERMISSION_DENIED: "FIREBASE_PERMISSION_DENIED",
-    FIREBASE_UNAVAILABLE: "FIREBASE_UNAVAILABLE",
-    // SMS
-    SMS_SEND_FAILED: "SMS_SEND_FAILED",
-    // General
-    UNKNOWN_ERROR: "UNKNOWN_ERROR",
-    NETWORK_OFFLINE: "NETWORK_OFFLINE"
-  };
-  var ErrorMessages = {
-    [ErrorCode3.AUTH_INVALID_CREDENTIALS]: "Invalid email or password",
-    [ErrorCode3.AUTH_USER_NOT_FOUND]: "User not found",
-    [ErrorCode3.AUTH_EMAIL_IN_USE]: "Email is already in use",
-    [ErrorCode3.AUTH_NETWORK_ERROR]: "Network error. Please check your connection",
-    [ErrorCode3.AUTH_GOOGLE_CANCELLED]: "Google Sign-In was cancelled",
-    [ErrorCode3.FIREBASE_PERMISSION_DENIED]: "Permission denied",
-    [ErrorCode3.FIREBASE_UNAVAILABLE]: "Service unavailable. Please try later",
-    [ErrorCode3.SMS_SEND_FAILED]: "Failed to send message",
-    [ErrorCode3.UNKNOWN_ERROR]: "An unexpected error occurred",
-    [ErrorCode3.NETWORK_OFFLINE]: "No internet connection"
-  };
   function parseAuthError(error) {
     const code = error?.code || error?.message || "";
     if (code.includes("auth/invalid-credential") || code.includes("auth/wrong-password") || code.includes("auth/invalid-email")) {
@@ -24403,74 +23786,124 @@ ${this.customData.serverResponse}`;
       stack: error?.stack
     });
   }
-
-  // src/utils/logger.js
-  var LOG_LEVELS = {
-    debug: 0,
-    info: 1,
-    warn: 2,
-    error: 3
-  };
-  var Logger2 = class {
-    constructor(prefix = "ZyncIT", minLevel = "debug") {
-      this.prefix = prefix;
-      this.minLevel = LOG_LEVELS[minLevel] ?? 0;
-    }
-    shouldLog(level) {
-      return LOG_LEVELS[level] >= this.minLevel;
-    }
-    formatMessage(message, context) {
-      const timestamp = (/* @__PURE__ */ new Date()).toISOString().slice(11, 23);
-      const ctx = context ? `[${context}]` : "";
-      return `${timestamp} [${this.prefix}]${ctx} ${message}`;
-    }
-    debug(message, context, ...args) {
-      if (this.shouldLog("debug")) {
-        console.log(`\u{1F50D} ${this.formatMessage(message, context)}`, ...args);
-      }
-    }
-    info(message, context, ...args) {
-      if (this.shouldLog("info")) {
-        console.log(`\u2139\uFE0F ${this.formatMessage(message, context)}`, ...args);
-      }
-    }
-    warn(message, context, ...args) {
-      if (this.shouldLog("warn")) {
-        console.warn(`\u26A0\uFE0F ${this.formatMessage(message, context)}`, ...args);
-      }
-    }
-    error(message, context, error) {
-      if (this.shouldLog("error")) {
-        console.error(`\u274C ${this.formatMessage(message, context)}`, error || "");
-      }
-    }
-    child(context) {
-      return {
-        debug: (msg, ...args) => this.debug(msg, context, ...args),
-        info: (msg, ...args) => this.info(msg, context, ...args),
-        warn: (msg, ...args) => this.warn(msg, context, ...args),
-        error: (msg, err) => this.error(msg, context, err)
+  var ErrorCode3, ErrorMessages;
+  var init_errors = __esm({
+    "src/utils/errors.js"() {
+      ErrorCode3 = {
+        // Auth
+        AUTH_INVALID_CREDENTIALS: "AUTH_INVALID_CREDENTIALS",
+        AUTH_USER_NOT_FOUND: "AUTH_USER_NOT_FOUND",
+        AUTH_EMAIL_IN_USE: "AUTH_EMAIL_IN_USE",
+        AUTH_NETWORK_ERROR: "AUTH_NETWORK_ERROR",
+        AUTH_GOOGLE_CANCELLED: "AUTH_GOOGLE_CANCELLED",
+        // Firebase
+        FIREBASE_PERMISSION_DENIED: "FIREBASE_PERMISSION_DENIED",
+        FIREBASE_UNAVAILABLE: "FIREBASE_UNAVAILABLE",
+        // SMS
+        SMS_SEND_FAILED: "SMS_SEND_FAILED",
+        // General
+        UNKNOWN_ERROR: "UNKNOWN_ERROR",
+        NETWORK_OFFLINE: "NETWORK_OFFLINE"
+      };
+      ErrorMessages = {
+        [ErrorCode3.AUTH_INVALID_CREDENTIALS]: "Invalid email or password",
+        [ErrorCode3.AUTH_USER_NOT_FOUND]: "User not found",
+        [ErrorCode3.AUTH_EMAIL_IN_USE]: "Email is already in use",
+        [ErrorCode3.AUTH_NETWORK_ERROR]: "Network error. Please check your connection",
+        [ErrorCode3.AUTH_GOOGLE_CANCELLED]: "Google Sign-In was cancelled",
+        [ErrorCode3.FIREBASE_PERMISSION_DENIED]: "Permission denied",
+        [ErrorCode3.FIREBASE_UNAVAILABLE]: "Service unavailable. Please try later",
+        [ErrorCode3.SMS_SEND_FAILED]: "Failed to send message",
+        [ErrorCode3.UNKNOWN_ERROR]: "An unexpected error occurred",
+        [ErrorCode3.NETWORK_OFFLINE]: "No internet connection"
       };
     }
-  };
-  var logger2 = new Logger2();
-  var authLogger = logger2.child("Auth");
-  var smsLogger = logger2.child("SMS");
-  var callsLogger = logger2.child("Calls");
-  var deviceLogger = logger2.child("Device");
+  });
+
+  // src/utils/logger.js
+  var LOG_LEVELS, Logger2, logger2, authLogger, smsLogger, callsLogger, deviceLogger;
+  var init_logger = __esm({
+    "src/utils/logger.js"() {
+      LOG_LEVELS = {
+        debug: 0,
+        info: 1,
+        warn: 2,
+        error: 3
+      };
+      Logger2 = class {
+        constructor(prefix = "ZyncIT", minLevel = "debug") {
+          this.prefix = prefix;
+          this.minLevel = LOG_LEVELS[minLevel] ?? 0;
+        }
+        shouldLog(level) {
+          return LOG_LEVELS[level] >= this.minLevel;
+        }
+        formatMessage(message, context) {
+          const timestamp = (/* @__PURE__ */ new Date()).toISOString().slice(11, 23);
+          const ctx = context ? `[${context}]` : "";
+          return `${timestamp} [${this.prefix}]${ctx} ${message}`;
+        }
+        debug(message, context, ...args) {
+          if (this.shouldLog("debug")) {
+            console.log(`\u{1F50D} ${this.formatMessage(message, context)}`, ...args);
+          }
+        }
+        info(message, context, ...args) {
+          if (this.shouldLog("info")) {
+            console.log(`\u2139\uFE0F ${this.formatMessage(message, context)}`, ...args);
+          }
+        }
+        warn(message, context, ...args) {
+          if (this.shouldLog("warn")) {
+            console.warn(`\u26A0\uFE0F ${this.formatMessage(message, context)}`, ...args);
+          }
+        }
+        error(message, context, error) {
+          if (this.shouldLog("error")) {
+            console.error(`\u274C ${this.formatMessage(message, context)}`, error || "");
+          }
+        }
+        child(context) {
+          return {
+            debug: (msg, ...args) => this.debug(msg, context, ...args),
+            info: (msg, ...args) => this.info(msg, context, ...args),
+            warn: (msg, ...args) => this.warn(msg, context, ...args),
+            error: (msg, err) => this.error(msg, context, err)
+          };
+        }
+      };
+      logger2 = new Logger2();
+      authLogger = logger2.child("Auth");
+      smsLogger = logger2.child("SMS");
+      callsLogger = logger2.child("Calls");
+      deviceLogger = logger2.child("Device");
+    }
+  });
 
   // src/services/sms.js
-  init_dom();
-  init_toasts();
-  init_helpers();
-  init_state();
-  init_badges();
-  init_cryptoService();
-  var smsUnsubscribeFunctions = [];
-  var processedMessageIds = /* @__PURE__ */ new Set();
-  var PAGE_SIZE = 50;
-  var paginationState = {};
-  var isLoadingMore = false;
+  var sms_exports = {};
+  __export(sms_exports, {
+    deleteAllSms: () => deleteAllSms,
+    hasMoreSMS: () => hasMoreSMS,
+    loadMoreSMS: () => loadMoreSMS,
+    loadSMS: () => loadSMS,
+    markAllSmsAsRead: () => markAllSmsAsRead,
+    renderSMS: () => renderSMS,
+    showConversation: () => showConversation,
+    startPolling: () => startPolling,
+    stopPolling: () => stopPolling,
+    stopSMSListener: () => stopSMSListener,
+    updateSMSList: () => updateSMSList
+  });
+  async function decryptSMSCached(data, userId, docId) {
+    const cached = decryptionCache.get(docId);
+    if (cached && cached.timestamp === data.timestamp) {
+      return cached.data;
+    }
+    const decrypted = await decryptSMS(data, userId);
+    decryptionCache.set(docId, { data: decrypted, timestamp: data.timestamp });
+    return decrypted;
+  }
   function normalizePhoneNumber3(phone) {
     if (!phone || !phone.trim()) return "";
     let normalized = phone.replace(/[^\d+]/g, "").trim();
@@ -24523,11 +23956,13 @@ ${this.customData.serverResponse}`;
     smsUnsubscribeFunctions.forEach((unsub) => unsub());
     smsUnsubscribeFunctions = [];
     processedMessageIds.clear();
+    decryptionCache.clear();
     paginationState = {};
     isLoadingMore = false;
+    scrollHandlerAttached = false;
   }
   async function loadSMS() {
-    console.log("[SMS] loadSMS called - setting up real-time listeners");
+    console.log("[SMS] loadSMS called");
     const user = currentUser;
     if (!user) {
       console.warn("[WARN] No current user - cannot load SMS");
@@ -24535,7 +23970,32 @@ ${this.customData.serverResponse}`;
       return;
     }
     stopSMSListener();
-    console.log(`[SMS] Loading SMS for user: ${user.uid}`);
+    let hasCachedData = false;
+    try {
+      const cached = await getCachedSMS();
+      if (cached && cached.allMessages && cached.allMessages.length > 0) {
+        console.log(
+          `[SMS] \u{1F4E6} Showing ${cached.allMessages.length} cached messages instantly`
+        );
+        hasCachedData = true;
+        if (cached.byDevice) {
+          for (const [deviceId, msgs] of Object.entries(cached.byDevice)) {
+            setSMSData(deviceId, msgs);
+          }
+        }
+        setAllSMSMessages(cached.allMessages);
+        renderSMS(cached.allMessages);
+        updateTabBadges();
+      }
+    } catch (e) {
+      console.warn("[SMS] Cache load failed:", e);
+    }
+    if (!hasCachedData && smsList) {
+      showListLoading(smsList);
+    }
+    isSyncing = true;
+    showSyncIndicator();
+    console.log(`[SMS] Loading fresh SMS for user: ${user.uid}`);
     smsLogger.info(`Loading SMS for user: ${user.uid}`);
     try {
       const devicesQuery = query(
@@ -24551,24 +24011,13 @@ ${this.customData.serverResponse}`;
       const devicesList2 = [];
       devicesSnapshot.forEach((doc2) => {
         const data = doc2.data();
-        console.log(
-          `  [DEVICE] doc: ${doc2.id}, platform: ${data.platform}, data.id: ${data.id}, userId: ${data.userId}`
-        );
-        console.log(`  [DEVICE] Full data:`, JSON.stringify(data, null, 2));
         if (data.platform !== "chrome-extension" && data.platform !== "chrome" && !data.id?.startsWith("ext_")) {
-          console.log(`  [DEVICE] Adding mobile device: ${data.id}`);
           devicesList2.push({
             id: data.id,
             name: getFriendlyDeviceName(data)
           });
-        } else {
-          console.log(`  [DEVICE] Skipping extension device: ${data.id}`);
         }
       });
-      console.log(
-        `[SMS] Mobile devices found: ${devicesList2.length}`,
-        devicesList2
-      );
       if (devicesList2.length === 0) {
         console.warn(
           "\u26A0\uFE0F No mobile devices found for SMS loading - showing empty state"
@@ -24576,7 +24025,7 @@ ${this.customData.serverResponse}`;
         renderSMS([]);
         return;
       }
-      for (const device of devicesList2) {
+      const loadPromises = devicesList2.map(async (device) => {
         paginationState[device.id] = {
           lastTimestamp: null,
           hasMore: true,
@@ -24595,26 +24044,22 @@ ${this.customData.serverResponse}`;
           orderBy("timestamp", "desc"),
           limit(PAGE_SIZE)
         );
-        const unsub = onSnapshot(
-          q2,
-          async (snapshot) => {
-            console.log(
-              `[SMS] \u{1F504} Real-time update for device ${device.id}: ${snapshot.size} total SMS`
-            );
-            const messages = [];
-            for (const docSnap of snapshot.docs) {
+        try {
+          const snapshot = await getDocs(q2);
+          console.log(
+            `[SMS] Loaded ${snapshot.size} messages from device ${device.id}`
+          );
+          const messages = await Promise.all(
+            snapshot.docs.map(async (docSnap) => {
               let data = docSnap.data();
               const messageId = docSnap.id;
-              data = await decryptSMS(data, user.uid);
+              data = await decryptSMSCached(data, user.uid, messageId);
               const resolvedPhone = resolvePhoneNumber(data);
               const resolvedContact = resolveContactName(data, resolvedPhone);
-              messages.push({
+              return {
                 ...data,
-                // spread data FIRST so explicit fields below take priority
                 id: messageId,
-                // Firestore doc ID (NOT data.id which is always "0" for Google Messages)
                 docId: messageId,
-                // backup unique ID
                 docRef: docSnap.ref,
                 deviceId: device.id,
                 deviceName: device.name,
@@ -24624,31 +24069,96 @@ ${this.customData.serverResponse}`;
                 timestamp: data.timestamp || data.receivedAt || Date.now(),
                 read: data.read === true,
                 type: data.type || "sms"
-              });
-            }
-            if (messages.length > 0) {
-              const oldestMsg = messages[messages.length - 1];
-              paginationState[device.id].lastTimestamp = oldestMsg.timestamp;
-            }
-            paginationState[device.id].hasMore = snapshot.size >= PAGE_SIZE;
-            console.log(
-              `[SMS] \u2705 Updating SMS list with ${messages.length} messages from ${device.id} (hasMore: ${paginationState[device.id].hasMore})`
-            );
-            updateSMSList(device.id, messages);
-          },
-          (error) => {
-            console.error(
-              "\u274C SMS listener error for device",
-              device.id,
-              ":",
-              error
-            );
+              };
+            })
+          );
+          if (messages.length > 0) {
+            const oldestMsg = messages[messages.length - 1];
+            paginationState[device.id].lastTimestamp = oldestMsg.timestamp;
           }
-        );
-        smsUnsubscribeFunctions.push(unsub);
-      }
+          paginationState[device.id].hasMore = snapshot.size >= PAGE_SIZE;
+          updateSMSList(device.id, messages);
+        } catch (error) {
+          console.error(`\u274C SMS load error for device ${device.id}:`, error);
+        }
+      });
+      await Promise.all(loadPromises);
+      console.log(
+        "[SMS] \u2705 Initial load complete, starting realtime listeners..."
+      );
+      isSyncing = false;
+      updateSMSCountIndicator();
+      startSMSRealtimeListeners(user.uid, devicesList2);
     } catch (error) {
       console.error("\u274C loadSMS error:", error);
+      isSyncing = false;
+      updateSMSCountIndicator();
+    }
+  }
+  function startSMSRealtimeListeners(userId, devicesList2) {
+    for (const device of devicesList2) {
+      const q2 = query(
+        collection(db, "users", userId, "devices", device.id, "notifications"),
+        where("type", "==", "sms"),
+        orderBy("timestamp", "desc"),
+        limit(10)
+      );
+      let isInitialSnapshot = true;
+      const unsub = onSnapshot(
+        q2,
+        async (snapshot) => {
+          if (isInitialSnapshot) {
+            isInitialSnapshot = false;
+            return;
+          }
+          let hasNewMessages = false;
+          for (const change of snapshot.docChanges()) {
+            if (change.type === "added" || change.type === "modified") {
+              const messageId = change.doc.id;
+              if (processedMessageIds.has(messageId) && change.type === "added")
+                continue;
+              let data = change.doc.data();
+              data = await decryptSMSCached(data, userId, messageId);
+              const resolvedPhone = resolvePhoneNumber(data);
+              const resolvedContact = resolveContactName(data, resolvedPhone);
+              const message = {
+                ...data,
+                id: messageId,
+                docId: messageId,
+                docRef: change.doc.ref,
+                deviceId: device.id,
+                deviceName: device.name,
+                phoneNumber: resolvedPhone,
+                contactName: resolvedContact,
+                body: data.text || data.content || data.body || "",
+                timestamp: data.timestamp || data.receivedAt || Date.now(),
+                read: data.read === true,
+                type: data.type || "sms"
+              };
+              processedMessageIds.add(messageId);
+              const currentSMS = getSMSData(device.id) || [];
+              const existingIdx = currentSMS.findIndex((m) => m.id === messageId);
+              if (existingIdx >= 0) {
+                currentSMS[existingIdx] = message;
+              } else {
+                currentSMS.unshift(message);
+              }
+              updateSMSList(device.id, currentSMS);
+              hasNewMessages = true;
+            }
+          }
+          if (hasNewMessages) {
+            console.log(`[SMS] \u2728 Realtime update from device ${device.id}`);
+          }
+        },
+        (error) => {
+          console.error(
+            `\u274C SMS realtime listener error for device ${device.id}:`,
+            error
+          );
+        }
+      );
+      smsUnsubscribeFunctions.push(unsub);
     }
   }
   async function loadMoreSMS() {
@@ -24688,33 +24198,31 @@ ${this.customData.serverResponse}`;
           }
           const existingMessages = getSMSData(deviceId) || [];
           const existingIds = new Set(existingMessages.map((m) => m.id));
-          const newMessages = [];
-          for (const docSnap of snapshot.docs) {
-            const messageId = docSnap.id;
-            if (existingIds.has(messageId)) continue;
-            let data = docSnap.data();
-            data = await decryptSMS(data, user.uid);
-            const resolvedPhone = resolvePhoneNumber(data);
-            const resolvedContact = resolveContactName(data, resolvedPhone);
-            const deviceInfo = Object.values(allSMS).flat().find((m) => m.deviceId === deviceId);
-            newMessages.push({
-              ...data,
-              // spread data FIRST so explicit fields below take priority
-              id: messageId,
-              // Firestore doc ID (NOT data.id which is always "0" for Google Messages)
-              docId: messageId,
-              // backup unique ID
-              docRef: docSnap.ref,
-              deviceId,
-              deviceName: deviceInfo?.deviceName || "Android",
-              phoneNumber: resolvedPhone,
-              contactName: resolvedContact,
-              body: data.text || data.content || data.body || "",
-              timestamp: data.timestamp || data.receivedAt || Date.now(),
-              read: data.read === true,
-              type: data.type || "sms"
-            });
-          }
+          const deviceInfo = Object.values(allSMS).flat().find((m) => m.deviceId === deviceId);
+          const cachedDeviceName = deviceInfo?.deviceName || "Android";
+          const newMessages = await Promise.all(
+            snapshot.docs.filter((docSnap) => !existingIds.has(docSnap.id)).map(async (docSnap) => {
+              const messageId = docSnap.id;
+              let data = docSnap.data();
+              data = await decryptSMSCached(data, user.uid, messageId);
+              const resolvedPhone = resolvePhoneNumber(data);
+              const resolvedContact = resolveContactName(data, resolvedPhone);
+              return {
+                ...data,
+                id: messageId,
+                docId: messageId,
+                docRef: docSnap.ref,
+                deviceId,
+                deviceName: cachedDeviceName,
+                phoneNumber: resolvedPhone,
+                contactName: resolvedContact,
+                body: data.text || data.content || data.body || "",
+                timestamp: data.timestamp || data.receivedAt || Date.now(),
+                read: data.read === true,
+                type: data.type || "sms"
+              };
+            })
+          );
           if (newMessages.length > 0) {
             const oldestMsg = newMessages[newMessages.length - 1];
             deviceState.lastTimestamp = oldestMsg.timestamp;
@@ -24750,87 +24258,50 @@ ${this.customData.serverResponse}`;
         contactName: resolvedContact || msg.contactName || ""
       };
     });
-    const testInNew = normalizedMessages.find(
-      (m) => (m.body || m.text || "").includes("\u062A\u0633\u062A") || (m.contactName || m.title || "").includes("Abdl")
-    );
-    console.log("[SMS] STEP 1 - \u062A\u0633\u062A in newMessages:", testInNew ? "YES" : "NO");
     setSMSData(deviceId, normalizedMessages);
-    const storedMsgs = allSMS[deviceId] || [];
-    const testInStored = storedMsgs.find(
-      (m) => (m.body || m.text || "").includes("\u062A\u0633\u062A") || (m.contactName || m.title || "").includes("Abdl")
-    );
-    console.log(
-      "[SMS] STEP 2 - \u062A\u0633\u062A in state.allSMS:",
-      testInStored ? "YES" : "NO"
-    );
-    console.log(
-      "[SMS] STEP 2 - state.allSMS devices:",
-      Object.keys(allSMS)
-    );
-    console.log(
-      "[SMS] STEP 2 - state.allSMS[deviceId] count:",
-      storedMsgs.length
-    );
     let merged = [];
     Object.values(allSMS).forEach((msgs) => {
       merged = merged.concat(msgs);
     });
-    console.log("[SMS] STEP 3 - Total merged messages:", merged.length);
-    const testInMerged = merged.find(
-      (m) => (m.body || m.text || "").includes("\u062A\u0633\u062A") || (m.contactName || m.title || "").includes("Abdl")
-    );
-    console.log("[SMS] STEP 3 - \u062A\u0633\u062A in merged:", testInMerged ? "YES" : "NO");
     const uniqueMessages = [];
     const seenIds = /* @__PURE__ */ new Set();
+    const seenContent = /* @__PURE__ */ new Set();
     for (const msg of merged) {
-      const uniqueId = msg.docRef?.path || msg.docId || msg.id || `${msg.timestamp}_${msg.phoneNumber}`;
-      if (!seenIds.has(uniqueId)) {
-        seenIds.add(uniqueId);
-        uniqueMessages.push(msg);
-      }
-    }
-    console.log("[SMS] Unique messages after dedup:", uniqueMessages.length);
-    const hasTest = uniqueMessages.find(
-      (m) => (m.body || m.text || "").includes("\u062A\u0633\u062A") || (m.contactName || m.title || "").includes("Abdl")
-    );
-    console.log("[SMS] \u062A\u0633\u062A message in uniqueMessages:", hasTest ? "YES" : "NO");
-    if (hasTest) {
-      console.log(
-        "[SMS] \u062A\u0633\u062A details:",
-        JSON.stringify({
-          id: hasTest.id,
-          phone: hasTest.phoneNumber,
-          contact: hasTest.contactName,
-          body: (hasTest.body || hasTest.text || "").substring(0, 30)
-        })
-      );
+      const uniqueId = msg.docId || msg.id || msg.docRef?.path || `${msg.timestamp}_${msg.phoneNumber}`;
+      if (seenIds.has(uniqueId)) continue;
+      seenIds.add(uniqueId);
+      const rawPhoneSrc = msg.phoneNumber || msg.sender || "";
+      const phone = normalizePhoneNumber3(rawPhoneSrc) || rawPhoneSrc.trim().toLowerCase();
+      const body = (msg.body || msg.text || "").trim().substring(0, 100);
+      const timeWindow = Math.floor((msg.timestamp || 0) / 3e5);
+      const contentKey = `${phone}_${timeWindow}_${body}`;
+      const bodyOnlyWindow = Math.floor((msg.timestamp || 0) / 3e5);
+      const bodyKey = body.length > 20 ? `body_${bodyOnlyWindow}_${body}` : null;
+      if (seenContent.has(contentKey)) continue;
+      if (bodyKey && seenContent.has(bodyKey)) continue;
+      seenContent.add(contentKey);
+      if (bodyKey) seenContent.add(bodyKey);
+      uniqueMessages.push(msg);
     }
     uniqueMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     setAllSMSMessages(uniqueMessages);
     renderSMS(uniqueMessages);
     updateTabBadges();
+    updateSMSCountIndicator();
+    cacheSMSData(allSMS, uniqueMessages).catch(() => {
+    });
   }
   function renderSMS(messages) {
-    const hasTestInRender = messages.find(
-      (m) => (m.body || m.text || "").includes("\u062A\u0633\u062A") || (m.contactName || m.title || "").includes("Abdl")
-    );
-    console.log(
-      "[SMS] \u062A\u0633\u062A in renderSMS:",
-      hasTestInRender ? "YES - " + (hasTestInRender.contactName || hasTestInRender.phoneNumber) : "NO"
-    );
-    if (messages.length > 0) {
-      console.log("[SMS] First 3 messages:");
-      messages.slice(0, 3).forEach((m, i) => {
-        console.log(
-          `  ${i + 1}. id=${m.id}, phone=${m.phoneNumber}, contact=${m.contactName}, text=${(m.body || m.text || "").substring(0, 20)}...`
-        );
-      });
+    const selectedTab = document.querySelector("#smsDeviceTabs .device-tab.active")?.dataset.device || "all";
+    let filteredMessages = messages;
+    if (selectedTab !== "all") {
+      filteredMessages = messages.filter((msg) => msg.deviceId === selectedTab);
     }
     const smsListElement = document.getElementById("smsList");
     if (!smsListElement) {
       return;
     }
-    if (messages.length === 0) {
+    if (filteredMessages.length === 0) {
       smsListElement.innerHTML = `
       <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -24845,7 +24316,7 @@ ${this.customData.serverResponse}`;
     }
     const contactToPhones = {};
     const phoneToContact = {};
-    messages.forEach((msg) => {
+    filteredMessages.forEach((msg) => {
       const rawPhone = msg.phoneNumber || msg.sender || "";
       const normPhone = rawPhone ? normalizePhoneNumber3(rawPhone) : "";
       const contactName = msg.contactName || msg.title || getContactName(rawPhone) || "";
@@ -24869,8 +24340,7 @@ ${this.customData.serverResponse}`;
       });
     }
     const grouped = {};
-    console.log(`[SMS] Grouping ${messages.length} messages...`);
-    messages.forEach((msg, index) => {
+    filteredMessages.forEach((msg, index) => {
       let rawPhone = msg.phoneNumber || msg.sender || "";
       let contactName = msg.contactName || msg.title || "";
       const normPhone = rawPhone ? normalizePhoneNumber3(rawPhone) : "";
@@ -24880,6 +24350,9 @@ ${this.customData.serverResponse}`;
       let key;
       if (rawPhone && rawPhone.trim()) {
         key = normalizePhoneNumber3(rawPhone);
+        if (!key) {
+          key = "sender_" + rawPhone.trim().toLowerCase();
+        }
         if (contactName && !isPhoneNumberLike2(contactName) && contactToPhones[contactName]?.size > 1) {
           key = "contact_" + contactName.trim();
         }
@@ -24889,11 +24362,6 @@ ${this.customData.serverResponse}`;
       } else {
         key = "Unknown";
         rawPhone = "Unknown";
-      }
-      if ((msg.body || msg.text || "").includes("\u062A\u0633\u062A") || (contactName || "").includes("Abdl")) {
-        console.log(
-          `[SMS] DEBUG \u062A\u0633\u062A: key="${key}", phone="${rawPhone}", contact="${contactName}"`
-        );
       }
       if (!grouped[key]) {
         grouped[key] = {
@@ -24922,30 +24390,21 @@ ${this.customData.serverResponse}`;
     const conversations = Object.values(grouped).sort(
       (a, b) => (b.lastMessage.timestamp || 0) - (a.lastMessage.timestamp || 0)
     );
-    console.log(
-      "[SMS] Total conversations after grouping:",
-      conversations.length
-    );
-    conversations.forEach((conv, i) => {
-      console.log(
-        `[SMS] Conv ${i + 1}: phone=${conv.phoneNumber}, contact=${conv.contactName}, msgCount=${conv.messages.length}, lastMsg="${(conv.lastMessage.body || conv.lastMessage.text || "").substring(0, 20)}...", timestamp=${conv.lastMessage.timestamp}`
-      );
-    });
-    console.log("[SMS] ===== RENDER SMS END =====");
-    console.log("=".repeat(60));
     smsListElement.innerHTML = conversations.map(
       (conv) => `
-    <div class="list-item sms-conversation" data-phone="${conv.normalizedPhone}">
+    <div class="list-item sms-conversation" data-phone="${escapeHtml(
+        conv.normalizedPhone
+      )}">
       <div class="list-item-avatar">
         ${getInitials(conv.contactName || conv.phoneNumber)}
       </div>
       <div class="list-item-content">
         <div class="list-item-title">
           ${getAppIcon(conv.lastMessage.type || "sms")}
-          ${conv.contactName || conv.phoneNumber}
+          ${escapeHtml(conv.contactName || conv.phoneNumber)}
         </div>
-        <div class="list-item-subtitle">${conv.lastMessage.body || ""}</div>
-        ${conv.lastMessage.deviceName ? `<div class="device-tag">${conv.lastMessage.deviceName}</div>` : ""}
+        <div class="list-item-subtitle">${escapeHtml(conv.lastMessage.body || "")}</div>
+        ${selectedTab === "all" && conv.lastMessage.deviceName ? `<div class="device-tag">${escapeHtml(conv.lastMessage.deviceName)}</div>` : ""}
       </div>
       <div class="list-item-meta">
         <span class="list-item-time">${formatTime(
@@ -24968,35 +24427,87 @@ ${this.customData.serverResponse}`;
         showConversation(phoneNumber);
       }
     });
-    const smsContainer = document.getElementById("smsList");
-    if (smsContainer) {
-      smsContainer.addEventListener("scroll", () => {
-        const { scrollTop, scrollHeight, clientHeight } = smsContainer;
-        if (scrollHeight - scrollTop - clientHeight < 100 && hasMoreSMS() && !isLoadingMore) {
-          console.log("[SMS] \u{1F4DC} Infinite scroll triggered - loading more...");
-          const loader = document.createElement("div");
-          loader.className = "scroll-loader";
-          loader.id = "smsScrollLoader";
-          loader.innerHTML = '<div class="spinner-small"></div> Loading more...';
-          if (!document.getElementById("smsScrollLoader")) {
-            smsContainer.appendChild(loader);
-          }
-          loadMoreSMS().then(() => {
-            document.getElementById("smsScrollLoader")?.remove();
-          });
-        }
-      });
-    }
+    attachSMSScrollHandler();
     updateTabBadges();
   }
+  function attachSMSScrollHandler() {
+    if (scrollHandlerAttached) return;
+    const smsContainer = document.getElementById("smsList");
+    if (!smsContainer) return;
+    scrollHandlerAttached = true;
+    smsContainer.addEventListener("scroll", () => {
+      const { scrollTop, scrollHeight, clientHeight } = smsContainer;
+      if (scrollHeight - scrollTop - clientHeight < 150 && hasMoreSMS() && !isLoadingMore) {
+        console.log("[SMS] \u{1F4DC} Infinite scroll triggered - loading more...");
+        showSMSScrollLoader();
+        loadMoreSMS().then(() => {
+          hideSMSScrollLoader();
+        });
+      }
+    });
+  }
+  function showSMSScrollLoader() {
+    const smsContainer = document.getElementById("smsList");
+    if (!smsContainer || document.getElementById("smsScrollLoader")) return;
+    const loader = document.createElement("div");
+    loader.className = "scroll-loader";
+    loader.id = "smsScrollLoader";
+    loader.innerHTML = '<div class="spinner-small"></div> Loading more messages...';
+    smsContainer.appendChild(loader);
+  }
+  function hideSMSScrollLoader() {
+    document.getElementById("smsScrollLoader")?.remove();
+    updateSMSCountIndicator();
+  }
+  function updateSMSCountIndicator() {
+    const total = allSMSMessages?.length || 0;
+    const moreAvailable = hasMoreSMS();
+    let indicator = document.getElementById("smsCountIndicator");
+    if (total === 0) {
+      indicator?.remove();
+      return;
+    }
+    if (!indicator) {
+      const smsContainer = document.getElementById("smsList");
+      if (!smsContainer) return;
+      indicator = document.createElement("div");
+      indicator.id = "smsCountIndicator";
+      indicator.className = "sms-count-indicator";
+      smsContainer.appendChild(indicator);
+    }
+    const syncBadge = isSyncing ? `<span class="sync-badge"><span class="sync-spinner"></span> Syncing...</span>` : "";
+    if (moreAvailable) {
+      indicator.innerHTML = `<span>${total} messages loaded</span>${syncBadge}<button class="load-more-btn" id="loadMoreSmsBtn">Load more</button>`;
+      indicator.querySelector("#loadMoreSmsBtn")?.addEventListener("click", () => {
+        showSMSScrollLoader();
+        loadMoreSMS().then(() => hideSMSScrollLoader());
+      });
+    } else {
+      indicator.innerHTML = isSyncing ? `<span>${total} messages</span>${syncBadge}` : `<span>${total} messages \xB7 All loaded</span>`;
+    }
+  }
+  function showSyncIndicator() {
+    updateSMSCountIndicator();
+  }
   function showConversation(phoneNumber) {
-    const normalizedInput = phoneNumber.startsWith("contact_") ? phoneNumber : normalizePhoneNumber3(phoneNumber);
+    let normalizedInput;
+    if (phoneNumber.startsWith("contact_") || phoneNumber.startsWith("sender_")) {
+      normalizedInput = phoneNumber;
+    } else {
+      normalizedInput = normalizePhoneNumber3(phoneNumber);
+      if (!normalizedInput && phoneNumber.trim()) {
+        normalizedInput = "sender_" + phoneNumber.trim().toLowerCase();
+      }
+    }
     console.log(
       `[SMS] showConversation: input="${phoneNumber}", normalized="${normalizedInput}"`
     );
     let conversation = allSMSMessages.filter((msg) => {
       const rawPhone = msg.phoneNumber || msg.sender || "";
-      const msgNormalized = normalizePhoneNumber3(rawPhone);
+      let msgNormalized = normalizePhoneNumber3(rawPhone);
+      if (!msgNormalized && rawPhone.trim()) {
+        msgNormalized = "sender_" + rawPhone.trim().toLowerCase();
+      }
       const contactKey = msg.contactName || msg.title ? "contact_" + (msg.contactName || msg.title).trim() : "";
       const matches = msgNormalized === normalizedInput || contactKey === normalizedInput;
       return matches;
@@ -25030,19 +24541,19 @@ ${this.customData.serverResponse}`;
           ${getInitials(contactName)}
         </div>
         <div class="conversation-info">
-          <div class="conversation-name">${contactName}</div>
-          <div class="conversation-phone">${phoneNumber !== contactName && !phoneNumber.startsWith("contact_") ? phoneNumber : ""}</div>
+          <div class="conversation-name">${escapeHtml(contactName)}</div>
+          <div class="conversation-phone">${phoneNumber !== contactName && !phoneNumber.startsWith("contact_") && !phoneNumber.startsWith("sender_") ? escapeHtml(phoneNumber) : ""}</div>
         </div>
       </div>
       <div class="conversation-messages">
         ${conversation.map(
       (msg) => `
-          <div class="message-bubble ${msg.direction === "outgoing" || msg.type === "sent" ? "sent" : "received"}" data-msg-id="${msg.id}">
-            <div class="message-text">${msg.body || ""}</div>
+          <div class="message-bubble ${msg.direction === "outgoing" || msg.type === "sent" ? "sent" : "received"}" data-msg-id="${escapeHtml(msg.id)}">
+            <div class="message-text">${escapeHtml(msg.body || "")}</div>
             <div class="message-footer">
               <span class="message-time">${formatTime(msg.timestamp)}</span>
-              ${msg.deviceName ? `<span class="message-device">\u{1F4F1} ${msg.deviceName}</span>` : ""}
-              <button class="delete-msg-btn" data-id="${msg.id}" title="Delete">
+              ${msg.deviceName ? `<span class="message-device">\u{1F4F1} ${escapeHtml(msg.deviceName)}</span>` : ""}
+              <button class="delete-msg-btn" data-id="${escapeHtml(msg.id)}" title="Delete">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                 </svg>
@@ -25294,11 +24805,881 @@ ${this.customData.serverResponse}`;
       showToast("Failed to delete message", "error");
     }
   }
+  function startPolling() {
+    clearPollingInterval();
+    const interval = setInterval(() => {
+      loadSMS();
+    }, 5e3);
+    setPollingInterval(interval);
+  }
   function stopPolling() {
     clearPollingInterval();
   }
+  var smsUnsubscribeFunctions, processedMessageIds, decryptionCache, PAGE_SIZE, paginationState, isLoadingMore, scrollHandlerAttached, isSyncing;
+  var init_sms = __esm({
+    "src/services/sms.js"() {
+      init_firebase();
+      init_constants();
+      init_errors();
+      init_logger();
+      init_dom();
+      init_toasts();
+      init_helpers();
+      init_state();
+      init_badges();
+      init_cryptoService();
+      init_contacts();
+      init_cache();
+      smsUnsubscribeFunctions = [];
+      processedMessageIds = /* @__PURE__ */ new Set();
+      decryptionCache = /* @__PURE__ */ new Map();
+      PAGE_SIZE = 500;
+      paginationState = {};
+      isLoadingMore = false;
+      scrollHandlerAttached = false;
+      isSyncing = false;
+    }
+  });
+
+  // src/services/chat.js
+  var chat_exports = {};
+  __export(chat_exports, {
+    clearReply: () => clearReply,
+    initChatListeners: () => initChatListeners,
+    renderChatMessages: () => renderChatMessages,
+    sendChatMessage: () => sendChatMessage,
+    setReplyTo: () => setReplyTo,
+    subscribeToChat: () => subscribeToChat
+  });
+  function subscribeToChat() {
+    const user = currentUser;
+    if (!user) return;
+    const q2 = query(
+      collection(db, "chats"),
+      where("participants", "array-contains", user.uid),
+      limit(100)
+    );
+    const unsub = onSnapshot(q2, async (snapshot) => {
+      const rawMessages = [];
+      snapshot.forEach((doc2) => {
+        const data = doc2.data();
+        rawMessages.push({ id: doc2.id, ...data });
+      });
+      rawMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      const messages = await Promise.all(
+        rawMessages.map((msg) => decryptChatMessage(msg, user.uid))
+      );
+      setCachedChatMessages(messages);
+      renderChatMessages(messages);
+    });
+    addUnsubscriber(unsub);
+  }
+  function renderChatMessages(messages) {
+    const selectedTab = document.querySelector("#chatDeviceTabs .device-tab.active")?.dataset.device || "all";
+    const showDeviceName = selectedTab === "all";
+    let filteredMessages = messages;
+    if (selectedTab !== "all") {
+      filteredMessages = messages.filter((msg) => {
+        return msg.senderDeviceId === selectedTab || msg.receiverDeviceId === selectedTab || !msg.receiverDeviceId;
+      });
+    }
+    if (filteredMessages.length === 0) {
+      chatMessages.innerHTML = `
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>
+        </svg>
+        <p>Start a conversation</p>
+        <span>Chat with your other devices</span>
+      </div>
+    `;
+      updateTabBadges();
+      return;
+    }
+    chatMessages.innerHTML = filteredMessages.map((msg) => {
+      let content = "";
+      if (msg.type === "image" && msg.fileUrl) {
+        const safeUrl = sanitizeUrl(msg.fileUrl);
+        content = safeUrl ? `
+          <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="chat-image-link">
+            <img src="${safeUrl}" alt="Image" class="chat-image" />
+          </a>
+        ` : `<div class="chat-file-link"><span>Invalid image URL</span></div>`;
+      } else if (msg.type === "file" && msg.fileUrl) {
+        const safeUrl = sanitizeUrl(msg.fileUrl);
+        content = safeUrl ? `
+          <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="chat-file-link">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span>${escapeHtml(msg.fileName || "File")}</span>
+          </a>
+        ` : `<div class="chat-file-link"><span>Invalid file URL</span></div>`;
+      } else {
+        content = `<div>${escapeHtml(msg.content)}</div>`;
+      }
+      const senderDevice = devices.find(
+        (d) => d.id === msg.senderDeviceId
+      );
+      const deviceName = escapeHtml(
+        senderDevice?.nickname || senderDevice?.name || senderDevice?.model || msg.senderPlatform || ""
+      );
+      const isSentFromExtension = msg.senderPlatform === "chrome-extension" || msg.senderDeviceId && msg.senderDeviceId.startsWith("ext_");
+      return `
+        <div class="chat-message ${isSentFromExtension ? "sent" : "received"}" 
+             data-msg-id="${escapeHtml(msg.id)}" 
+             data-msg-content="${escapeHtml(msg.content || "")}" 
+             data-msg-sender="${escapeHtml(msg.senderId)}">
+          ${showDeviceName && deviceName ? `<div class="chat-message-device">${deviceName}</div>` : ""}
+          ${msg.replyTo ? `<div class="chat-reply-preview">\u21A9 ${escapeHtml(
+        msg.replyTo.content.substring(0, 50)
+      )}${msg.replyTo.content.length > 50 ? "..." : ""}</div>` : ""}
+          ${content}
+          <div class="chat-message-time">${formatTime(msg.timestamp)}</div>
+        </div>
+      `;
+    }).join("");
+    chatMessages.querySelectorAll(".chat-message").forEach((el) => {
+      el.addEventListener("click", () => setReplyTo(el));
+    });
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    updateTabBadges();
+  }
+  async function sendChatMessage() {
+    const content = chatInput.value.trim();
+    const user = currentUser;
+    if (!content || !user) return;
+    const deviceId = await getDeviceId();
+    const selectedDeviceTab = document.querySelector("#chatDeviceTabs .device-tab.active")?.dataset.device || "all";
+    let messageData = {
+      senderId: user.uid,
+      senderDeviceId: deviceId,
+      senderName: user.displayName || "User",
+      senderPlatform: "chrome-extension",
+      receiverId: user.uid,
+      receiverDeviceId: selectedDeviceTab === "all" ? null : selectedDeviceTab,
+      content,
+      type: "text",
+      read: false,
+      timestamp: Date.now(),
+      participants: [user.uid]
+    };
+    if (currentReplyTo) {
+      messageData.replyTo = {
+        id: currentReplyTo.id,
+        content: currentReplyTo.content,
+        senderId: currentReplyTo.senderId
+      };
+    }
+    try {
+      messageData = await encryptChatMessage(messageData, user.uid);
+      await addDoc(collection(db, "chats"), messageData);
+      chatInput.value = "";
+      clearReply();
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      showToast("Failed to send message", "error");
+    }
+  }
+  function formatFileSize(bytes) {
+    if (bytes === 0) return "0 Bytes";
+    const k2 = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k2));
+    return parseFloat((bytes / Math.pow(k2, i)).toFixed(2)) + " " + sizes[i];
+  }
+  function getFileExtension(fileName) {
+    return fileName.split(".").pop()?.toLowerCase() || "";
+  }
+  function showFilePreview(file) {
+    pendingFile = file;
+    const modal = document.getElementById("filePreviewModal");
+    const previewBody = document.getElementById("filePreviewBody");
+    const progressContainer = document.getElementById("uploadProgressContainer");
+    const sendBtn = document.getElementById("sendFileBtn");
+    progressContainer.classList.add("hidden");
+    document.getElementById("uploadProgressFill").style.width = "0%";
+    document.getElementById("uploadProgressText").textContent = "0%";
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="22" y1="2" x2="11" y2="13"></line>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+    </svg>
+    Send
+  `;
+    const isImage = file.type.startsWith("image/");
+    const ext = getFileExtension(file.name);
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewBody.innerHTML = `
+        <img src="${e.target.result}" alt="Preview" class="file-preview-image" />
+        <div class="file-preview-info">
+          <span class="file-preview-name">${escapeHtml(file.name)}</span>
+          <span class="file-preview-size">${formatFileSize(file.size)}</span>
+        </div>
+      `;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      previewBody.innerHTML = `
+      <div class="file-preview-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      </div>
+      <div class="file-preview-info">
+        <span class="file-preview-name">${escapeHtml(file.name)}</span>
+        <span class="file-preview-size">${formatFileSize(file.size)}</span>
+        <span class="file-preview-type">${escapeHtml(ext || "FILE")}</span>
+      </div>
+    `;
+    }
+    modal.classList.remove("hidden");
+  }
+  function hideFilePreview() {
+    const modal = document.getElementById("filePreviewModal");
+    modal.classList.add("hidden");
+    pendingFile = null;
+  }
+  function updateUploadProgress(progress) {
+    const progressFill = document.getElementById("uploadProgressFill");
+    const progressText = document.getElementById("uploadProgressText");
+    const progressContainer = document.getElementById("uploadProgressContainer");
+    progressContainer.classList.remove("hidden");
+    progressFill.style.width = `${progress}%`;
+    progressText.textContent = `${Math.round(progress)}%`;
+  }
+  async function uploadFileToStorage(file) {
+    const user = currentUser;
+    const timestamp = Date.now();
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const storagePath = `chat_files/${user.uid}/${timestamp}_${sanitizedName}`;
+    const storageRef = ref(storage, storagePath);
+    const fileSize = file.size;
+    const isLargeFile = fileSize > 500 * 1024;
+    if (isLargeFile) {
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        updateUploadProgress(progress);
+      }, 200);
+      await uploadBytes(storageRef, file);
+      clearInterval(progressInterval);
+      updateUploadProgress(100);
+    } else {
+      updateUploadProgress(30);
+      await uploadBytes(storageRef, file);
+      updateUploadProgress(100);
+    }
+    const downloadUrl = await getDownloadURL(storageRef);
+    return {
+      url: downloadUrl,
+      fileName: file.name,
+      fileType: file.type.startsWith("image/") ? "image" : "file"
+    };
+  }
+  async function sendFileFromPreview() {
+    if (!pendingFile) return;
+    const user = currentUser;
+    const file = pendingFile;
+    const sendBtn = document.getElementById("sendFileBtn");
+    if (!file || !user) return;
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = `
+    <svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+      <path d="M12 2a10 10 0 0110 10" stroke-linecap="round"/>
+    </svg>
+    Uploading...
+  `;
+    try {
+      const result = await uploadFileToStorage(file);
+      const deviceId = await getDeviceId();
+      const selectedDeviceTab = document.querySelector("#chatDeviceTabs .device-tab.active")?.dataset.device || "all";
+      const contentText = result.fileType === "image" ? "\u{1F4F7} Image" : `\u{1F4CE} ${result.fileName}`;
+      let fileMessageData = {
+        senderId: user.uid,
+        senderDeviceId: deviceId,
+        senderName: user.displayName || "User",
+        senderPlatform: "chrome-extension",
+        receiverId: user.uid,
+        receiverDeviceId: selectedDeviceTab === "all" ? null : selectedDeviceTab,
+        content: contentText,
+        type: result.fileType,
+        fileUrl: result.url,
+        fileName: result.fileName,
+        read: false,
+        timestamp: Date.now(),
+        participants: [user.uid]
+      };
+      fileMessageData = await encryptChatMessage(fileMessageData, user.uid);
+      await addDoc(collection(db, "chats"), fileMessageData);
+      hideFilePreview();
+      showToast(
+        `${result.fileType === "image" ? "Image" : "File"} sent!`,
+        "success"
+      );
+    } catch (error) {
+      showToast("Failed to send file", "error");
+      console.error(error);
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+      Retry
+    `;
+    }
+  }
+  function setReplyTo(element) {
+    const msgId = element.dataset.msgId;
+    const msgContent = element.dataset.msgContent;
+    const msgSender = element.dataset.msgSender;
+    setCurrentReplyTo({
+      id: msgId,
+      content: msgContent,
+      senderId: msgSender
+    });
+    let replyPreview = document.getElementById("chatReplyPreview");
+    if (!replyPreview) {
+      replyPreview = document.createElement("div");
+      replyPreview.id = "chatReplyPreview";
+      replyPreview.className = "chat-reply-input-preview";
+      const chatInputContainer = chatInput.parentElement;
+      chatInputContainer.insertBefore(
+        replyPreview,
+        chatInputContainer.firstChild
+      );
+    }
+    replyPreview.innerHTML = `
+    <span class="reply-text">\u21A9 ${escapeHtml(msgContent.substring(0, 40))}${msgContent.length > 40 ? "..." : ""}</span>
+    <button class="reply-close" onclick="window.clearReply()">\xD7</button>
+  `;
+    replyPreview.style.display = "flex";
+    chatInput.focus();
+  }
+  function clearReply() {
+    setCurrentReplyTo(null);
+    const replyPreview = document.getElementById("chatReplyPreview");
+    if (replyPreview) {
+      replyPreview.style.display = "none";
+    }
+  }
+  function initChatListeners() {
+    sendChatBtn?.addEventListener("click", sendChatMessage);
+    chatInput?.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendChatMessage();
+    });
+    document.getElementById("attachFileBtn")?.addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "*/*";
+      input.onchange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) showFilePreview(file);
+      };
+      input.click();
+    });
+    document.getElementById("attachImageBtn")?.addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) showFilePreview(file);
+      };
+      input.click();
+    });
+    document.getElementById("closePreviewBtn")?.addEventListener("click", hideFilePreview);
+    document.getElementById("cancelFileBtn")?.addEventListener("click", hideFilePreview);
+    document.getElementById("sendFileBtn")?.addEventListener("click", sendFileFromPreview);
+    window.setReplyTo = setReplyTo;
+    window.clearReply = clearReply;
+  }
+  var pendingFile;
+  var init_chat = __esm({
+    "src/services/chat.js"() {
+      init_firebase();
+      init_dom();
+      init_toasts();
+      init_helpers();
+      init_state();
+      init_badges();
+      init_cryptoService();
+      pendingFile = null;
+    }
+  });
+
+  // src/popup.js
+  init_firebase();
+  init_state();
+  init_dom();
+  init_toasts();
+
+  // src/ui/tabs.js
+  init_dom();
+  init_calls();
+
+  // src/services/notifications.js
+  init_firebase();
+  init_dom();
+  init_helpers();
+
+  // src/utils/appIcons.js
+  var APP_ICONS = {
+    // Messaging Apps
+    "com.whatsapp": {
+      name: "WhatsApp",
+      color: "#25D366",
+      svg: `<svg viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`
+    },
+    "com.whatsapp.w4b": {
+      name: "WhatsApp Business",
+      color: "#25D366",
+      svg: `<svg viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`
+    },
+    "org.telegram.messenger": {
+      name: "Telegram",
+      color: "#0088cc",
+      svg: `<svg viewBox="0 0 24 24" fill="#0088cc"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>`
+    },
+    "com.facebook.orca": {
+      name: "Messenger",
+      color: "#0084FF",
+      svg: `<svg viewBox="0 0 24 24" fill="#0084FF"><path d="M12 0C5.373 0 0 4.974 0 11.111c0 3.498 1.744 6.614 4.469 8.654V24l4.088-2.242c1.092.301 2.246.464 3.443.464 6.627 0 12-4.974 12-11.111S18.627 0 12 0zm1.191 14.963l-3.055-3.26-5.963 3.26L10.732 8l3.131 3.259L19.752 8l-6.561 6.963z"/></svg>`
+    },
+    "com.instagram.android": {
+      name: "Instagram",
+      color: "#E4405F",
+      gradient: "linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)",
+      svg: `<svg viewBox="0 0 24 24" fill="#E4405F"><path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.757-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z"/></svg>`
+    },
+    "com.snapchat.android": {
+      name: "Snapchat",
+      color: "#FFFC00",
+      textColor: "#000",
+      svg: `<svg viewBox="0 0 24 24" fill="#FFFC00"><path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z"/></svg>`
+    },
+    "com.twitter.android": {
+      name: "X (Twitter)",
+      color: "#000000",
+      svg: `<svg viewBox="0 0 24 24" fill="#000000"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`
+    },
+    "com.x.android": {
+      name: "X",
+      color: "#000000",
+      svg: `<svg viewBox="0 0 24 24" fill="#000000"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`
+    },
+    "com.facebook.katana": {
+      name: "Facebook",
+      color: "#1877F2",
+      svg: `<svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`
+    },
+    "com.tiktok.android": {
+      name: "TikTok",
+      color: "#000000",
+      svg: `<svg viewBox="0 0 24 24" fill="#000000"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>`
+    },
+    "com.linkedin.android": {
+      name: "LinkedIn",
+      color: "#0A66C2",
+      svg: `<svg viewBox="0 0 24 24" fill="#0A66C2"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`
+    },
+    "com.discord": {
+      name: "Discord",
+      color: "#5865F2",
+      svg: `<svg viewBox="0 0 24 24" fill="#5865F2"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>`
+    },
+    "com.spotify.music": {
+      name: "Spotify",
+      color: "#1DB954",
+      svg: `<svg viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>`
+    },
+    "com.google.android.youtube": {
+      name: "YouTube",
+      color: "#FF0000",
+      svg: `<svg viewBox="0 0 24 24" fill="#FF0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`
+    },
+    "com.google.android.gm": {
+      name: "Gmail",
+      color: "#EA4335",
+      svg: `<svg viewBox="0 0 24 24" fill="#EA4335"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg>`
+    },
+    "com.microsoft.teams": {
+      name: "Teams",
+      color: "#6264A7",
+      svg: `<svg viewBox="0 0 24 24" fill="#6264A7"><path d="M20.625 8.03h-2.997V6.2a2.291 2.291 0 0 0-.792-1.725 2.576 2.576 0 0 0-1.792-.693h-6.09a2.576 2.576 0 0 0-1.79.693A2.291 2.291 0 0 0 6.37 6.2v6.25a2.291 2.291 0 0 0 .793 1.725 2.576 2.576 0 0 0 1.79.693h6.09a2.576 2.576 0 0 0 1.792-.693 2.291 2.291 0 0 0 .792-1.725v-.87h2.997a.687.687 0 0 0 .687-.687V8.717a.687.687 0 0 0-.687-.687zM12 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5z"/><path d="M19.5 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/><path d="M21.375 11.25h-3.75a.375.375 0 0 0-.375.375v5.625a2.25 2.25 0 0 1-2.25 2.25H9a.375.375 0 0 0-.375.375v.75c0 .621.504 1.125 1.125 1.125h11.625c.621 0 1.125-.504 1.125-1.125v-8.25c0-.621-.504-1.125-1.125-1.125z"/></svg>`
+    },
+    "com.slack": {
+      name: "Slack",
+      color: "#4A154B",
+      svg: `<svg viewBox="0 0 24 24" fill="#4A154B"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>`
+    },
+    // Default icon for unknown apps
+    default: {
+      name: "App",
+      color: "#d5c19e",
+      svg: `<svg viewBox="0 0 24 24" fill="#d5c19e"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`
+    }
+  };
+  function getAppIcon2(packageName, firestoreIcon = null) {
+    if (firestoreIcon) {
+      return {
+        type: "image",
+        src: firestoreIcon,
+        name: APP_ICONS[packageName]?.name || packageName
+      };
+    }
+    const mapped = APP_ICONS[packageName];
+    if (mapped) {
+      return {
+        type: "svg",
+        svg: mapped.svg,
+        color: mapped.color,
+        name: mapped.name,
+        textColor: mapped.textColor
+      };
+    }
+    return {
+      type: "svg",
+      svg: APP_ICONS.default.svg,
+      color: APP_ICONS.default.color,
+      name: packageName
+    };
+  }
+  function renderAppIcon(packageName, firestoreIcon = null, size = 40) {
+    const icon = getAppIcon2(packageName, firestoreIcon);
+    if (icon.type === "image") {
+      return `<img src="${icon.src}" alt="${icon.name}" style="width:${size}px;height:${size}px;border-radius:8px;object-fit:cover;" />`;
+    }
+    return `
+    <div style="width:${size}px;height:${size}px;border-radius:8px;background:${icon.color};display:flex;align-items:center;justify-content:center;">
+      <div style="width:${size * 0.6}px;height:${size * 0.6}px;color:${icon.textColor || "#fff"};">
+        ${icon.svg.replace(
+      /fill="[^"]*"/,
+      `fill="${icon.textColor || "#fff"}"`
+    )}
+      </div>
+    </div>
+  `;
+  }
+
+  // src/services/notifications.js
+  init_state();
+  init_badges();
+  async function loadNotifications() {
+    const user = currentUser;
+    if (!user) return;
+    const userNotificationsQuery = query(
+      collection(db, "users", user.uid, "notifications"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
+    const userNotifUnsub = onSnapshot(userNotificationsQuery, (snapshot) => {
+      const notifications = [];
+      snapshot.forEach((doc2) => {
+        const data = doc2.data();
+        const firestoreId = doc2.id;
+        notifications.push({
+          ...data,
+          id: firestoreId,
+          // Use Firestore ID, not data.id
+          deviceId: "user",
+          receivedAt: data.timestamp || data.createdAt?.toMillis?.() || Date.now()
+        });
+      });
+      updateNotificationsList("_user_notifications", notifications);
+    });
+    addUnsubscriber(userNotifUnsub);
+    const devicesQuery = query(
+      collection(db, "devices"),
+      where("userId", "==", user.uid)
+    );
+    const devicesSnapshot = await getDocs(devicesQuery);
+    const devicesList2 = [];
+    devicesSnapshot.forEach((doc2) => {
+      const data = doc2.data();
+      let friendlyName = data.nickname;
+      if (!friendlyName) {
+        if (data.name && /[a-zA-Z]/.test(data.name) && !/^[A-Z0-9]+$/.test(data.name)) {
+          friendlyName = data.name;
+        } else {
+          const platform = (data.platform || "").toLowerCase();
+          friendlyName = platform === "ios" ? "iPhone" : platform === "android" ? "Android" : "Device";
+        }
+      }
+      devicesList2.push({
+        id: data.id,
+        name: friendlyName
+      });
+    });
+    devicesList2.forEach((device) => {
+      const q2 = query(
+        collection(db, "users", user.uid, "devices", device.id, "notifications"),
+        limit(50)
+      );
+      const unsub = onSnapshot(
+        q2,
+        (snapshot) => {
+          const notifications = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const firestoreId = docSnap.id;
+            console.log(
+              `[Notifications] Loaded: id=${firestoreId}, read=${data.read}, title=${data.title?.substring(0, 20)}`
+            );
+            notifications.push({
+              ...data,
+              id: firestoreId,
+              // Use Firestore ID, not data.id
+              deviceId: device.id,
+              deviceName: device.name
+            });
+          });
+          updateNotificationsList(device.id, notifications);
+        }
+        // (error) => {
+        //   console.error(
+        //     "❌ Error loading notifications for device",
+        //     device.id,
+        //     ":",
+        //     error,
+        //   );
+        // },
+      );
+      addUnsubscriber(unsub);
+    });
+  }
+  function updateNotificationsList(deviceId, newNotifications) {
+    setNotificationsData(deviceId, newNotifications);
+    let merged = [];
+    Object.values(allNotifications).forEach((notifs) => {
+      merged = merged.concat(notifs);
+    });
+    const seen = /* @__PURE__ */ new Set();
+    merged = merged.filter((n) => {
+      if (seen.has(n.id)) return false;
+      seen.add(n.id);
+      return true;
+    });
+    merged.sort((a, b) => {
+      const timeA = a.receivedAt || a.timestamp || 0;
+      const timeB = b.receivedAt || b.timestamp || 0;
+      return timeB - timeA;
+    });
+    renderNotifications(merged.slice(0, 100));
+    updateTabBadges();
+  }
+  function renderNotifications(notifications) {
+    if (notifications.length === 0) {
+      notificationsList.innerHTML = `
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 01-3.46 0"/>
+        </svg>
+        <p>No notifications yet</p>
+        <span>Notifications from your phone will appear here</span>
+      </div>
+    `;
+      updateTabBadges();
+      return;
+    }
+    notificationsList.innerHTML = notifications.map(
+      (notif) => `
+    <div class="list-item notification-item notification-${notif.type || "other"} ${notif.read ? "" : "unread"}" data-notif-id="${notif.id}" data-device-id="${notif.deviceId}">
+      <div class="list-item-icon notification-icon">
+        ${renderAppIcon(notif.packageName, notif.appIcon, 40)}
+      </div>
+      <div class="list-item-content">
+        <div class="list-item-title">${escapeHtml(
+        notif.title || notif.appName || "Notification"
+      )}${notif.read ? "" : ' <span class="unread-dot">\u25CF</span>'}</div>
+        <div class="list-item-subtitle">${escapeHtml(notif.text || "")}</div>
+        <div class="notification-app">
+          ${escapeHtml(notif.appName || "Unknown App")}
+          ${notif.deviceName ? `<span class="notification-device">\u{1F4F1} ${escapeHtml(notif.deviceName)}</span>` : ""}
+        </div>
+      </div>
+      <span class="list-item-time">${formatTime(
+        notif.receivedAt || notif.timestamp
+      )}</span>
+    </div>
+  `
+    ).join("");
+    notificationsList.querySelectorAll(".notification-item").forEach((item) => {
+      item.addEventListener("click", async () => {
+        const notifId = item.dataset.notifId;
+        const deviceId = item.dataset.deviceId;
+        if (notifId && deviceId) {
+          await markNotificationAsRead(deviceId, notifId);
+          item.classList.remove("unread");
+          const unreadDot = item.querySelector(".unread-dot");
+          if (unreadDot) unreadDot.remove();
+        }
+      });
+    });
+    updateTabBadges();
+  }
+  async function markNotificationAsRead(deviceId, notifId) {
+    const user = currentUser;
+    if (!user) return;
+    if (!notifId || /^-?\d+$/.test(notifId)) {
+      Object.keys(allNotifications).forEach((key) => {
+        const updated = allNotifications[key].map(
+          (n) => n.id === notifId ? { ...n, read: true } : n
+        );
+        setNotificationsData(key, updated);
+      });
+      updateTabBadges();
+      return;
+    }
+    try {
+      if (deviceId && deviceId !== "user" && deviceId !== "_user_notifications") {
+        const notifRef = doc(
+          db,
+          "users",
+          user.uid,
+          "devices",
+          deviceId,
+          "notifications",
+          notifId
+        );
+        await updateDoc(notifRef, { read: true });
+      } else {
+        const notifRef = doc(db, "users", user.uid, "notifications", notifId);
+        await updateDoc(notifRef, { read: true });
+      }
+      Object.keys(allNotifications).forEach((key) => {
+        const updated = allNotifications[key].map(
+          (n) => n.id === notifId ? { ...n, read: true } : n
+        );
+        setNotificationsData(key, updated);
+      });
+      updateTabBadges();
+    } catch (error) {
+      Object.keys(allNotifications).forEach((key) => {
+        const updated = allNotifications[key].map(
+          (n) => n.id === notifId ? { ...n, read: true } : n
+        );
+        setNotificationsData(key, updated);
+      });
+      updateTabBadges();
+    }
+  }
+  async function markAllNotificationsAsRead() {
+    const user = currentUser;
+    if (!user) return;
+    let unreadNotifs = [];
+    Object.entries(allNotifications).forEach(([stateKey, notifs]) => {
+      notifs.forEach((n) => {
+        if (!n.read) {
+          const actualDeviceId = n.deviceId || stateKey;
+          unreadNotifs.push({ ...n, actualDeviceId });
+        }
+      });
+    });
+    console.log(
+      `[Notifications] Found ${unreadNotifs.length} unread notifications to mark`
+    );
+    if (unreadNotifs.length === 0) return;
+    Object.keys(allNotifications).forEach((key) => {
+      const updated = allNotifications[key].map((n) => ({
+        ...n,
+        read: true
+      }));
+      setNotificationsData(key, updated);
+    });
+    updateTabBadges();
+    let merged = [];
+    Object.values(allNotifications).forEach((notifs) => {
+      merged = merged.concat(notifs);
+    });
+    merged.sort((a, b) => {
+      const timeA = a.receivedAt || a.timestamp || 0;
+      const timeB = b.receivedAt || b.timestamp || 0;
+      return timeB - timeA;
+    });
+    renderNotifications(merged.slice(0, 100));
+    await updateFirestoreNotifications(user.uid, unreadNotifs);
+  }
+  async function updateFirestoreNotifications(userId, unreadNotifs) {
+    let successCount = 0;
+    let failCount = 0;
+    const promises = unreadNotifs.map(async (notif) => {
+      if (/^-?\d+$/.test(notif.id)) {
+        console.log(`[Notifications] Skipping numeric ID: ${notif.id}`);
+        return;
+      }
+      const deviceId = notif.actualDeviceId;
+      try {
+        if (deviceId && deviceId !== "user" && deviceId !== "_user_notifications") {
+          const notifRef = doc(
+            db,
+            "users",
+            userId,
+            "devices",
+            deviceId,
+            "notifications",
+            notif.id
+          );
+          await updateDoc(notifRef, { read: true });
+          successCount++;
+        } else {
+          const notifRef = doc(db, "users", userId, "notifications", notif.id);
+          await updateDoc(notifRef, { read: true });
+          successCount++;
+        }
+      } catch (e) {
+        failCount++;
+        console.warn(`[Notifications] Failed ${notif.id}: ${e.message}`);
+      }
+    });
+    await Promise.all(promises);
+    console.log(
+      `[Notifications] Done: ${successCount} success, ${failCount} failed`
+    );
+  }
+
+  // src/ui/tabs.js
+  function initTabs() {
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const tabName = tab.dataset.tab;
+        tabs.forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        tabContents.forEach((content) => {
+          content.classList.remove("active");
+        });
+        document.getElementById(`${tabName}Tab`)?.classList.add("active");
+        if (tabName === "calls") {
+          markAllCallsAsViewed();
+        } else if (tabName === "notifications") {
+          markAllNotificationsAsRead();
+        }
+      });
+    });
+  }
 
   // src/ui/modals.js
+  init_dom();
+  init_firebase();
+  init_toasts();
+  init_helpers();
+  init_state();
+  init_sms();
+  init_contacts();
   var deviceContacts = [];
   var isContactsLoading = false;
   var lastContactsDeviceId = null;
@@ -25414,7 +25795,7 @@ ${this.customData.serverResponse}`;
     }
     contactsList.innerHTML = contacts.map(
       (contact) => `
-    <div class="contact-item" data-phone="${contact.phoneNumber}" data-name="${contact.name}">
+    <div class="contact-item" data-phone="${escapeHtml(contact.phoneNumber)}" data-name="${escapeHtml(contact.name)}">
       <div class="contact-avatar">${getInitials2(contact.name)}</div>
       <div class="contact-info">
         <div class="contact-name">${escapeHtml(contact.name)}</div>
@@ -25443,11 +25824,6 @@ ${this.customData.serverResponse}`;
       return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
     return name5.substring(0, 2).toUpperCase();
-  }
-  function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
   }
   async function sendNewSms() {
     const user = currentUser;
@@ -25521,6 +25897,8 @@ ${this.customData.serverResponse}`;
 
   // src/services/auth.js
   init_firebase();
+  init_errors();
+  init_logger();
   init_dom();
   init_toasts();
   init_state();
@@ -25845,17 +26223,21 @@ ${this.customData.serverResponse}`;
       </div>
       <div class="list-item-content">
         <div class="list-item-title device-name-display">
-          <span class="device-nickname">${getFriendlyDeviceName(device)}</span>
-          <button class="edit-name-btn" data-device-doc-id="${device.docId}" title="Edit name">
+          <span class="device-nickname">${escapeHtml(getFriendlyDeviceName(device))}</span>
+          <button class="edit-name-btn" data-device-doc-id="${escapeHtml(
+        device.docId
+      )}" title="Edit name">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
           </button>
         </div>
         <div class="list-item-subtitle">
-          ${device.model || device.platform || "Phone"} \u2022 ${device.platform || ""} \u2022 ${device.isOnline ? "Online" : "Offline"}
+          ${escapeHtml(device.model || device.platform || "Phone")} \u2022 ${escapeHtml(
+        device.platform || ""
+      )} \u2022 ${device.isOnline ? "Online" : "Offline"}
         </div>
-        <div class="device-id-info">${device.id}</div>
+        <div class="device-id-info">${escapeHtml(device.id)}</div>
       </div>
       <div class="device-actions">
         <span class="list-item-time">${formatTime(
@@ -25898,12 +26280,14 @@ ${this.customData.serverResponse}`;
     );
     const smsOptions = mobileDevices.map((d) => {
       const deviceName = getFriendlyDeviceName(d);
-      return `<option value="${d.id}">${deviceName}</option>`;
+      return `<option value="${escapeHtml(d.id)}">${escapeHtml(deviceName)}</option>`;
     }).join("");
     if (smsDevice) {
       smsDevice.innerHTML = '<option value="">Select device...</option>' + smsOptions;
     }
     updateChatDeviceTabs();
+    updateSmsDeviceTabs();
+    updateCallsDeviceTabs();
   }
   function updateChatDeviceTabs() {
     const devices2 = devices;
@@ -25916,9 +26300,9 @@ ${this.customData.serverResponse}`;
       const deviceName = getFriendlyDeviceName(d);
       const platformIcon = getPlatformIcon(d.platform);
       return `
-        <button class="device-tab" data-device="${d.id}">
+        <button class="device-tab" data-device="${escapeHtml(d.id)}">
           ${platformIcon}
-          <span>${deviceName}</span>
+          <span>${escapeHtml(deviceName)}</span>
         </button>
       `;
     }).join("");
@@ -25941,6 +26325,92 @@ ${this.customData.serverResponse}`;
         const chatModule = await Promise.resolve().then(() => (init_chat(), chat_exports));
         if (cachedChatMessages.length > 0) {
           chatModule.renderChatMessages(cachedChatMessages);
+        }
+      });
+    });
+  }
+  function updateSmsDeviceTabs() {
+    const devices2 = devices;
+    const smsDeviceTabs = document.getElementById("smsDeviceTabs");
+    if (!smsDeviceTabs) return;
+    const mobileDevices = devices2.filter(
+      (d) => d.type === "mobile" || d.type === "phone" || d.platform === "android" || d.platform === "ios" || d.platform === "Android"
+    );
+    const currentSelected = smsDeviceTabs.querySelector(".device-tab.active")?.dataset.device || "all";
+    const deviceTabsHTML = mobileDevices.map((d) => {
+      const deviceName = getFriendlyDeviceName(d);
+      const platformIcon = getPlatformIcon(d.platform);
+      const isActive = currentSelected === d.id ? " active" : "";
+      return `
+        <button class="device-tab${isActive}" data-device="${escapeHtml(d.id)}">
+          ${platformIcon}
+          <span>${escapeHtml(deviceName)}</span>
+        </button>
+      `;
+    }).join("");
+    const allActive = currentSelected === "all" ? " active" : "";
+    smsDeviceTabs.innerHTML = `
+    <button class="device-tab${allActive || (!mobileDevices.some((d) => d.id === currentSelected) ? " active" : "")}" data-device="all">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+        <path d="M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      <span>All</span>
+    </button>
+    ${deviceTabsHTML}
+  `;
+    smsDeviceTabs.querySelectorAll(".device-tab").forEach((tab) => {
+      tab.addEventListener("click", async () => {
+        smsDeviceTabs.querySelectorAll(".device-tab").forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        const smsModule = await Promise.resolve().then(() => (init_sms(), sms_exports));
+        if (allSMSMessages && allSMSMessages.length > 0) {
+          smsModule.renderSMS(allSMSMessages);
+        }
+      });
+    });
+  }
+  function updateCallsDeviceTabs() {
+    const devices2 = devices;
+    const callsDeviceTabs = document.getElementById("callsDeviceTabs");
+    if (!callsDeviceTabs) return;
+    const mobileDevices = devices2.filter(
+      (d) => d.type === "mobile" || d.type === "phone" || d.platform === "android" || d.platform === "ios" || d.platform === "Android"
+    );
+    const currentSelected = callsDeviceTabs.querySelector(".device-tab.active")?.dataset.device || "all";
+    const deviceTabsHTML = mobileDevices.map((d) => {
+      const deviceName = getFriendlyDeviceName(d);
+      const platformIcon = getPlatformIcon(d.platform);
+      const isActive = currentSelected === d.id ? " active" : "";
+      return `
+        <button class="device-tab${isActive}" data-device="${escapeHtml(d.id)}">
+          ${platformIcon}
+          <span>${escapeHtml(deviceName)}</span>
+        </button>
+      `;
+    }).join("");
+    const allActive = currentSelected === "all" ? " active" : "";
+    callsDeviceTabs.innerHTML = `
+    <button class="device-tab${allActive || (!mobileDevices.some((d) => d.id === currentSelected) ? " active" : "")}" data-device="all">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+        <path d="M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      <span>All</span>
+    </button>
+    ${deviceTabsHTML}
+  `;
+    callsDeviceTabs.querySelectorAll(".device-tab").forEach((tab) => {
+      tab.addEventListener("click", async () => {
+        callsDeviceTabs.querySelectorAll(".device-tab").forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        const callsModule = await Promise.resolve().then(() => (init_calls(), calls_exports));
+        if (allCallsData && allCallsData.length > 0) {
+          callsModule.renderCalls(allCallsData);
         }
       });
     });
@@ -25986,20 +26456,20 @@ ${this.customData.serverResponse}`;
         <div class="device-info-preview">
           <div class="info-row">
             <span class="info-label">Device ID:</span>
-            <span class="info-value">${device.id}</span>
+            <span class="info-value">${escapeHtml(device.id)}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Model:</span>
-            <span class="info-value">${device.model || "Unknown"}</span>
+            <span class="info-value">${escapeHtml(device.model || "Unknown")}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Platform:</span>
-            <span class="info-value">${device.platform || "Unknown"}</span>
+            <span class="info-value">${escapeHtml(device.platform || "Unknown")}</span>
           </div>
         </div>
         <div class="form-group">
           <label for="deviceNickname">Nickname</label>
-          <input type="text" id="deviceNickname" value="${currentName}" placeholder="Enter device nickname..." />
+          <input type="text" id="deviceNickname" value="${escapeHtml(currentName)}" placeholder="Enter device nickname..." />
         </div>
       </div>
       <div class="modal-footer">
@@ -26089,6 +26559,8 @@ ${this.customData.serverResponse}`;
   }
 
   // src/popup.js
+  init_sms();
+  init_calls();
   init_chat();
 
   // src/services/settings.js
@@ -26322,16 +26794,47 @@ ${this.customData.serverResponse}`;
   }
 
   // src/popup.js
+  init_contacts();
+
+  // src/services/theme.js
+  init_dom();
+  var isDark = false;
+  function applyTheme() {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+      if (themeIconLight) themeIconLight.style.display = "none";
+      if (themeIconDark) themeIconDark.style.display = "block";
+    } else {
+      document.documentElement.classList.remove("dark");
+      if (themeIconLight) themeIconLight.style.display = "block";
+      if (themeIconDark) themeIconDark.style.display = "none";
+    }
+  }
+  function toggleTheme() {
+    isDark = !isDark;
+    applyTheme();
+    chrome.storage.local.set({ darkMode: isDark });
+  }
+  function initTheme() {
+    chrome.storage.local.get(["darkMode"], (result) => {
+      isDark = result.darkMode === true;
+      applyTheme();
+    });
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener("click", toggleTheme);
+    }
+  }
+
+  // src/popup.js
+  init_cache();
   function loadData() {
     cleanupSubscriptions();
-    if (smsList) showListLoading(smsList);
-    if (callsList) showListLoading(callsList);
     if (notificationsList) showListLoading(notificationsList);
+    loadSMS();
+    loadCalls();
     loadDevices();
     setTimeout(async () => {
       await loadAllContacts();
-      loadSMS();
-      loadCalls();
     }, 500);
     loadNotifications();
     loadUserSettings();
@@ -26341,7 +26844,6 @@ ${this.customData.serverResponse}`;
     clearUnsubscribers();
     stopPolling();
     stopSMSListener();
-    clearAllSMS();
     clearAllNotifications();
     setDevices([]);
   }
@@ -26367,6 +26869,7 @@ ${this.customData.serverResponse}`;
   }
   function init() {
     showLoadingOverlay();
+    initTheme();
     applyTranslations();
     initTabs();
     initSmsModal();
@@ -26378,13 +26881,14 @@ ${this.customData.serverResponse}`;
     initAuthObserver(
       // On login
       async (user) => {
-        await registerDevice();
+        registerDevice();
         loadData();
       },
       // On logout
       () => {
         cleanupSubscriptions();
         resetState();
+        clearCache();
       }
     );
     markAllReadBtn?.addEventListener("click", markAllSmsAsRead);

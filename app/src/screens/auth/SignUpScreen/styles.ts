@@ -1,6 +1,7 @@
-import { StyleSheet } from 'react-native';
+﻿import { StyleSheet } from 'react-native';
+import { ColorTheme } from '../../../theme/colors';
 
-export const styles = StyleSheet.create({
+export const createStyles = (colors: ColorTheme) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -57,7 +58,7 @@ export const styles = StyleSheet.create({
     marginTop: 8,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: colors.textInverse,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -67,7 +68,7 @@ export const styles = StyleSheet.create({
   googleIcon: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#4285F4',
+    color: colors.info,
     marginRight: 8,
   },
   googleButtonText: {
@@ -110,3 +111,5 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export const styles = createStyles(require('../../../theme/colors').LIGHT_COLORS);

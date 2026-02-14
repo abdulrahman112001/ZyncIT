@@ -1,11 +1,6 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StatusBar,
-} from 'react-native';
+import { View, Text, FlatList, TouchableOpacity } from 'react-native';
+import { Container } from '../../../components';
 
 import { ConversationScreenProps } from './types';
 import { styles } from './styles';
@@ -36,12 +31,12 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
   } = useConversationScreen({ title, appName, type, phoneNumber }, navigation);
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
-
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
+      edges={['top']}
+    >
       {/* Header */}
       <View
         style={[
@@ -50,14 +45,20 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
         ]}
       >
         <TouchableOpacity onPress={goBack} style={styles.backButton}>
-          <Text style={[styles.backIcon, { color: colors.primary }]}>‹</Text>
+          <Text style={[styles.backIcon, { color: colors.primaryText }]}>
+            ‹
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
           <View
             style={[
               styles.headerAvatar,
-              { backgroundColor: isDarkMode ? '#3A3A3C' : '#C7C7CC' },
+              {
+                backgroundColor: isDarkMode
+                  ? colors.surfaceSecondary
+                  : colors.surfaceTertiary,
+              },
             ]}
           >
             <Text style={styles.headerAvatarText}>{getInitials(title)}</Text>
@@ -100,6 +101,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
               bubbleColor={bubbleColor}
               bgColor={bgColor}
               primaryColor={colors.primary}
+              textInverseColor={colors.textInverse}
             />
           )}
           keyExtractor={item => item.id}
@@ -112,7 +114,7 @@ const ConversationScreen = ({ route, navigation }: ConversationScreenProps) => {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </View>
+    </Container>
   );
 };
 

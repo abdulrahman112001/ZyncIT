@@ -9,7 +9,7 @@ import {
 import { useSettingsStore } from '../../../store/settingsStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Permission } from './types';
-import { LIGHT_COLORS, DARK_COLORS } from '../../../constants/theme';
+import { LIGHT_COLORS, DARK_COLORS } from '../../../theme/colors';
 
 const { NotificationModule } = NativeModules;
 
@@ -217,7 +217,7 @@ export const useOnboarding = () => {
       // Backgrounds
       background: themeColors.background,
       surface: themeColors.surface,
-      surfaceSecondary: isDark ? '#252525' : '#F5F5F5',
+      surfaceSecondary: themeColors.surfaceSecondary,
 
       // Text
       text: themeColors.text,
@@ -226,7 +226,7 @@ export const useOnboarding = () => {
 
       // Borders
       border: themeColors.border,
-      borderLight: isDark ? '#2A2A2A' : '#F0F0F0',
+      borderLight: themeColors.borderLight,
 
       // Status
       success: themeColors.success,
@@ -311,13 +311,17 @@ export const useOnboarding = () => {
               PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
             ]);
             const bothGranted =
-              smsResults[PermissionsAndroid.PERMISSIONS.READ_SMS] === PermissionsAndroid.RESULTS.GRANTED &&
-              smsResults[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] === PermissionsAndroid.RESULTS.GRANTED;
+              smsResults[PermissionsAndroid.PERMISSIONS.READ_SMS] ===
+                PermissionsAndroid.RESULTS.GRANTED &&
+              smsResults[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] ===
+                PermissionsAndroid.RESULTS.GRANTED;
             setPermissions(prev => {
               const updated = prev.map(p =>
                 p.id === permissionId ? { ...p, granted: bothGranted } : p,
               );
-              const allGrantedNow = updated.every(p => !p.required || p.granted);
+              const allGrantedNow = updated.every(
+                p => !p.required || p.granted,
+              );
               setAllPermissionsGranted(allGrantedNow);
               return updated;
             });

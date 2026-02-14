@@ -17,7 +17,11 @@ import {
 } from "../config/firebase.js";
 
 import { notificationsList } from "../ui/dom.js";
-import { formatTime, getNotificationIcon } from "../utils/helpers.js";
+import {
+  formatTime,
+  getNotificationIcon,
+  escapeHtml,
+} from "../utils/helpers.js";
 import { renderAppIcon } from "../utils/appIcons.js";
 import * as state from "../state/index.js";
 import { updateTabBadges } from "./badges.js";
@@ -96,7 +100,9 @@ export async function loadNotifications() {
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
           const firestoreId = docSnap.id; // Save the actual Firestore document ID
-          console.log(`[Notifications] Loaded: id=${firestoreId}, read=${data.read}, title=${data.title?.substring(0, 20)}`);
+          console.log(
+            `[Notifications] Loaded: id=${firestoreId}, read=${data.read}, title=${data.title?.substring(0, 20)}`,
+          );
           notifications.push({
             ...data,
             id: firestoreId, // Use Firestore ID, not data.id
@@ -177,15 +183,15 @@ function renderNotifications(notifications) {
         ${renderAppIcon(notif.packageName, notif.appIcon, 40)}
       </div>
       <div class="list-item-content">
-        <div class="list-item-title">${
-          notif.title || notif.appName || "Notification"
-        }${notif.read ? "" : ' <span class="unread-dot">●</span>'}</div>
-        <div class="list-item-subtitle">${notif.text || ""}</div>
+        <div class="list-item-title">${escapeHtml(
+          notif.title || notif.appName || "Notification",
+        )}${notif.read ? "" : ' <span class="unread-dot">●</span>'}</div>
+        <div class="list-item-subtitle">${escapeHtml(notif.text || "")}</div>
         <div class="notification-app">
-          ${notif.appName || "Unknown App"}
+          ${escapeHtml(notif.appName || "Unknown App")}
           ${
             notif.deviceName
-              ? `<span class="notification-device">📱 ${notif.deviceName}</span>`
+              ? `<span class="notification-device">📱 ${escapeHtml(notif.deviceName)}</span>`
               : ""
           }
         </div>
@@ -214,7 +220,6 @@ function renderNotifications(notifications) {
 
   updateTabBadges();
 }
-
 
 async function markNotificationAsRead(deviceId, notifId) {
   const user = state.currentUser;
@@ -285,7 +290,9 @@ export async function markAllNotificationsAsRead() {
     });
   });
 
-  console.log(`[Notifications] Found ${unreadNotifs.length} unread notifications to mark`);
+  console.log(
+    `[Notifications] Found ${unreadNotifs.length} unread notifications to mark`,
+  );
 
   if (unreadNotifs.length === 0) return;
 
@@ -362,5 +369,7 @@ async function updateFirestoreNotifications(userId, unreadNotifs) {
   });
 
   await Promise.all(promises);
-  console.log(`[Notifications] Done: ${successCount} success, ${failCount} failed`);
+  console.log(
+    `[Notifications] Done: ${successCount} success, ${failCount} failed`,
+  );
 }

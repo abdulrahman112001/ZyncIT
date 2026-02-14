@@ -5,11 +5,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  StatusBar,
   Switch,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { Container } from '../../../components';
 import { styles } from './styles';
 import { getInitials } from './helper';
 import { MenuScreenProps } from './types';
@@ -31,15 +30,12 @@ const MenuScreen = ({ navigation }: MenuScreenProps) => {
   } = useMenuScreen(navigation);
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: bgColor }]}
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
       edges={['top', 'left', 'right']}
     >
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
-
       {/* Title like Notifications Screen */}
       <View style={styles.titleContainer}>
         <Text style={[styles.title, { color: textColor }]}>
@@ -147,7 +143,9 @@ const MenuScreen = ({ navigation }: MenuScreenProps) => {
                         false: colors.border,
                         true: colors.primary,
                       }}
-                      thumbColor={item.value ? '#fff' : '#f4f3f4'}
+                      thumbColor={
+                        item.value ? colors.white : colors.surfaceTertiary
+                      }
                     />
                   ) : (
                     <Icon
@@ -166,7 +164,7 @@ const MenuScreen = ({ navigation }: MenuScreenProps) => {
           IRopit v1.0.0
         </Text>
       </ScrollView>
-    </SafeAreaView>
+    </Container>
   );
 };
 

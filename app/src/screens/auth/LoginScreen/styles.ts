@@ -1,6 +1,7 @@
-import { StyleSheet } from 'react-native';
+﻿import { StyleSheet } from 'react-native';
+import { ColorTheme } from '../../../theme/colors';
 
-export const styles = StyleSheet.create({
+export const createStyles = (colors: ColorTheme) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -25,7 +26,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -84,7 +85,7 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.black,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -96,7 +97,7 @@ export const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: colors.textInverse,
   },
   divider: {
     flexDirection: 'row',
@@ -152,3 +153,5 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export const styles = createStyles(require('../../../theme/colors').LIGHT_COLORS);

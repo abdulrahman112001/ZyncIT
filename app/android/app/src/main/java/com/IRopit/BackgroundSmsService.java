@@ -103,9 +103,12 @@ public class BackgroundSmsService extends Service {
 
         // Create notification document
         Map<String, Object> smsData = new HashMap<>();
-        // استخدام timestamp + hash للرسالة لضمان uniqueness (بدون random لمنع التكرار)
-        int messageHash = Math.abs((sender + message).hashCode());
-        String docId = "sms_" + deviceId + "_" + timestamp + "_" + messageHash;
+        // Use body-only hash for docId to match across both services
+        // (NotificationService uses same formula in FirebaseHelper)
+        String bodyForHash = (message != null ? message : "").trim();
+        int bodyHash = Math.abs(bodyForHash.hashCode());
+        long dayBucket = timestamp / (24 * 60 * 60 * 1000);
+        String docId = "sms_" + deviceId + "_" + dayBucket + "_" + bodyHash;
         
         smsData.put("id", docId);
         smsData.put("key", "sms_" + docId);

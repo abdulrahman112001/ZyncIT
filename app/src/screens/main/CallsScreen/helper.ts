@@ -1,4 +1,5 @@
 import { CallLog } from '../../../../types';
+import { ColorTheme } from '../../../theme/colors';
 
 export const ACTION_WIDTH = 75;
 
@@ -40,17 +41,20 @@ export const getInitials = (name: string, phone: string) => {
   return '??';
 };
 
-export const getCallTypeIndicator = (type: CallLog['type']) => {
+export const getCallTypeIndicator = (
+  type: CallLog['type'],
+  colors?: ColorTheme,
+) => {
   switch (type) {
     case 'incoming':
-      return { icon: 'arrow-down', color: '#30D158' };
+      return { icon: 'arrow-down', color: colors?.incoming || '#30D158' };
     case 'outgoing':
-      return { icon: 'arrow-up', color: '#D5C19E' };
+      return { icon: 'arrow-up', color: colors?.primary || '#D5C19E' };
     case 'missed':
-      return { icon: 'close-circle', color: '#FF3B30' };
+      return { icon: 'close-circle', color: colors?.missed || colors.error };
     case 'rejected':
-      return { icon: 'close', color: '#FF3B30' };
+      return { icon: 'close', color: colors?.missed || colors.error };
     default:
-      return { icon: 'call', color: '#8E8E93' };
+      return { icon: 'call', color: colors?.textSecondary || '#8E8E93' };
   }
 };

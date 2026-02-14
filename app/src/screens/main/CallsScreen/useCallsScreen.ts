@@ -38,12 +38,14 @@ export const useCallsScreen = () => {
     null,
   );
 
-  // Theme colors
-  const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
-  const textColor = isDarkMode ? '#FFFFFF' : '#000000';
-  const secondaryTextColor = isDarkMode ? '#8E8E93' : '#6C6C70';
-  const surfaceColor = isDarkMode ? '#1C1C1E' : '#F2F2F7';
-  const avatarBgColor = isDarkMode ? '#3A3A3C' : '#E5E5EA';
+  // Theme colors - use canonical theme tokens
+  const bgColor = colors.background;
+  const textColor = colors.text;
+  const secondaryTextColor = colors.textSecondary;
+  const surfaceColor = isDarkMode ? colors.surface : colors.surfaceSecondary;
+  const avatarBgColor = isDarkMode
+    ? colors.surfaceSecondary
+    : colors.surfaceTertiary;
 
   // Initialize call listener
   const initializeCallListener = useCallback(async () => {

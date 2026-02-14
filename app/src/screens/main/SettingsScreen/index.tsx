@@ -6,11 +6,10 @@ import {
   Switch,
   TouchableOpacity,
   Alert,
-  StatusBar,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { Container } from '../../../components';
 import { useSettingsStore } from '../../../store/settingsStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useContactStore } from '../../../store/contactStore';
@@ -28,8 +27,8 @@ const SettingsScreen = () => {
   const { colors, t, isDarkMode, isRTL } = useTheme();
 
   // Dynamic colors
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const bgColor = colors.background;
+  const textColor = colors.text;
 
   useEffect(() => {
     if (user?.uid) {
@@ -112,7 +111,7 @@ const SettingsScreen = () => {
         value={value}
         onValueChange={val => saveAndSync(settingKey, val)}
         trackColor={{ false: colors.border, true: colors.primary }}
-        thumbColor={value ? '#fff' : '#f4f3f4'}
+        thumbColor={value ? colors.white : colors.surfaceTertiary}
       />
     </View>
   );
@@ -180,15 +179,12 @@ const SettingsScreen = () => {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: bgColor }]}
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
       edges={['top', 'left', 'right']}
     >
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
-
       {/* Header with back button and title inline */}
       <View style={styles.headerRow}>
         <TouchableOpacity
@@ -209,7 +205,7 @@ const SettingsScreen = () => {
 
       <ScrollView style={[styles.scrollContent, { backgroundColor: bgColor }]}>
         {/* Notifications Section */}
-        <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+        <Text style={[styles.sectionTitle, { color: colors.primaryText }]}>
           🔔 {t('notifications')}
         </Text>
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
@@ -231,7 +227,7 @@ const SettingsScreen = () => {
         </View>
 
         {/* Contacts Sync Section */}
-        <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+        <Text style={[styles.sectionTitle, { color: colors.primaryText }]}>
           📇 {isRTL ? 'جهات الاتصال' : 'Contacts'}
         </Text>
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
@@ -279,7 +275,7 @@ const SettingsScreen = () => {
           <Icon
             name="log-out-outline"
             size={22}
-            color="#FF9500"
+            color={colors.warning}
             style={{ marginRight: 12 }}
           />
           <Text style={[styles.logoutButtonText, { color: colors.text }]}>
@@ -295,7 +291,7 @@ const SettingsScreen = () => {
           <Icon
             name="trash-outline"
             size={22}
-            color="#FF3B30"
+            color={colors.error}
             style={{ marginRight: 12 }}
           />
           <Text style={[styles.deleteButtonText]}>
@@ -305,7 +301,7 @@ const SettingsScreen = () => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </Container>
   );
 };
 

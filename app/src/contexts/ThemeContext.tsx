@@ -3,13 +3,9 @@ import { I18nManager, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNRestart from 'react-native-restart';
 import { useSettingsStore } from '../store/settingsStore';
-import {
-  LIGHT_COLORS,
-  DARK_COLORS,
-  FONTS,
-  SPACING,
-  RADIUS,
-} from '../constants/theme';
+import { LIGHT_COLORS, DARK_COLORS } from '../theme/colors';
+import { FONT_FAMILY as FONTS } from '../theme/typography';
+import { SPACING, RADIUS } from '../theme/spacing';
 
 // Arabic translations
 const AR_TRANSLATIONS = {

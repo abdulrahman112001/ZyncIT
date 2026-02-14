@@ -8,12 +8,11 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
-  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../../store/authStore';
 import { useTheme } from '../../../contexts/ThemeContext';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { Container } from '../../../components';
 
 import { UserSettingsScreenProps } from './types';
 import { styles } from './styles';
@@ -26,8 +25,8 @@ const UserSettingsScreen = ({ navigation }: UserSettingsScreenProps) => {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
 
   // Dynamic colors
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
+  const bgColor = colors.background;
+  const textColor = colors.text;
 
   const handleSaveName = async () => {
     if (!displayName.trim()) {
@@ -57,15 +56,12 @@ const UserSettingsScreen = ({ navigation }: UserSettingsScreenProps) => {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: bgColor }]}
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
       edges={['top', 'left', 'right']}
     >
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
-
       {/* Header with back button */}
       <View style={styles.headerRow}>
         <TouchableOpacity
@@ -248,7 +244,7 @@ const UserSettingsScreen = ({ navigation }: UserSettingsScreenProps) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Container>
   );
 };
 

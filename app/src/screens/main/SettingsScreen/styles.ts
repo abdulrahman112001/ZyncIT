@@ -1,6 +1,7 @@
-import { StyleSheet } from 'react-native';
+﻿import { StyleSheet } from 'react-native';
+import { ColorTheme } from '../../../theme/colors';
 
-export const styles = StyleSheet.create({
+export const createStyles = (colors: ColorTheme) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -86,6 +87,8 @@ export const styles = StyleSheet.create({
   deleteButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#FF3B30',
+    color: colors.error,
   },
 });
+
+export const styles = createStyles(require('../../../theme/colors').LIGHT_COLORS);

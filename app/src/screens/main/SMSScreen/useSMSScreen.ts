@@ -27,9 +27,9 @@ export const useSMSScreen = () => {
   const { colors, isDarkMode, isRTL } = useTheme();
 
   // Dynamic colors
-  const bgColor = isDarkMode ? '#000000' : colors.background;
-  const textColor = isDarkMode ? '#FFFFFF' : colors.text;
-  const secondaryTextColor = isDarkMode ? '#8E8E93' : colors.textSecondary;
+  const bgColor = colors.background;
+  const textColor = colors.text;
+  const secondaryTextColor = colors.textSecondary;
 
   // Group messages by phone number into conversations
   const conversations = useMemo(() => {

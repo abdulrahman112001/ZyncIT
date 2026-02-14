@@ -17,7 +17,7 @@ import {
 
 import { db, collection, addDoc } from "../config/firebase.js";
 import { showToast, showLoadingOverlay, hideLoading } from "./toasts.js";
-import { getDeviceId } from "../utils/helpers.js";
+import { getDeviceId, escapeHtml } from "../utils/helpers.js";
 import * as state from "../state/index.js";
 import { renderSMS } from "../services/sms.js";
 import { loadContactsForDevice, searchContacts } from "../services/contacts.js";
@@ -194,7 +194,7 @@ function renderContacts(contacts) {
   contactsList.innerHTML = contacts
     .map(
       (contact) => `
-    <div class="contact-item" data-phone="${contact.phoneNumber}" data-name="${contact.name}">
+    <div class="contact-item" data-phone="${escapeHtml(contact.phoneNumber)}" data-name="${escapeHtml(contact.name)}">
       <div class="contact-avatar">${getInitials(contact.name)}</div>
       <div class="contact-info">
         <div class="contact-name">${escapeHtml(contact.name)}</div>
@@ -235,14 +235,7 @@ function getInitials(name) {
   return name.substring(0, 2).toUpperCase();
 }
 
-/**
- * Escape HTML to prevent XSS
- */
-function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml is now imported from ../utils/helpers.js
 
 /**
  * Send new SMS from modal

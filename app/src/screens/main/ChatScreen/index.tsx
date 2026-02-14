@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
-  StatusBar,
   Image,
   Modal,
   Dimensions,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { EmptyState, ScreenTitle } from '../../../components/shared';
+import { Container, AnimatedListItem } from '../../../components';
 import { Message } from './types';
 import { styles } from './styles';
 import { useChatScreen } from './useChatScreen';
@@ -51,105 +51,120 @@ const ChatScreen = () => {
   } = useChatScreen();
 
   // Render message item
-  const renderMessageItem = ({ item }: { item: Message }) => {
+  const renderMessageItem = ({
+    item,
+    index,
+  }: {
+    item: Message;
+    index: number;
+  }) => {
     const isMyMessage = (item as any).senderDeviceId === currentDevice?.id;
     const msgType = (item as any).type;
     const fileUrl = (item as any).fileUrl;
 
     return (
-      <View
-        style={[styles.messageWrapper, isMyMessage && styles.myMessageWrapper]}
-      >
-        {!isMyMessage && (
-          <Text style={[styles.senderName, { color: secondaryTextColor }]}>
-            {(item as any).senderName || 'Unknown'} •{' '}
-            {(item as any).senderPlatform || 'device'}
-          </Text>
-        )}
-        {item.replyTo && (
-          <View
-            style={[styles.replyContainer, { backgroundColor: surfaceColor }]}
-          >
-            <View
-              style={[styles.replyBar, { backgroundColor: colors.primary }]}
-            />
-            <Text
-              style={[styles.replyText, { color: secondaryTextColor }]}
-              numberOfLines={1}
-            >
-              {item.replyTo.content}
-            </Text>
-          </View>
-        )}
-        <TouchableOpacity
+      <AnimatedListItem index={index}>
+        <View
           style={[
-            styles.messageBubble,
-            { backgroundColor: isMyMessage ? colors.primary : surfaceColor },
+            styles.messageWrapper,
+            isMyMessage && styles.myMessageWrapper,
           ]}
-          onLongPress={() => setReplyMessage(item)}
         >
-          {msgType === 'image' && fileUrl && (
-            <TouchableOpacity onPress={() => setPreviewImage(fileUrl)}>
-              <Image
-                source={{ uri: fileUrl }}
-                style={styles.chatImage}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
+          {!isMyMessage && (
+            <Text style={[styles.senderName, { color: secondaryTextColor }]}>
+              {(item as any).senderName || 'Unknown'} •{' '}
+              {(item as any).senderPlatform || 'device'}
+            </Text>
           )}
-
-          {msgType === 'file' && fileUrl && (
-            <TouchableOpacity
-              style={[
-                styles.fileLink,
-                {
-                  backgroundColor: isMyMessage
-                    ? 'rgba(255,255,255,0.2)'
-                    : 'rgba(0,0,0,0.05)',
-                },
-              ]}
-              onPress={() => {
-                import('react-native').then(({ Linking }) => {
-                  Linking.openURL(fileUrl);
-                });
-              }}
+          {item.replyTo && (
+            <View
+              style={[styles.replyContainer, { backgroundColor: surfaceColor }]}
             >
-              <Text style={{ fontSize: 24 }}>📄</Text>
+              <View
+                style={[styles.replyBar, { backgroundColor: colors.primary }]}
+              />
+              <Text
+                style={[styles.replyText, { color: secondaryTextColor }]}
+                numberOfLines={1}
+              >
+                {item.replyTo.content}
+              </Text>
+            </View>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.messageBubble,
+              { backgroundColor: isMyMessage ? colors.primary : surfaceColor },
+            ]}
+            onLongPress={() => setReplyMessage(item)}
+          >
+            {msgType === 'image' && fileUrl && (
+              <TouchableOpacity onPress={() => setPreviewImage(fileUrl)}>
+                <Image
+                  source={{ uri: fileUrl }}
+                  style={styles.chatImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            )}
+
+            {msgType === 'file' && fileUrl && (
+              <TouchableOpacity
+                style={[
+                  styles.fileLink,
+                  {
+                    backgroundColor: isMyMessage
+                      ? colors.overlay
+                      : 'rgba(0,0,0,0.05)',
+                  },
+                ]}
+                onPress={() => {
+                  import('react-native').then(({ Linking }) => {
+                    Linking.openURL(fileUrl);
+                  });
+                }}
+              >
+                <Text style={{ fontSize: 24 }}>📄</Text>
+                <Text
+                  style={[
+                    styles.fileName,
+                    { color: isMyMessage ? colors.textInverse : textColor },
+                  ]}
+                >
+                  {(item as any).fileName || 'File'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {(!msgType || msgType === 'text') && (
               <Text
                 style={[
-                  styles.fileName,
-                  { color: isMyMessage ? '#fff' : textColor },
+                  styles.messageText,
+                  { color: isMyMessage ? colors.textInverse : textColor },
                 ]}
               >
-                {(item as any).fileName || 'File'}
+                {item.content}
               </Text>
-            </TouchableOpacity>
-          )}
+            )}
 
-          {(!msgType || msgType === 'text') && (
             <Text
               style={[
-                styles.messageText,
-                { color: isMyMessage ? '#fff' : textColor },
+                styles.messageTime,
+                {
+                  color: isMyMessage
+                    ? 'rgba(255,255,255,0.6)'
+                    : secondaryTextColor,
+                },
               ]}
             >
-              {item.content}
+              {new Date(item.timestamp).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </Text>
-          )}
-
-          <Text
-            style={[
-              styles.messageTime,
-              { color: isMyMessage ? '#fff9' : secondaryTextColor },
-            ]}
-          >
-            {new Date(item.timestamp).toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          </TouchableOpacity>
+        </View>
+      </AnimatedListItem>
     );
   };
 
@@ -160,7 +175,7 @@ const ChatScreen = () => {
       onPress={deleteAllMessages}
       style={styles.deleteAllButton}
     >
-      <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+      <Ionicons name="trash-outline" size={22} color={colors.error} />
     </TouchableOpacity>
   );
 
@@ -186,11 +201,11 @@ const ChatScreen = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
+    >
       {renderHeader()}
 
       {/* Screen Title with Delete button */}
@@ -228,7 +243,7 @@ const ChatScreen = () => {
       {replyTo && (
         <View style={[styles.replyPreview, { backgroundColor: surfaceColor }]}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.replyLabel, { color: colors.primary }]}>
+            <Text style={[styles.replyLabel, { color: colors.primaryText }]}>
               {isRTL ? 'الرد على:' : 'Replying to:'}
             </Text>
             <Text
@@ -289,7 +304,9 @@ const ChatScreen = () => {
             styles.input,
             {
               color: textColor,
-              backgroundColor: isDarkMode ? '#2C2C2E' : '#E5E5EA',
+              backgroundColor: isDarkMode
+                ? colors.surfaceSecondary
+                : colors.surfaceTertiary,
             },
           ]}
           value={inputText}
@@ -301,7 +318,7 @@ const ChatScreen = () => {
 
         {isUploading ? (
           <View style={styles.sendButton}>
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={colors.textInverse} />
           </View>
         ) : (
           <TouchableOpacity
@@ -347,7 +364,7 @@ const ChatScreen = () => {
             }}
             onPress={() => setPreviewImage(null)}
           >
-            <Ionicons name="close" size={32} color="#fff" />
+            <Ionicons name="close" size={32} color="#FFFFFF" />
           </TouchableOpacity>
 
           {previewImage && (
@@ -362,7 +379,7 @@ const ChatScreen = () => {
           )}
         </TouchableOpacity>
       </Modal>
-    </View>
+    </Container>
   );
 };
 

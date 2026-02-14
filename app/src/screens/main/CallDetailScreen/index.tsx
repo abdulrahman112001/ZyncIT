@@ -4,7 +4,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  StatusBar,
   Linking,
   Alert,
   ScrollView,
@@ -14,6 +13,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useCallStore } from '../../../store/callStore';
+import { Container } from '../../../components';
 
 import { styles } from './styles';
 import {
@@ -42,12 +42,14 @@ const CallDetailScreen = () => {
   }, [calls, call.phoneNumber]);
 
   // Dynamic colors based on theme
-  const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
-  const textColor = isDarkMode ? '#FFFFFF' : '#000000';
-  const secondaryTextColor = isDarkMode ? '#8E8E93' : '#6C6C70';
-  const surfaceColor = isDarkMode ? '#1C1C1E' : '#F2F2F7';
-  const avatarBgColor = isDarkMode ? '#4a4a6a' : '#C7C7CC';
-  const borderColor = isDarkMode ? '#3A3A3C' : '#E5E5EA';
+  const bgColor = colors.background;
+  const textColor = colors.text;
+  const secondaryTextColor = colors.textSecondary;
+  const surfaceColor = isDarkMode ? colors.surface : colors.surfaceSecondary;
+  const avatarBgColor = isDarkMode
+    ? colors.surfaceSecondary
+    : colors.surfaceTertiary;
+  const borderColor = colors.border;
 
   const handleCall = () => {
     const phoneNumber = call.phoneNumber;
@@ -106,25 +108,31 @@ const CallDetailScreen = () => {
   const displayName = call.contactName || call.phoneNumber;
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={bgColor}
-      />
-
+    <Container
+      isDark={isDarkMode}
+      noPaddingHorizontal
+      backgroundColor={bgColor}
+      edges={['top']}
+    >
       {/* Header with gradient background */}
       <View
         style={[
           styles.headerGradient,
-          { backgroundColor: isDarkMode ? '#1a1a2e' : '#E8E8ED' },
+          {
+            backgroundColor: isDarkMode
+              ? colors.surfaceSecondary
+              : colors.surfaceTertiary,
+          },
         ]}
       >
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={[styles.backIcon, { color: colors.primary }]}>‹</Text>
-          <Text style={[styles.backText, { color: colors.primary }]}>
+          <Text style={[styles.backIcon, { color: colors.primaryText }]}>
+            ‹
+          </Text>
+          <Text style={[styles.backText, { color: colors.primaryText }]}>
             {isRTL ? 'المكالمات' : 'Calls'}
           </Text>
         </TouchableOpacity>
@@ -147,7 +155,11 @@ const CallDetailScreen = () => {
             <View
               style={[
                 styles.actionIconContainer,
-                { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
+                {
+                  backgroundColor: isDarkMode
+                    ? colors.surfaceSecondary
+                    : colors.surfaceTertiary,
+                },
               ]}
             >
               <Icon name="chatbubble" size={24} color={colors.primary} />
@@ -161,7 +173,11 @@ const CallDetailScreen = () => {
             <View
               style={[
                 styles.actionIconContainer,
-                { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
+                {
+                  backgroundColor: isDarkMode
+                    ? colors.surfaceSecondary
+                    : colors.surfaceTertiary,
+                },
               ]}
             >
               <Icon name="call" size={24} color={colors.primary} />
@@ -173,7 +189,11 @@ const CallDetailScreen = () => {
             <View
               style={[
                 styles.actionIconContainer,
-                { backgroundColor: isDarkMode ? '#3A3A3C' : '#E5E5EA' },
+                {
+                  backgroundColor: isDarkMode
+                    ? colors.surfaceSecondary
+                    : colors.surfaceTertiary,
+                },
               ]}
             >
               <Icon name="mail" size={24} color={colors.primary} />
@@ -189,7 +209,11 @@ const CallDetailScreen = () => {
           style={[
             styles.tab,
             styles.activeTab,
-            { backgroundColor: isDarkMode ? '#3A3A3C' : '#FFFFFF' },
+            {
+              backgroundColor: isDarkMode
+                ? colors.surfaceSecondary
+                : colors.surface,
+            },
           ]}
         >
           <Text
@@ -209,7 +233,7 @@ const CallDetailScreen = () => {
               <Icon
                 name={getCallTypeIcon(call.type)}
                 size={20}
-                color={call.type === 'missed' ? '#FF3B30' : '#34C759'}
+                color={call.type === 'missed' ? colors.missed : colors.incoming}
                 style={styles.callTypeIcon}
               />
               <View style={styles.callTypeTextContainer}>
@@ -256,7 +280,11 @@ const CallDetailScreen = () => {
               <Icon
                 name={getCallTypeIcon(historyCall.type)}
                 size={18}
-                color={historyCall.type === 'missed' ? '#FF3B30' : '#34C759'}
+                color={
+                  historyCall.type === 'missed'
+                    ? colors.missed
+                    : colors.incoming
+                }
               />
               <View style={styles.historyInfo}>
                 <Text style={[styles.historyType, { color: textColor }]}>
@@ -288,7 +316,7 @@ const CallDetailScreen = () => {
             {isRTL ? 'الهاتف' : 'Phone'}
           </Text>
           <TouchableOpacity style={styles.phoneRow} onPress={handleCall}>
-            <Text style={[styles.phoneNumber, { color: colors.primary }]}>
+            <Text style={[styles.phoneNumber, { color: colors.primaryText }]}>
               {call.phoneNumber}
             </Text>
             <Text style={[styles.phoneLabel, { color: secondaryTextColor }]}>
@@ -297,7 +325,7 @@ const CallDetailScreen = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </Container>
   );
 };
 
