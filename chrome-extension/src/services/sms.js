@@ -107,7 +107,7 @@ function normalizePhoneNumber(phone) {
 function isPhoneNumberLike(value) {
   if (!value || !value.trim) return false;
   const digits = value.replace(/[\s\-().]/g, "");
-  return /\d{6,}/.test(digits);
+  return /\d{3,}/.test(digits);
 }
 
 /**
@@ -1212,6 +1212,24 @@ async function sendConversationMessage(phoneNumber, inputElement) {
 
     inputElement.value = "";
     showToast("SMS sent!", "success");
+
+    // Listen for status update from Android device
+    const unsubStatus = onSnapshot(
+      doc(db, "sms_requests", docRef.id),
+      (snapshot) => {
+        const data = snapshot.data();
+        if (!data) return;
+        if (data.status === "sent") {
+          showToast("SMS delivered to carrier", "success");
+          unsubStatus();
+        } else if (data.status === "failed") {
+          showToast("SMS failed to send from phone", "error");
+          unsubStatus();
+        }
+      },
+    );
+    // Auto-cleanup after 30 seconds
+    setTimeout(() => unsubStatus(), 30000);
   } catch (error) {
     console.error("SMS send error:", error);
     showToast("Failed to send SMS", "error");

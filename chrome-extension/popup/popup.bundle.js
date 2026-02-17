@@ -23329,7 +23329,7 @@ ${this.customData.serverResponse}`;
   function isPhoneNumberLike(value) {
     if (!value || !value.trim) return false;
     const digits = value.replace(/[\s\-().]/g, "");
-    return /\d{6,}/.test(digits);
+    return /\d{3,}/.test(digits);
   }
   async function markAllCallsAsViewed() {
     const user = currentUser;
@@ -23378,10 +23378,10 @@ ${this.customData.serverResponse}`;
   }
   function processCallDoc(data, firestoreId, deviceId, deviceName) {
     const titleLower = (data.title || "").toLowerCase().trim();
-    const isTitleCallDescription = titleLower === "call" || titleLower === "calling" || titleLower === "incoming call" || titleLower === "outgoing call" || titleLower === "missed call" || titleLower === "missed calls" || titleLower === "ongoing call" || titleLower === "on hold" || titleLower === "dialing" || titleLower === "ringing" || titleLower.includes("missed call") || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0648\u0627\u0631\u062F\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0635\u0627\u062F\u0631\u0629" || titleLower === "\u0627\u062A\u0635\u0627\u0644" || /^\d{1,4}$/.test(titleLower);
+    const isTitleCallDescription = titleLower === "call" || titleLower === "calling" || titleLower === "incoming call" || titleLower === "outgoing call" || titleLower === "missed call" || titleLower === "missed calls" || titleLower === "ongoing call" || titleLower === "on hold" || titleLower === "dialing" || titleLower === "ringing" || titleLower.includes("missed call") || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0648\u0627\u0631\u062F\u0629" || titleLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0635\u0627\u062F\u0631\u0629" || titleLower === "\u0627\u062A\u0635\u0627\u0644" || /^\d{1,2}$/.test(titleLower);
     let rawContactName = data.contactName || data.displayName || "";
     const contactLower = rawContactName.toLowerCase().trim();
-    const isContactCallDescription = contactLower === "call" || contactLower === "calling" || contactLower === "incoming call" || contactLower === "outgoing call" || contactLower === "missed call" || contactLower === "missed calls" || contactLower === "ongoing call" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || /^\d{1,4}$/.test(contactLower);
+    const isContactCallDescription = contactLower === "call" || contactLower === "calling" || contactLower === "incoming call" || contactLower === "outgoing call" || contactLower === "missed call" || contactLower === "missed calls" || contactLower === "ongoing call" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0629 \u0641\u0627\u0626\u062A\u0629" || contactLower === "\u0645\u0643\u0627\u0644\u0645\u0627\u062A \u0641\u0627\u0626\u062A\u0629" || /^\d{1,2}$/.test(contactLower);
     if (isContactCallDescription) {
       rawContactName = "";
     }
@@ -23919,7 +23919,7 @@ ${this.customData.serverResponse}`;
   function isPhoneNumberLike2(value) {
     if (!value || !value.trim) return false;
     const digits = value.replace(/[\s\-().]/g, "");
-    return /\d{6,}/.test(digits);
+    return /\d{3,}/.test(digits);
   }
   function resolvePhoneNumber(data) {
     if (!data) return "";
@@ -24666,6 +24666,21 @@ ${this.customData.serverResponse}`;
       }
       inputElement.value = "";
       showToast("SMS sent!", "success");
+      const unsubStatus = onSnapshot(
+        doc(db, "sms_requests", docRef.id),
+        (snapshot) => {
+          const data = snapshot.data();
+          if (!data) return;
+          if (data.status === "sent") {
+            showToast("SMS delivered to carrier", "success");
+            unsubStatus();
+          } else if (data.status === "failed") {
+            showToast("SMS failed to send from phone", "error");
+            unsubStatus();
+          }
+        }
+      );
+      setTimeout(() => unsubStatus(), 3e4);
     } catch (error) {
       console.error("SMS send error:", error);
       showToast("Failed to send SMS", "error");
@@ -26827,15 +26842,21 @@ ${this.customData.serverResponse}`;
 
   // src/popup.js
   init_cache();
+  async function loadDevicesAndContacts() {
+    let attempts = 0;
+    while (devices.length === 0 && attempts < 50) {
+      await new Promise((r) => setTimeout(r, 100));
+      attempts++;
+    }
+    await loadAllContacts();
+  }
   function loadData() {
     cleanupSubscriptions();
     if (notificationsList) showListLoading(notificationsList);
     loadSMS();
     loadCalls();
     loadDevices();
-    setTimeout(async () => {
-      await loadAllContacts();
-    }, 500);
+    loadDevicesAndContacts();
     loadNotifications();
     loadUserSettings();
     subscribeToChat();

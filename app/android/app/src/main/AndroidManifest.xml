@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <uses-permission android:name="android.permission.VIBRATE" />
     
     <!-- Boot completed permission to restart services after device restart -->
@@ -91,7 +92,7 @@
       <!-- SMS Request Foreground Service -->
       <service
         android:name=".SmsRequestService"
-        android:foregroundServiceType="dataSync"
+        android:foregroundServiceType="remoteMessaging"
         android:exported="false" />
 
       <!-- Background SMS Service -->

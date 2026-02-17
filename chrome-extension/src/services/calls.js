@@ -61,7 +61,7 @@ function normalizePhoneNumber(phone) {
 function isPhoneNumberLike(value) {
   if (!value || !value.trim) return false;
   const digits = value.replace(/[\s\-().]/g, "");
-  return /\d{6,}/.test(digits);
+  return /\d{3,}/.test(digits);
 }
 
 /**
@@ -151,7 +151,7 @@ function processCallDoc(data, firestoreId, deviceId, deviceName) {
     titleLower === "مكالمة واردة" ||
     titleLower === "مكالمة صادرة" ||
     titleLower === "اتصال" ||
-    /^\d{1,4}$/.test(titleLower);
+    /^\d{1,2}$/.test(titleLower);
 
   let rawContactName = data.contactName || data.displayName || "";
   const contactLower = rawContactName.toLowerCase().trim();
@@ -166,7 +166,7 @@ function processCallDoc(data, firestoreId, deviceId, deviceName) {
     contactLower === "مكالمة" ||
     contactLower === "مكالمة فائتة" ||
     contactLower === "مكالمات فائتة" ||
-    /^\d{1,4}$/.test(contactLower);
+    /^\d{1,2}$/.test(contactLower);
 
   if (isContactCallDescription) {
     rawContactName = "";

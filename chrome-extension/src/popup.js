@@ -39,6 +39,20 @@ import { clearCache } from "./services/cache.js";
 // Import utilities
 import { applyTranslations } from "./utils/i18n.js";
 
+/**
+ * Wait for devices to load, then load contacts
+ * This ensures contacts resolution has device data available
+ */
+async function loadDevicesAndContacts() {
+  // Wait until devices are available (max 5 seconds)
+  let attempts = 0;
+  while (state.devices.length === 0 && attempts < 50) {
+    await new Promise((r) => setTimeout(r, 100));
+    attempts++;
+  }
+  await loadAllContacts();
+}
+
 function loadData() {
   cleanupSubscriptions();
 
@@ -49,13 +63,9 @@ function loadData() {
   loadSMS();
   loadCalls();
 
-  // Load devices, contacts, and other data in parallel
+  // Load devices first, then contacts (contacts need devices to be loaded)
   loadDevices();
-
-  // Load contacts after devices are loaded
-  setTimeout(async () => {
-    await loadAllContacts();
-  }, 500);
+  loadDevicesAndContacts();
 
   loadNotifications();
   loadUserSettings();

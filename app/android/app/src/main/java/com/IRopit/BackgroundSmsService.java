@@ -60,7 +60,12 @@ public class BackgroundSmsService extends Service {
         }
 
         // Start foreground service for background persistence
-        startForeground(NOTIFICATION_ID, createNotification().build());
+        try {
+            startForeground(NOTIFICATION_ID, createNotification().build());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start foreground: " + e.getMessage());
+            // Still try to process the SMS even without foreground
+        }
 
         String sender = intent.getStringExtra("sender");
         String message = intent.getStringExtra("message");

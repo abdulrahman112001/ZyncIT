@@ -47,10 +47,10 @@ export default function Footer() {
             <div className="flex items-center gap-3 text-sm text-txt-secondary">
               <Mail className="w-4 h-4" />
               <a
-                href="mailto:iropitapp@gmail.com"
+                href="mailto:info@iRopit.com"
                 className="hover:text-primary transition-colors"
               >
-                iropitapp@gmail.com
+                info@iRopit.com
               </a>
             </div>
           </div>

@@ -47,6 +47,26 @@ public class BootReceiver extends BroadcastReceiver {
             } catch (Exception e) {
                 Log.e(TAG, "Error initializing FirebaseHelper: " + e.getMessage());
             }
+
+            // Start SmsRequestService to listen for SMS send requests
+            try {
+                android.content.SharedPreferences prefs = context.getSharedPreferences("ZyncITPrefs", Context.MODE_PRIVATE);
+                String userId = prefs.getString("userId", null);
+                String deviceId = prefs.getString("deviceId", null);
+                if (userId != null && deviceId != null) {
+                    Intent smsServiceIntent = new Intent(context, SmsRequestService.class);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(smsServiceIntent);
+                    } else {
+                        context.startService(smsServiceIntent);
+                    }
+                    Log.i(TAG, "SmsRequestService started on boot");
+                } else {
+                    Log.w(TAG, "No user credentials found, skipping SmsRequestService start");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error starting SmsRequestService: " + e.getMessage());
+            }
         }
     }
 }

@@ -81,7 +81,9 @@ export const useCallStore = create<CallState>()(
               syncedAt: Date.now(),
             };
 
-            const docId = `${call.timestamp}_${phoneNumber}`.replace(
+            // Use a stable docId based on call timestamp + phone number
+            // This ensures duplicate events for the same call merge into one document
+            const docId = `call_${call.timestamp}_${phoneNumber}`.replace(
               /[\/\.]/g,
               '_',
             );

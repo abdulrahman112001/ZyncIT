@@ -17,8 +17,8 @@ const contactInfo = [
   {
     icon: Mail,
     title: "Email",
-    value: "iropitapp@gmail.com",
-    href: "mailto:iropitapp@gmail.com",
+    value: "info@iRopit.com",
+    href: "mailto:info@iRopit.com",
     color: "text-info",
     bg: "bg-info-light",
   },

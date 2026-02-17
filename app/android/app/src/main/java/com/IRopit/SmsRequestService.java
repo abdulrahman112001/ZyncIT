@@ -54,7 +54,15 @@ public class SmsRequestService extends Service {
         Log.d(TAG, "SmsRequestService started");
 
         // MUST call startForeground() before anything else (Android 8+ requirement)
-        startForeground(NOTIFICATION_ID, createNotification());
+        // Wrap in try-catch to prevent crash loop when foreground service quota is exhausted
+        try {
+            startForeground(NOTIFICATION_ID, createNotification());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start foreground service: " + e.getMessage());
+            // If we can't start as foreground, stop gracefully to avoid crash loop
+            stopSelf();
+            return START_NOT_STICKY;
+        }
 
         // Get credentials from SharedPreferences
         SharedPreferences prefs = getSharedPreferences("ZyncITPrefs", MODE_PRIVATE);

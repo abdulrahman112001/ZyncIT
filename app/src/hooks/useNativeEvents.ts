@@ -233,18 +233,23 @@ export const useNativeEvents = (listenToEvents: boolean = false) => {
     const callSubscription = DeviceEventEmitter.addListener(
       'onCallReceived',
       async data => {
+        // Only process 'ended' events - they have correct type + duration from call log
+        // Intermediate events (ringing, answered, started) have duration=0 and incomplete type
+        if (data.status !== 'ended') return;
+
         // CallReceiver يرسل phoneNumber و contactName
         const phoneNumber = data.phoneNumber || data.number || 'Unknown';
         const contactName = data.contactName || data.name || '';
+        const callTimestamp = data.timestamp || Date.now();
 
         const newCall = {
-          id: `call_${Date.now()}`,
+          id: `call_${callTimestamp}_${phoneNumber}`,
           userId: user.uid,
           phoneNumber: phoneNumber,
           contactName: contactName,
           type: data.type as 'incoming' | 'outgoing' | 'missed',
           duration: data.duration || 0,
-          timestamp: data.timestamp || Date.now(),
+          timestamp: callTimestamp,
           deviceId: 'android',
           syncedAt: Date.now(),
         };

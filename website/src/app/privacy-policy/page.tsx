@@ -629,10 +629,10 @@ export default function PrivacyPolicyPage() {
                 </a>{" "}
                 or{" "}
                 <a
-                  href="mailto:iropitapp@gmail.com"
+                  href="mailto:info@iRopit.com"
                   className="text-primary-dark hover:underline"
                 >
-                  iropitapp@gmail.com
+                  info@iRopit.com
                 </a>
                 . We will respond to your request within 30 days.
               </p>
@@ -868,10 +868,10 @@ export default function PrivacyPolicyPage() {
                   <p className="text-txt m-0">
                     <strong>General Inquiries:</strong>{" "}
                     <a
-                      href="mailto:iropitapp@gmail.com"
+                      href="mailto:info@iRopit.com"
                       className="text-primary-dark hover:underline"
                     >
-                      iropitapp@gmail.com
+                      info@iRopit.com
                     </a>
                   </p>
                   <p className="text-txt m-0">

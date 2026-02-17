@@ -51,9 +51,15 @@ export const getCallTypeIndicator = (
     case 'outgoing':
       return { icon: 'arrow-up', color: colors?.primary || '#D5C19E' };
     case 'missed':
-      return { icon: 'close-circle', color: colors?.missed || colors.error };
+      return {
+        icon: 'close-circle',
+        color: colors?.missed || colors?.error || '#FF3B30',
+      };
     case 'rejected':
-      return { icon: 'close', color: colors?.missed || colors.error };
+      return {
+        icon: 'close',
+        color: colors?.missed || colors?.error || '#FF3B30',
+      };
     default:
       return { icon: 'call', color: colors?.textSecondary || '#8E8E93' };
   }

@@ -112,11 +112,11 @@ const organizationSchema = {
   logo: "https://www.iropit.com/icons/icon-512.png",
   description:
     "iRopit is a cross-platform device synchronization platform that syncs SMS, calls, notifications and chat between your phone and computer.",
-  email: "iropitapp@gmail.com",
+  email: "info@iRopit.com",
   sameAs: [],
   contactPoint: {
     "@type": "ContactPoint",
-    email: "iropitapp@gmail.com",
+    email: "info@iRopit.com",
     contactType: "customer support",
     availableLanguage: ["English", "Arabic"],
   },

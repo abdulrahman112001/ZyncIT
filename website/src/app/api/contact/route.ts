@@ -76,11 +76,10 @@ export async function POST(request: NextRequest) {
     const smtpPort = parseInt(process.env.SMTP_PORT || "587");
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const recipientEmail = process.env.CONTACT_EMAIL || "iropitapp@gmail.com";
+    const recipientEmail = process.env.CONTACT_EMAIL || "info@iRopit.com";
 
     if (!smtpUser || !smtpPass) {
       // If SMTP is not configured, log and return success (for development)
- 
 
       return NextResponse.json({
         success: true,
