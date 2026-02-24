@@ -169,14 +169,15 @@ public class FirebaseHelper {
         String docId;
         if (type.equals("sms")) {
             // For SMS: use deterministic docId that matches across both services
-            // Use ONLY the message body hash (most reliable match between services)
-            // Both NotificationService and BackgroundSmsService see the same body text
-            // but may have different sender formats and timestamps
-            String messageBody = (bigText != null && !bigText.isEmpty()) ? bigText : text;
-            String bodyForHash = (messageBody != null ? messageBody : "").trim();
+            // IMPORTANT: Use ONLY the "text" field (not bigText) for the hash!
+            // BackgroundSmsService hashes the raw SMS body, which matches the notification's
+            // "text" field. Google Messages puts conversation history in "bigText" which 
+            // differs from the raw SMS body and causes mismatched docIds → duplicates.
+            String bodyForHash = (text != null ? text : "").trim();
             int bodyHash = Math.abs(bodyForHash.hashCode());
-            // Use body hash + day-bucket (not exact timestamp) to allow same-body msgs on different days
-            long dayBucket = System.currentTimeMillis() / (24 * 60 * 60 * 1000);
+            // Use the passed timestamp (not System.currentTimeMillis()) for dayBucket
+            // to match BackgroundSmsService which uses the PDU timestamp
+            long dayBucket = timestamp / (24 * 60 * 60 * 1000);
             docId = "sms_" + deviceId + "_" + dayBucket + "_" + bodyHash;
         } else {
             docId = key.replaceAll("[^a-zA-Z0-9]", "_");
@@ -219,7 +220,8 @@ public class FirebaseHelper {
         Map<String, Object> call = new HashMap<>();
         call.put("phoneNumber", phoneNumber);
         call.put("contactName", contactName != null ? contactName : phoneNumber);
-        call.put("callType", callType);
+        call.put("type", callType);
+        call.put("callType", callType); // backward compatibility
         call.put("timestamp", timestamp);
         call.put("duration", duration);
         call.put("createdAt", System.currentTimeMillis());

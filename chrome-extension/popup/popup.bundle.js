@@ -23393,7 +23393,8 @@ ${this.customData.serverResponse}`;
       deviceId,
       deviceName,
       phoneNumber: resolvedPhone || data.phoneNumber || "",
-      contactName: resolvedContact
+      contactName: resolvedContact,
+      type: data.type || data.callType || "incoming"
     };
   }
   async function loadCalls() {

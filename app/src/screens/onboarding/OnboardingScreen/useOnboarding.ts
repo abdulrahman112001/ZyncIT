@@ -65,8 +65,10 @@ export const useOnboarding = () => {
       id: 'readSms',
       name: 'Read SMS',
       nameAr: 'قراءة الرسائل',
-      description: 'Read incoming SMS even when notifications are disabled',
-      descriptionAr: 'قراءة الرسائل الواردة حتى لو الإشعارات مغلقة',
+      description:
+        'Read all SMS messages (sent & received) to sync with extension',
+      descriptionAr:
+        'قراءة جميع الرسائل المرسلة والمستلمة لمزامنتها مع الإكستنشن',
       icon: 'mail-open-outline',
       required: true,
       granted: false,

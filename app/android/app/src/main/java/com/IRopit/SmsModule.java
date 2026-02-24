@@ -42,10 +42,13 @@ public class SmsModule extends ReactContextBaseJavaModule {
         try {
             WritableArray smsList = Arguments.createArray();
             ContentResolver cr = reactContext.getContentResolver();
+            // Read ALL SMS (inbox + sent) - type 1=inbox, 2=sent
             Cursor cursor = cr.query(
-                Uri.parse("content://sms/inbox"),
-                new String[]{"_id", "address", "body", "date", "read"},
-                null, null, "date DESC"
+                Uri.parse("content://sms"),
+                new String[]{"_id", "address", "body", "date", "read", "type"},
+                "type IN (1, 2)",
+                null,
+                "date DESC"
             );
 
             int count = 0;
@@ -59,13 +62,16 @@ public class SmsModule extends ReactContextBaseJavaModule {
                     sms.putString("body", cursor.getString(2));
                     sms.putDouble("date", cursor.getLong(3));
                     sms.putBoolean("read", cursor.getInt(4) == 1);
+                    int smsType = cursor.getInt(5);
+                    sms.putString("direction", smsType == 2 ? "outgoing" : "incoming");
+                    sms.putString("smsType", smsType == 2 ? "sent" : "inbox");
                     smsList.pushMap(sms);
                     count++;
                 } while (cursor.moveToNext());
                 cursor.close();
             }
 
-            Log.d(TAG, "Loaded " + smsList.size() + " SMS from device");
+            Log.d(TAG, "Loaded " + smsList.size() + " SMS from device (inbox + sent)");
             promise.resolve(smsList);
         } catch (Exception e) {
             Log.e(TAG, "Error getting SMS", e);

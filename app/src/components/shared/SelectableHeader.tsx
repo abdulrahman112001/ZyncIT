@@ -21,6 +21,7 @@ const SelectableHeader: React.FC<SelectableHeaderProps> = ({
   deselectAllText,
 }) => {
   const bgColor = isDarkMode ? '#000000' : '#FFFFFF';
+  
 
   const getSelectText = () => selectText || (isRTL ? 'تحديد' : 'Select');
   const getCancelText = () => cancelText || (isRTL ? 'إلغاء' : 'Cancel');

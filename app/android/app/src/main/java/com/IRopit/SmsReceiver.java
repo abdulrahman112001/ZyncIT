@@ -35,7 +35,76 @@ public class SmsReceiver extends BroadcastReceiver {
     
     // Track recently captured SMS so NotificationService can avoid duplicates
     private static final ConcurrentHashMap<String, Long> recentlyCapturedSms = new ConcurrentHashMap<>();
-    private static final long DEDUP_WINDOW_MS = 30000; // 30 seconds
+    // Track recently sent SMS (from extension) so NotificationService can skip outgoing SMS notifications
+    private static final ConcurrentHashMap<String, Long> recentlySentSms = new ConcurrentHashMap<>();
+    // Track recently captured SMS body hashes for content-based dedup
+    // (works even when NotificationService can't extract phone number)
+    private static final ConcurrentHashMap<Integer, Long> recentBodyHashes = new ConcurrentHashMap<>();
+    private static final long DEDUP_WINDOW_MS = 60000; // 60 seconds (increased from 30s)
+    
+    /**
+     * Mark an SMS as sent by the extension. NotificationService will skip notifications for these.
+     */
+    public static void markSentByExtension(String phoneNumber, long timestamp) {
+        if (phoneNumber == null) return;
+        String normalized = phoneNumber.replaceAll("[^0-9+]", "");
+        recentlySentSms.put(normalized, timestamp);
+        Log.d("SmsReceiver", "Marked extension-sent SMS to: " + normalized);
+        // Cleanup old entries
+        long now = System.currentTimeMillis();
+        recentlySentSms.entrySet().removeIf(e -> now - e.getValue() > 60000);
+    }
+    
+    /**
+     * Check if an SMS to this number was recently sent by the extension.
+     * Used by NotificationService to avoid showing outgoing SMS confirmation notifications.
+     */
+    public static boolean wasSentByExtension(String phoneNumber) {
+        if (phoneNumber == null) return false;
+        String normalized = phoneNumber.replaceAll("[^0-9+]", "");
+        Long sentTime = recentlySentSms.get(normalized);
+        if (sentTime != null && System.currentTimeMillis() - sentTime < 60000) {
+            return true;
+        }
+        // Check last 4 digits for format differences
+        if (normalized.length() >= 4) {
+            String last4 = normalized.substring(normalized.length() - 4);
+            for (java.util.Map.Entry<String, Long> entry : recentlySentSms.entrySet()) {
+                if (entry.getKey().endsWith(last4) && System.currentTimeMillis() - entry.getValue() < 60000) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Track an SMS body hash so NotificationService can detect duplicates by content.
+     * This works even when NotificationService can't extract a phone number from the notification.
+     */
+    public static void trackBodyHash(String body) {
+        if (body == null) return;
+        int hash = Math.abs(body.trim().hashCode());
+        recentBodyHashes.put(hash, System.currentTimeMillis());
+        Log.d("SmsReceiver", "Tracked SMS body hash: " + hash);
+        // Cleanup old entries
+        long cutoff = System.currentTimeMillis() - DEDUP_WINDOW_MS;
+        recentBodyHashes.entrySet().removeIf(e -> e.getValue() < cutoff);
+    }
+    
+    /**
+     * Check if an SMS with the same body text was recently captured by SmsReceiver.
+     * Used by NotificationService as a fallback dedup when phone number is unavailable.
+     */
+    public static boolean wasBodyRecentlyCaptured(String body) {
+        if (body == null || body.trim().isEmpty()) return false;
+        int hash = Math.abs(body.trim().hashCode());
+        Long time = recentBodyHashes.get(hash);
+        if (time != null && System.currentTimeMillis() - time < DEDUP_WINDOW_MS) {
+            return true;
+        }
+        return false;
+    }
     
     /**
      * Check if an SMS from this sender was recently captured by SmsReceiver.
@@ -44,17 +113,27 @@ public class SmsReceiver extends BroadcastReceiver {
     public static boolean wasRecentlyCaptured(String sender, long timestamp) {
         if (sender == null) return false;
         String normalizedSender = sender.replaceAll("[^0-9+]", "");
+        long now = System.currentTimeMillis();
+        
         // Check by sender (any recent SMS from this sender)
         Long capturedTime = recentlyCapturedSms.get(normalizedSender);
-        if (capturedTime != null && Math.abs(capturedTime - timestamp) < DEDUP_WINDOW_MS) {
-            return true;
+        if (capturedTime != null) {
+            // Accept if captured within the dedup window relative to either
+            // the passed timestamp OR the current time (handles PDU vs postTime mismatch)
+            if (Math.abs(capturedTime - timestamp) < DEDUP_WINDOW_MS || 
+                Math.abs(now - capturedTime) < DEDUP_WINDOW_MS) {
+                return true;
+            }
         }
         // Also check last 4 digits (for format differences)
         if (normalizedSender.length() >= 4) {
             String last4 = normalizedSender.substring(normalizedSender.length() - 4);
             for (java.util.Map.Entry<String, Long> entry : recentlyCapturedSms.entrySet()) {
-                if (entry.getKey().endsWith(last4) && Math.abs(entry.getValue() - timestamp) < DEDUP_WINDOW_MS) {
-                    return true;
+                if (entry.getKey().endsWith(last4)) {
+                    if (Math.abs(entry.getValue() - timestamp) < DEDUP_WINDOW_MS ||
+                        Math.abs(now - entry.getValue()) < DEDUP_WINDOW_MS) {
+                        return true;
+                    }
                 }
             }
         }
@@ -261,6 +340,10 @@ public class SmsReceiver extends BroadcastReceiver {
             long cutoff = System.currentTimeMillis() - DEDUP_WINDOW_MS;
             recentlyCapturedSms.entrySet().removeIf(entry -> entry.getValue() < cutoff);
         }
+        
+        // Also track body hash for content-based dedup
+        // (NotificationService uses this when it can't extract a phone number)
+        trackBodyHash(message);
 
         // Always try to save to Firebase using background service
         try {

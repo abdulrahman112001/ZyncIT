@@ -94,14 +94,14 @@ public class CallReceiver extends BroadcastReceiver {
         } else if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
             // Call ended
             if (callStartTime > 0) {
-                // Wait a moment for call log to update, then fetch the last call
+                // Wait for call log to update, then fetch the last call
                 final String savedNumber = lastNumber;
                 final boolean wasIncoming = isIncoming;
                 final long savedStartTime = callStartTime;
                 
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                     fetchLastCallAndSendEvent(context, savedNumber, wasIncoming, savedStartTime);
-                }, 1500);
+                }, 2500); // 2.5 seconds - some devices need more time to update call log
             }
             
             // Reset state
@@ -117,6 +117,8 @@ public class CallReceiver extends BroadcastReceiver {
         String name = "";
         String type = wasIncoming ? "incoming" : "outgoing";
         int duration = (int) ((System.currentTimeMillis() - savedStartTime) / 1000);
+        long callDate = savedStartTime; // Will be overridden by call log date if available
+        boolean gotCallLogData = false;
         
         try {
             // Check permission
@@ -155,8 +157,9 @@ public class CallReceiver extends BroadcastReceiver {
                             Log.d(TAG, "savedNumber was: '" + savedNumber + "'");
                             Log.d(TAG, "current number is: '" + number + "'");
 
-                            // Only use call log data if it's recent (within last 30 seconds)
-                            if (System.currentTimeMillis() - logDate < 30000) {
+                            // Only use call log data if it's recent (within last 60 seconds)
+                            if (System.currentTimeMillis() - logDate < 60000) {
+                                gotCallLogData = true;
                                 // Always use number from call log as it's more reliable
                                 if (logNumber != null && !logNumber.isEmpty()) {
                                     number = logNumber;
@@ -169,6 +172,7 @@ public class CallReceiver extends BroadcastReceiver {
                                     Log.d(TAG, "✅ Using name from call log: " + name);
                                 }
                                 duration = logDuration;
+                                callDate = logDate; // Use actual call date from call log
                                 
                                 switch (logType) {
                                     case CallLog.Calls.INCOMING_TYPE:
@@ -184,8 +188,9 @@ public class CallReceiver extends BroadcastReceiver {
                                         type = "rejected";
                                         break;
                                 }
+                                Log.d(TAG, "✅ Got call log data: type=" + type + ", duration=" + duration + ", date=" + logDate);
                             } else {
-                                Log.w(TAG, "Call log entry too old, ignoring");
+                                Log.w(TAG, "Call log entry too old (" + (System.currentTimeMillis() - logDate) + "ms), ignoring");
                             }
                         }
                     } finally {
@@ -210,14 +215,16 @@ public class CallReceiver extends BroadcastReceiver {
             name = getContactName(context, number);
         }
         
-        // Check for missed call
-        if (wasIncoming && duration < 3) {
+        // Only override type to missed if we did NOT get reliable data from call log
+        // The call log already correctly reports missed/incoming/outgoing/rejected types
+        if (!gotCallLogData && wasIncoming && duration < 3) {
             type = "missed";
+            Log.d(TAG, "No call log data available, marking as missed (duration < 3s)");
         }
 
-        Log.d(TAG, "Final call data: number=" + number + ", name=" + name + ", type=" + type + ", duration=" + duration);
+        Log.d(TAG, "Final call data: number=" + number + ", name=" + name + ", type=" + type + ", duration=" + duration + ", date=" + callDate);
 
-        sendEvent("onCallReceived", createCallMap(number, name, type, "ended", duration));
+        sendEvent("onCallReceived", createCallMap(number, name, type, "ended", duration, callDate));
     }
 
     private String getContactName(Context context, String phoneNumber) {
@@ -318,16 +325,20 @@ public class CallReceiver extends BroadcastReceiver {
     }
 
     private WritableMap createCallMap(String phoneNumber, String contactName, String type, String status, int duration) {
+        return createCallMap(phoneNumber, contactName, type, status, duration, System.currentTimeMillis());
+    }
+
+    private WritableMap createCallMap(String phoneNumber, String contactName, String type, String status, int duration, long timestamp) {
         WritableMap map = Arguments.createMap();
-        map.putString("id", String.valueOf(System.currentTimeMillis()));
+        map.putString("id", String.valueOf(timestamp));
         map.putString("phoneNumber", phoneNumber != null && !phoneNumber.isEmpty() ? phoneNumber : "Unknown");
         map.putString("contactName", contactName != null ? contactName : "");
         map.putString("type", type);
         map.putString("status", status);
-        map.putDouble("timestamp", System.currentTimeMillis());
+        map.putDouble("timestamp", (double) timestamp);
         map.putInt("duration", duration);
 
-        Log.d(TAG, "createCallMap: phone=" + phoneNumber + ", contact=" + contactName + ", type=" + type + ", status=" + status);
+        Log.d(TAG, "createCallMap: phone=" + phoneNumber + ", contact=" + contactName + ", type=" + type + ", status=" + status + ", timestamp=" + timestamp);
         return map;
     }
 

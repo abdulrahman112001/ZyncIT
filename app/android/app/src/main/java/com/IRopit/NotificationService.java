@@ -268,6 +268,14 @@ public class NotificationService extends NotificationListenerService {
             return;
         }
 
+        // Skip Google system/persistent notifications that repeat constantly
+        // These are system-level notifications (weather, at-a-glance, services) 
+        // that get reposted frequently and are not meaningful user notifications
+        if (isGoogleSystemPackage(packageName)) {
+            Log.d(TAG, "Skipping Google system notification: " + packageName + " - " + key);
+            return;
+        }
+
         // Skip notifications older than service start (already existing)
         if (postTime < serviceStartTime) {
             if (packageName.equals("com.whatsapp") || packageName.equals("com.whatsapp.w4b")) {
@@ -308,6 +316,17 @@ public class NotificationService extends NotificationListenerService {
             }
             Log.d(TAG, "Skipping group summary: " + key);
             return;
+        }
+
+        // Skip ongoing/persistent notifications (e.g., "running in background", music players, etc.)
+        // These are NOT real notification events - they stay in the status bar permanently.
+        // Exception: SMS/Phone/WhatsApp apps may use ongoing for active calls/conversations
+        if ((notification.flags & Notification.FLAG_ONGOING_EVENT) != 0) {
+            if (!isSmsPackage(packageName) && !isPhonePackage(packageName) && 
+                !packageName.equals("com.whatsapp") && !packageName.equals("com.whatsapp.w4b")) {
+                Log.d(TAG, "Skipping ongoing/persistent notification: " + packageName + " - " + key);
+                return;
+            }
         }
 
         // Check for duplicate
@@ -535,14 +554,52 @@ public class NotificationService extends NotificationListenerService {
         // Skip SMS notifications already captured by SmsReceiver/BackgroundSmsService
         // This prevents duplicate Firestore documents since BackgroundSmsService 
         // already saved this SMS with a deterministic docId
-        if (type.equals("sms") && extractedPhoneNumber != null) {
-            if (SmsReceiver.wasRecentlyCaptured(extractedPhoneNumber, postTime)) {
-                Log.i(TAG, "📱 SMS already captured by SmsReceiver, skipping to avoid duplicate: " + extractedPhoneNumber);
-                // Still update tracking to prevent re-processing
+        if (type.equals("sms")) {
+            boolean alreadyCaptured = false;
+            
+            // Check 1: sender-based dedup (if phone number available)
+            if (extractedPhoneNumber != null) {
+                if (SmsReceiver.wasRecentlyCaptured(extractedPhoneNumber, postTime)) {
+                    alreadyCaptured = true;
+                    Log.i(TAG, "📱 SMS dedup: matched by sender " + extractedPhoneNumber);
+                }
+            }
+            
+            // Check 2: body-based dedup (works even without phone number)
+            // This catches cases where Google Messages shows contact name instead of number
+            if (!alreadyCaptured) {
+                if (SmsReceiver.wasBodyRecentlyCaptured(text)) {
+                    alreadyCaptured = true;
+                    Log.i(TAG, "📱 SMS dedup: matched by body content hash");
+                }
+            }
+            
+            if (alreadyCaptured) {
+                Log.i(TAG, "📱 SMS already captured by SmsReceiver, skipping to avoid duplicate");
                 lastNotificationTime.put(key, now);
                 lastSmsContent.put(key, text);
                 return;
             }
+        }
+
+        // Skip outgoing SMS notifications (sent from extension via SmsRequestService)
+        // These create "Message sent" notifications from the native SMS app
+        if (type.equals("sms") && extractedPhoneNumber != null) {
+            if (SmsReceiver.wasSentByExtension(extractedPhoneNumber)) {
+                Log.i(TAG, "📱 Skipping outgoing SMS notification (sent from extension) to: " + extractedPhoneNumber);
+                lastNotificationTime.put(key, now);
+                lastSmsContent.put(key, text);
+                return;
+            }
+        }
+
+        // Skip call/missed_call notifications - CallReceiver handles calls directly
+        // via the call log with accurate type, duration, and timestamp.
+        // NotificationService creates duplicates with wrong data.
+        if (type.equals("call") || type.equals("missed_call")) {
+            Log.i(TAG, "📞 Skipping call notification (CallReceiver handles calls): " + title + " - " + text);
+            lastNotificationTime.put(key, now);
+            return;
         }
 
         // Update tracking
@@ -1053,11 +1110,33 @@ public class NotificationService extends NotificationListenerService {
             return false;
         }
         
-        // Only filter email apps that repeatedly show unread counts
+        // Filter email and Google apps that repeatedly show unread/status notifications
         return packageName.equals("com.google.android.gm") ||           // Gmail
                packageName.equals("com.google.android.apps.inbox") ||    // Inbox
                packageName.equals("com.microsoft.office.outlook") ||     // Outlook
                packageName.equals("com.yahoo.mobile.client.android.mail"); // Yahoo Mail
+    }
+
+    /**
+     * Check if this is a Google system/persistent package whose notifications
+     * repeat constantly and are not meaningful to sync to the extension.
+     * (e.g., "At a glance" weather, Play Services, system UI, etc.)
+     */
+    private boolean isGoogleSystemPackage(String packageName) {
+        if (packageName == null) return false;
+        
+        return packageName.equals("com.google.android.googlequicksearchbox") || // Google app (At a Glance, Discover)
+               packageName.equals("com.google.android.gms") ||                  // Google Play Services
+               packageName.equals("com.google.android.gsf") ||                  // Google Services Framework
+               packageName.equals("com.android.vending") ||                     // Google Play Store
+               packageName.equals("com.google.android.apps.wellbeing") ||       // Digital Wellbeing
+               packageName.equals("com.google.android.apps.nexuslauncher") ||   // Pixel Launcher
+               packageName.equals("com.google.android.projection.gearhead") ||  // Android Auto
+               packageName.equals("com.google.android.apps.gcs") ||             // Google Connectivity Services
+               packageName.equals("com.google.android.ext.services") ||         // Android System Intelligence
+               packageName.equals("com.android.systemui") ||                    // System UI
+               packageName.equals("com.android.providers.downloads") ||         // Download Manager
+               packageName.equals("android");                                   // Android System
     }
 
     @Override

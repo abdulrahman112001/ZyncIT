@@ -6,12 +6,16 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.ContactsContract;
 import android.service.notification.NotificationListenerService;
 import android.telephony.SmsManager;
 import android.util.Log;
@@ -40,6 +44,7 @@ public class SmsRequestService extends Service {
     private String deviceId;
     private Handler watchdogHandler;
     private Runnable watchdogRunnable;
+    private SentSmsObserver sentSmsObserver;
 
     @Override
     public void onCreate() {
@@ -78,10 +83,32 @@ public class SmsRequestService extends Service {
         // Start listening for SMS requests
         startListening();
 
+        // Start observing outgoing SMS from the native SMS app
+        startSentSmsObserver();
+
         // Start watchdog to keep NotificationListenerService alive (MIUI fix)
         startNotificationServiceWatchdog();
 
         return START_STICKY;
+    }
+
+    /**
+     * Start observing the SMS content provider for outgoing messages.
+     * This captures SMS sent from the phone's native SMS app.
+     */
+    private void startSentSmsObserver() {
+        try {
+            if (sentSmsObserver != null) {
+                Log.d(TAG, "SentSmsObserver already running");
+                return;
+            }
+            Handler handler = new Handler(Looper.getMainLooper());
+            sentSmsObserver = new SentSmsObserver(handler, this);
+            sentSmsObserver.register();
+            Log.i(TAG, "✅ SentSmsObserver started - monitoring outgoing SMS");
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Failed to start SentSmsObserver: " + e.getMessage());
+        }
     }
 
     /**
@@ -168,6 +195,12 @@ public class SmsRequestService extends Service {
 
             Log.d(TAG, "SMS sent to: " + phoneNumber);
 
+            // Mark this SMS so SentSmsObserver doesn't double-save it
+            SentSmsObserver.markExtensionSms(phoneNumber, message);
+            
+            // Mark this SMS so NotificationService skips the outgoing SMS notification
+            SmsReceiver.markSentByExtension(phoneNumber, System.currentTimeMillis());
+
             // Update status to sent
             db.collection("sms_requests").document(docId)
                 .update("status", "sent")
@@ -197,16 +230,29 @@ public class SmsRequestService extends Service {
         SharedPreferences prefs = getSharedPreferences("ZyncITPrefs", MODE_PRIVATE);
         String deviceName = prefs.getString("deviceName", "Android Device");
         
+        // Look up real contact name instead of using phone number
+        String contactName = getContactName(phoneNumber);
+        if (contactName == null || contactName.isEmpty()) {
+            contactName = phoneNumber;
+        }
+        
         Map<String, Object> sentMessage = new HashMap<>();
         sentMessage.put("type", "sms");
         sentMessage.put("phoneNumber", phoneNumber);
-        sentMessage.put("contactName", phoneNumber);
+        sentMessage.put("contactName", contactName);
         sentMessage.put("body", message);
+        sentMessage.put("text", message);
+        sentMessage.put("content", message);
+        sentMessage.put("title", contactName);
+        sentMessage.put("appName", "SMS");
+        sentMessage.put("packageName", "com.android.mms");
+        sentMessage.put("smsType", "sent");
         sentMessage.put("timestamp", timestamp);
         sentMessage.put("read", true);
         sentMessage.put("direction", "outgoing");
         sentMessage.put("deviceId", deviceId);
         sentMessage.put("deviceName", deviceName);
+        sentMessage.put("syncedAt", System.currentTimeMillis());
 
         db.collection("users")
             .document(userId)
@@ -262,6 +308,12 @@ public class SmsRequestService extends Service {
             smsRequestListener = null;
         }
         
+        // Stop sent SMS observer
+        if (sentSmsObserver != null) {
+            sentSmsObserver.unregister();
+            sentSmsObserver = null;
+        }
+        
         // Stop watchdog
         if (watchdogHandler != null && watchdogRunnable != null) {
             watchdogHandler.removeCallbacks(watchdogRunnable);
@@ -273,6 +325,48 @@ public class SmsRequestService extends Service {
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
+        return null;
+    }
+
+    /**
+     * Look up contact name from phone number.
+     */
+    private String getContactName(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.isEmpty()) return null;
+        
+        try {
+            ContentResolver cr = getContentResolver();
+            Uri uri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                Uri.encode(phoneNumber)
+            );
+            
+            Cursor cursor = cr.query(
+                uri,
+                new String[]{ContactsContract.PhoneLookup.DISPLAY_NAME},
+                null, null, null
+            );
+            
+            if (cursor != null) {
+                try {
+                    if (cursor.moveToFirst()) {
+                        int nameIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME);
+                        if (nameIdx >= 0) {
+                            String name = cursor.getString(nameIdx);
+                            if (name != null && !name.isEmpty()) {
+                                Log.d(TAG, "Contact name for " + phoneNumber + ": " + name);
+                                return name;
+                            }
+                        }
+                    }
+                } finally {
+                    cursor.close();
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Error looking up contact: " + e.getMessage());
+        }
+        
         return null;
     }
 }

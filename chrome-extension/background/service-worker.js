@@ -302,15 +302,14 @@ function listenToDevice(deviceId, deviceName) {
           change.doc.id,
         );
 
-        // Handle both 'added' AND 'modified' - modified means the doc was updated
-        if (change.type === "added" || change.type === "modified") {
+        // Only show Chrome notifications for NEW documents
+        // 'modified' = existing doc was updated (e.g. Google apps refreshing notifications)
+        // We should NOT re-show notifications that were just updated
+        if (change.type === "added") {
           const notification = change.doc.data();
           const docId = change.doc.id;
           const notificationTime =
             notification.timestamp || notification.receivedAt || Date.now();
-
-          // Create a unique key combining docId and timestamp to detect real updates
-          const uniqueKey = `${docId}_${notificationTime}`;
 
           const timeDiff = Date.now() - notificationTime;
           const isRecent = timeDiff < 5 * 60 * 1000; // 5 minutes
@@ -329,13 +328,14 @@ function listenToDevice(deviceId, deviceName) {
             isRecent,
           );
 
-          // Skip if already seen using unique key (docId + timestamp)
-          if (seenNotifications.has(uniqueKey)) {
-            console.log("ZyncIT: ⏭️ Skipping already seen:", uniqueKey);
+          // Skip if already seen (use docId only - not timestamp - to prevent
+          // re-showing when the same doc is updated with a new timestamp)
+          if (seenNotifications.has(docId)) {
+            console.log("ZyncIT: ⏭️ Skipping already seen:", docId);
             return;
           }
 
-          // Only show if notification is recent (last 5 minutes) - increased from 2
+          // Only show if notification is recent (last 5 minutes)
           if (!isRecent) {
             console.log(
               "ZyncIT: ⏭️ Skipping old notification (age:",
@@ -345,12 +345,12 @@ function listenToDevice(deviceId, deviceName) {
             return;
           }
 
-          // Mark as seen with unique key
-          seenNotifications.add(uniqueKey);
+          // Mark as seen by docId
+          seenNotifications.add(docId);
           console.log("ZyncIT: ✅ Marked as seen, showing notification...");
 
-          // Keep only last 200 seen
-          const seenArray = Array.from(seenNotifications).slice(-200);
+          // Keep only last 500 seen
+          const seenArray = Array.from(seenNotifications).slice(-500);
           chrome.storage.local.set({
             seenNotifications: seenArray,
             lastNotificationTimestamp: Date.now(),
@@ -646,7 +646,7 @@ async function pollForNewNotifications() {
         const notification = doc.data();
         const docId = doc.id;
 
-        // Skip if already seen
+        // Skip if already seen (use docId directly)
         if (seenNotifications.has(docId)) return;
 
         console.log(
@@ -654,9 +654,9 @@ async function pollForNewNotifications() {
           notification.title || notification.contactName,
         );
 
-        // Mark as seen
+        // Mark as seen by docId
         seenNotifications.add(docId);
-        const seenArray = Array.from(seenNotifications).slice(-200);
+        const seenArray = Array.from(seenNotifications).slice(-500);
         chrome.storage.local.set({ seenNotifications: seenArray });
 
         // Update last timestamp

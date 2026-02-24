@@ -195,6 +195,7 @@ function processCallDoc(data, firestoreId, deviceId, deviceName) {
     deviceName: deviceName,
     phoneNumber: resolvedPhone || data.phoneNumber || "",
     contactName: resolvedContact,
+    type: data.type || data.callType || "incoming",
   };
 }
 

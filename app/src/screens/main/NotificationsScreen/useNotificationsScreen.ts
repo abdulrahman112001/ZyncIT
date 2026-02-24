@@ -10,6 +10,7 @@ import { useSMSStore } from '../../../store/smsStore';
 import { useCallStore } from '../../../store/callStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useDeviceStore } from '../../../store/deviceStore';
+import { useContactStore } from '../../../store/contactStore';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { AlertService } from '../../../components/shared';
 
@@ -39,6 +40,7 @@ export const useNotificationsScreen = (
   const { addCallAndSync } = useCallStore();
   const { user } = useAuthStore();
   const { currentDevice } = useDeviceStore();
+  const { contacts } = useContactStore();
   const { isRTL, colors, isDarkMode } = useTheme();
 
   // Local state
@@ -69,6 +71,28 @@ export const useNotificationsScreen = (
     const nameToPhoneMap: { [name: string]: string } = {};
     const phoneToNameMap: { [phone: string]: string } = {};
 
+    // Build phone-to-name map from local device contacts
+    if (Array.isArray(contacts)) {
+      contacts.forEach(contact => {
+        if (contact.name && contact.phoneNumber) {
+          const normalized = normalizePhoneNumber(contact.phoneNumber);
+          if (normalized) {
+            phoneToNameMap[normalized] = contact.name;
+          }
+          // Also map all alternate phone numbers
+          if (contact.phoneNumbers) {
+            contact.phoneNumbers.forEach((num: string) => {
+              const normAlt = normalizePhoneNumber(num);
+              if (normAlt) {
+                phoneToNameMap[normAlt] = contact.name;
+              }
+            });
+          }
+        }
+      });
+    }
+
+    // Also build map from SMS messages that have contactName
     validSmsMessages.forEach(sms => {
       const rawPhone = (sms as any).phoneNumber || (sms as any).sender || '';
       const name = (sms as any).contactName || '';
@@ -90,6 +114,12 @@ export const useNotificationsScreen = (
           (sms as any).address ||
           '';
         let contactName = (sms as any).contactName || '';
+
+        // If contactName looks like a phone number, treat it as empty
+        // (name will be resolved from contacts map instead)
+        if (contactName && /^[\+\d\s\-\(\)]+$/.test(contactName.trim())) {
+          contactName = '';
+        }
 
         const isActualPhoneNumber = /^[\+\d\s\-\(\)]+$/.test(
           phoneNumber.trim(),
@@ -220,7 +250,7 @@ export const useNotificationsScreen = (
     }
 
     return result;
-  }, [notifications, smsMessages, searchQuery, filterType]);
+  }, [notifications, smsMessages, searchQuery, filterType, contacts]);
 
   // Permission handling
   const checkPermission = useCallback(async () => {
